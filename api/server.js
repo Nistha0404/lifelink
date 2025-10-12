@@ -13,10 +13,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// ---------------------------------
-//  DATABASE CONFIGURATION (UPDATED FOR VERCEL)
-// ---------------------------------
-// ---------------------------------
+
 //  DATABASE CONFIGURATION (UPDATED FOR VERCEL)
 // ---------------------------------
 const pool = new Pool({
@@ -331,6 +328,14 @@ app.get('/requests/history/:patientId', async (req, res) => {
 });
 
 // ==========================================================================
+//  HEALTH CHECK - FOR DEBUGGING
+// ==========================================================================
+app.get('/api/server/health', (req, res) => {
+    res.status(200).json({ status: 'ok', message: 'Server is running' });
+});
+
+// ==========================================================================
 //  EXPORT THE APP FOR VERCEL (UPDATED)
 // ==========================================================================
 module.exports = app;
+
