@@ -7,6 +7,8 @@ const cors = require('cors');
 const path = require('path');
 
 const app = express();
+const otpStore = {}; // <-- ADD THIS LINE
+
 
 // Middleware
 app.use(cors());
