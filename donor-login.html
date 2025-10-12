@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Donor Portal - LifeLink</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <img src="logo.jpeg" alt="LifeLink Logo">
+      <span>LifeLink</span>
+    </div>
+    <nav>
+      <a href="../index.html">Home</a>
+    </nav>
+  </header>
+  <main>
+    <section class="main-card" id="auth-section">
+      <h2>Donor Portal</h2>
+      <div class="tabs">
+        <button id="login-tab-btn" class="active" onclick="showTab('login')">Login</button>
+        <button id="register-tab-btn" onclick="showTab('register')">Register</button>
+      </div>
+
+      <div id="login-tab">
+        <form id="donorLoginForm">
+          <div class="form-group">
+            <label for="loginPhone">Phone Number</label>
+            <input type="tel" id="loginPhone" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" required>
+          </div>
+          <button type="submit" class="btn-primary">Login</button>
+          <a href="#" class="forgot-link" onclick="showTab('forgot')">Forgot Password?</a>
+        </form>
+      </div>
+
+      <div id="register-tab" style="display:none;">
+        <form id="donorRegisterForm">
+          <div class="form-group"><label for="regName">Full Name</label><input type="text" id="regName" required></div>
+          <div class="form-group"><label for="regPhone">Phone Number</label><input type="tel" id="regPhone" required></div>
+          <div class="form-group"><label for="regBloodType">Blood Type</label>
+            <select id="regBloodType" required><option value="">Select</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select>
+          </div>
+          <div class="form-group"><label for="regPincode">Pincode</label><input type="text" id="regPincode" required></div>
+          <div class="form-group"><label for="regPassword">Create Password</label><input type="password" id="regPassword" required></div>
+          <button type="submit" class="btn-primary">Register</button>
+        </form>
+      </div>
+
+      <div id="forgot-tab" style="display:none;">
+        <form id="forgotForm">
+          <p>Enter your phone number to receive a password reset OTP.</p>
+          <div class="form-group"><label for="forgotPhone">Phone Number</label><input type="tel" id="forgotPhone" required></div>
+          <button type="button" class="btn-primary" onclick="handleForgotPassword()">Send OTP</button>
+        </form>
+        <form id="resetForm" style="display:none;">
+           <div class="form-group"><label for="resetOtp">Enter OTP</label><input type="text" id="resetOtp" required></div>
+           <div class="form-group"><label for="newPassword">New Password</label><input type="password" id="newPassword" required></div>
+          <button type="button" class="btn-primary" onclick="handleResetPassword()">Reset Password</button>
+        </form>
+      </div>
+      <p id="message" class="message-area"></p>
+    </section>
+
+    <section class="dashboard-container" id="dashboard-section" style="display:none;">
+        <h2>Welcome, <span id="donor-name"></span>!</h2>
+        </section>
+  </main>
+
+  <script>
+    const messageEl = document.getElementById('message');
+
+    function showTab(tabName) {
+      document.getElementById('login-tab').style.display = 'none';
+      document.getElementById('register-tab').style.display = 'none';
+      document.getElementById('forgot-tab').style.display = 'none';
+      document.getElementById(`${tabName}-tab`).style.display = 'block';
+      document.querySelector('.tabs button.active').classList.remove('active');
+      document.getElementById(`${tabName}-tab-btn`)?.classList.add('active');
+    }
+
+    document.getElementById('donorRegisterForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            fullName: document.getElementById('regName').value,
+            phoneNumber: document.getElementById('regPhone').value,
+            pincode: document.getElementById('regPincode').value,
+            bloodType: document.getElementById('regBloodType').value,
+            password: document.getElementById('regPassword').value
+        };
+        // --- CHANGED THIS LINE ---
+        const response = await fetch('/api/server/register/donor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        messageEl.textContent = result.message;
+        if (result.success) setTimeout(() => showTab('login'), 2000);
+    });
+
+    document.getElementById('donorLoginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            phoneNumber: document.getElementById('loginPhone').value,
+            password: document.getElementById('password').value
+        };
+        // --- CHANGED THIS LINE ---
+        const response = await fetch('/api/server/login/donor', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (result.success) {
+            sessionStorage.setItem('currentDonorName', result.user.fullName);
+            sessionStorage.setItem('currentDonorId', result.user.userId);
+            document.getElementById('auth-section').style.display = 'none';
+            document.getElementById('dashboard-section').style.display = 'block';
+            document.getElementById('donor-name').textContent = result.user.fullName;
+            // Add function here to load dashboard data
+        } else {
+            messageEl.textContent = `Login failed: ${result.message}`;
+        }
+    });
+    
+    async function handleForgotPassword() {
+        const phoneNumber = document.getElementById('forgotPhone').value;
+        // --- CHANGED THIS LINE ---
+        const response = await fetch('/api/server/auth/send-otp', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phoneNumber })
+        });
+        const result = await response.json();
+        messageEl.textContent = result.message;
+        if (result.success) {
+            document.getElementById('forgotForm').style.display = 'none';
+            document.getElementById('resetForm').style.display = 'block';
+        }
+    }
+
+    async function handleResetPassword() {
+        const payload = {
+            phoneNumber: document.getElementById('forgotPhone').value,
+            otp: document.getElementById('resetOtp').value,
+            newPassword: document.getElementById('newPassword').value,
+            userType: 'donor'
+        };
+        // --- CHANGED THIS LINE ---
+        const response = await fetch('/api/server/auth/reset-password', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        messageEl.textContent = result.message;
+        if (result.success) setTimeout(() => showTab('login'), 2000);
+    }
+  </script>
+</body>
+</html>

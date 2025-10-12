@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Patient Portal - LifeLink</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <span>LifeLink</span>
+        </div>
+        <nav><a href="../index.html">Home</a></nav>
+    </header>
+    <main>
+        <section class="main-card">
+            <h2>Patient Portal</h2>
+            <form id="patientAuthForm">
+                <div class="form-group">
+                    <label for="name">Full Name</label>
+                    <input type="text" id="name" placeholder="Enter your full name" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="tel" id="phone" placeholder="Enter 10-digit number" maxlength="10" required>
+                </div>
+                 <div class="form-group">
+                    <label for="pincode">Pincode (for location backup)</label>
+                    <input type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
+                </div>
+                <button type="button" id="getOtpBtn">Get OTP</button>
+                
+                <div id="otpSection" class="hidden">
+                    <div class="form-group">
+                        <label for="otp">Enter OTP</label>
+                        <input type="text" id="otp" placeholder="Enter 4-digit OTP" maxlength="4">
+                    </div>
+                    <button type="button" id="verifyBtn">Verify & Proceed</button>
+                </div>
+            </form>
+            <p id="message" class="message-area"></p>
+        </section>
+    </main>
+    <script>
+        const getOtpBtn = document.getElementById('getOtpBtn');
+        const verifyBtn = document.getElementById('verifyBtn');
+        const messageEl = document.getElementById('message');
+        const nameInput = document.getElementById('name');
+        const phoneInput = document.getElementById('phone');
+        const pincodeInput = document.getElementById('pincode');
+        const otpInput = document.getElementById('otp');
+        const otpSection = document.getElementById('otpSection');
+
+        // --- Event Listeners ---
+        getOtpBtn.addEventListener('click', handleSendOtp);
+        verifyBtn.addEventListener('click', handleVerifyAndLogin);
+
+        // --- Functions ---
+        function getGeolocation() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    return resolve({ latitude: null, longitude: null });
+                }
+                navigator.geolocation.getCurrentPosition(
+                    (position) => resolve({ 
+                        latitude: position.coords.latitude, 
+                        longitude: position.coords.longitude 
+                    }),
+                    () => resolve({ latitude: null, longitude: null }), // On error, resolve with nulls
+                    { timeout: 8000 }
+                );
+            });
+        }
+
+        async function handleSendOtp() {
+            const phoneNumber = phoneInput.value.trim();
+            if (phoneNumber.length !== 10) {
+                messageEl.textContent = 'Please enter a valid 10-digit phone number.';
+                return;
+            }
+            messageEl.textContent = 'Sending...';
+            try {
+                // --- CHANGED THIS LINE ---
+                const response = await fetch('/api/server/send-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert(`Your verification OTP is: ${result.otp}`);
+                    otpSection.classList.remove('hidden');
+                    getOtpBtn.style.display = 'none';
+                    otpInput.focus();
+                } else {
+                    messageEl.textContent = `Error: ${result.message}`;
+                }
+            } catch (error) {
+                messageEl.textContent = 'Could not connect to the server.';
+            }
+        }
+
+        async function handleVerifyAndLogin() {
+            const phoneNumber = phoneInput.value.trim();
+            const fullName = nameInput.value.trim();
+            const pincode = pincodeInput.value.trim();
+            const otp = otpInput.value.trim();
+
+            if (otp.length !== 4 || pincode.length !== 6) {
+                messageEl.textContent = 'Please enter the 4-digit OTP and a 6-digit pincode.';
+                return;
+            }
+
+            messageEl.textContent = 'Verifying and getting location...';
+            verifyBtn.disabled = true;
+
+            const location = await getGeolocation();
+
+            try {
+                // --- CHANGED THIS LINE ---
+                const response = await fetch('/api/server/patient-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        phoneNumber, 
+                        otp, 
+                        fullName, 
+                        pincode,
+                        latitude: location.latitude,
+                        longitude: location.longitude
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    messageEl.style.color = 'green';
+                    messageEl.textContent = `${result.message} Redirecting...`;
+                    sessionStorage.setItem('currentUser', JSON.stringify(result.user));
+                    setTimeout(() => {
+                        window.location.href = 'patient-dashboard.html';
+                    }, 2000);
+                } else {
+                    messageEl.style.color = 'red';
+                    messageEl.textContent = `Error: ${result.message}`;
+                    verifyBtn.disabled = false;
+                }
+
+            } catch (error) {
+                console.error('Error verifying OTP:', error);
+                messageEl.textContent = 'Could not connect to the server.';
+                verifyBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

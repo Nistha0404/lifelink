@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hospital Portal - LifeLink</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <img src="logo.jpeg" alt="LifeLink Logo" height="40">
+      <span>LifeLink</span>
+    </div>
+    <nav>
+      <a href="../index.html">Home</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="login-form">
+      <h2>Hospital Portal</h2>
+      <div class="tabs">
+        <button id="login-tab-btn" class="active" onclick="showTab('login')">Login</button>
+        <button id="register-tab-btn" onclick="showTab('register')">Register</button>
+      </div>
+
+      <div id="login-tab">
+        <form id="hospitalLoginForm">
+          <div class="form-group">
+            <label for="hospitalId">Hospital ID</label>
+            <input type="text" id="hospitalId" placeholder="e.g., HOS101" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter your password" required>
+          </div>
+          <button type="submit" class="btn-primary">Login</button>
+        </form>
+      </div>
+
+      <div id="register-tab" style="display:none;">
+        <form id="hospitalRegisterForm">
+          <div class="form-group">
+            <label for="hospitalName">Hospital Name</label>
+            <input type="text" id="hospitalName" required>
+          </div>
+          <div class="form-group">
+            <label for="address">Full Address</label>
+            <input type="text" id="address" required>
+          </div>
+          <div class="form-group">
+            <label for="pincode">Pincode</label>
+            <input type="text" id="pincode" maxlength="6" required>
+          </div>
+          <div class="form-group">
+            <label for="registerPhone">Contact Phone</label>
+            <input type="tel" id="registerPhone" maxlength="10" required>
+          </div>
+          <div class="form-group">
+            <label for="registerPassword">Create Password</label>
+            <input type="password" id="registerPassword" required>
+          </div>
+          <div class="form-group">
+            <label for="verifyPassword">Verify Password</label>
+            <input type="password" id="verifyPassword" placeholder="Re-enter your password" required>
+          </div>
+          <button type="submit" class="btn-primary">Register</button>
+        </form>
+      </div>
+      <p id="message" style="margin-top: 15px; font-weight: bold;"></p>
+    </section>
+  </main>
+  
+  <script>
+    const loginForm = document.getElementById("hospitalLoginForm");
+    const registerForm = document.getElementById("hospitalRegisterForm");
+    const messageEl = document.getElementById("message");
+
+    function showTab(tabName) {
+      document.getElementById('login-tab').style.display = tabName === 'login' ? 'block' : 'none';
+      document.getElementById('register-tab').style.display = tabName === 'register' ? 'block' : 'none';
+      document.getElementById('login-tab-btn').classList.toggle('active', tabName === 'login');
+      document.getElementById('register-tab-btn').classList.toggle('active', tabName === 'register');
+      messageEl.textContent = '';
+    }
+
+    // --- Registration Logic (MODIFIED) ---
+    registerForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const password = document.getElementById("registerPassword").value;
+        const verifyPassword = document.getElementById("verifyPassword").value;
+
+        // Check if passwords match
+        if (password !== verifyPassword) {
+            messageEl.style.color = 'red'; // Consistent with other error styles
+            messageEl.textContent = 'Passwords do not match.';
+            return;
+        }
+
+        const hospitalData = {
+            hospitalName: document.getElementById("hospitalName").value,
+            address: document.getElementById("address").value,
+            pincode: document.getElementById("pincode").value,
+            phoneNumber: document.getElementById("registerPhone").value,
+            password: password
+        };
+        
+        try {
+            // --- CHANGED THIS LINE ---
+            const response = await fetch('/api/server/hospital-register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(hospitalData)
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`Registration successful! Your new Hospital ID is: ${result.hospitalId}`);
+                messageEl.style.color = 'green';
+                messageEl.textContent = `Registration complete! Your ID is ${result.hospitalId}. Please switch to the login tab.`;
+                showTab('login');
+            } else {
+                messageEl.style.color = 'red';
+                messageEl.textContent = `Registration failed: ${result.message}`;
+            }
+        } catch (error) {
+            console.error('Registration error:', error);
+            messageEl.style.color = 'red';
+            messageEl.textContent = 'Could not connect to the server. Please try again.';
+        }
+    });
+
+    // --- Login Logic (MODIFIED) ---
+    loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const hospitalId = document.getElementById("hospitalId").value;
+        const password = document.getElementById("password").value;
+
+        try {
+            // --- CHANGED THIS LINE ---
+            const response = await fetch('/api/server/hospital-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hospitalId, password })
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                sessionStorage.setItem('currentHospital', JSON.stringify(result.hospital));
+                messageEl.style.color = 'green';
+                messageEl.textContent = 'Login successful! Redirecting...';
+                setTimeout(() => {
+                    window.location.href = "hospital-dashboard.html";
+                }, 1500);
+            } else {
+                messageEl.style.color = 'red';
+                messageEl.textContent = `Login failed: ${result.message}`;
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            messageEl.style.color = 'red';
+            messageEl.textContent = 'Could not connect to the server. Please try again.';
+        }
+    });
+  </script>
+</body>
+</html>

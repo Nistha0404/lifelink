@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard - LifeLink</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <header>
+    <div class="logo"><img src="logo.jpeg" alt="LifeLink Logo"><span>LifeLink</span></div>
+    <nav><a href="#" onclick="sessionStorage.clear(); window.location.href='admin-login.html';">Logout</a></nav>
+  </header>
+  <main>
+    <section class="dashboard-container">
+      <div class="dashboard-header">
+        <h2 id="welcome-message">Coordinator Dashboard</h2>
+      </div>
+      <div class="dashboard-grid">
+        <div class="dashboard-card">
+          <h3>Live SOS Monitor</h3>
+          <ul class="live-sos-list" id="live-sos-list">
+              <li>Loading live requests...</li>
+          </ul>
+        </div>
+        </div>
+    </section>
+  </main>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+        const adminName = sessionStorage.getItem('currentAdminName');
+        if (adminName) {
+            document.getElementById('welcome-message').textContent = `Welcome, ${adminName}!`;
+        } else {
+            // If not logged in, redirect to login page
+            window.location.href = 'admin-login.html';
+        }
+        fetchLiveRequests();
+    });
+
+    async function fetchLiveRequests() {
+        const listEl = document.getElementById('live-sos-list');
+        try {
+            // --- CHANGED THIS LINE ---
+            const response = await fetch('/api/server/requests/live');
+            const requests = await response.json();
+            listEl.innerHTML = ''; // Clear loading message
+            if (requests.length === 0) {
+                listEl.innerHTML = '<li>No active SOS requests at the moment.</li>';
+                return;
+            }
+            requests.forEach(req => {
+                const item = document.createElement('li');
+                item.innerHTML = `<span>Need: <strong>${req.blood_type_needed}</strong></span> at ${req.hospital_name} for ${req.patient_name}`;
+                listEl.appendChild(item);
+            });
+        } catch (error) {
+            listEl.innerHTML = '<li>Error loading live requests.</li>';
+        }
+    }
+  </script>
+</body>
+</html>
