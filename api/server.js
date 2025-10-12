@@ -256,7 +256,7 @@ app.get('/reports/:hospitalId', async (req, res) => {
 // ==========================================================================
 //  SHARED FUNCTIONALITY (SOS & DASHBOARDS)
 // ==========================================================================
-app.post('/request-blood', async (req, res) => {
+app.post('/api/server/request-blood', async (req, res) => {
     const { patientId, bloodType, pincode, latitude, longitude } = req.body;
     if (!patientId || !bloodType || !pincode) {
         return res.status(400).json({ success: false, message: 'Missing required fields.' });
