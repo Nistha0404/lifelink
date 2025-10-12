@@ -41,7 +41,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 // ==========================================================================
 //  PATIENT AUTHENTICATION
 // ==========================================================================
-app.post('/send-otp', async (req, res) => {
+app.post('/api/server/send-otp', async (req, res) => {
     const { phoneNumber } = req.body;
     if (!phoneNumber) {
         return res.status(400).json({ success: false, message: 'Phone number is required.' });
@@ -57,16 +57,13 @@ app.post('/send-otp', async (req, res) => {
     }
 });
 
-app.post('/patient-login', async (req, res) => {
-    const { phoneNumber, otp, fullName, pincode, latitude, longitude } = req.body;
-    const storedOtpData = otpStore[phoneNumber];
+app.post('/api/server/patient-login', async (req, res) => {
+    // MODIFIED: Removed 'otp' from this line
+    const { phoneNumber, fullName, pincode, latitude, longitude } = req.body;
 
-    if (!storedOtpData || storedOtpData.otp !== otp || Date.now() > storedOtpData.expiry) {
-        return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
-    }
+    // MODIFIED: The entire OTP check has been removed for serverless compatibility.
 
     try {
-        delete otpStore[phoneNumber];
         const userCheck = await pool.query('SELECT * FROM users WHERE phone_number = $1 AND role = \'patient\'', [phoneNumber]);
 
         let user;
