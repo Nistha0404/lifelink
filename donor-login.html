@@ -23,8 +23,9 @@
         <button id="register-tab-btn" onclick="showTab('register')">Register</button>
       </div>
 
+      <!-- Login Tab -->
       <div id="login-tab">
-        <form id="donorLoginForm">
+        <form id="donorLoginForm" onsubmit="handleLogin(event)">
           <div class="form-group">
             <label for="loginPhone">Phone Number</label>
             <input type="tel" id="loginPhone" placeholder="Enter 10-digit number" required>
@@ -38,28 +39,15 @@
         </form>
       </div>
 
+      <!-- Register Tab -->
       <div id="register-tab" style="display:none;">
-        <form id="donorRegisterForm">
+        <form id="donorRegisterForm" onsubmit="handleRegistration(event)">
           <div class="form-group"><label for="regName">Full Name</label><input type="text" id="regName" required></div>
-          <div class="form-group">
-            <label for="regBloodType">Blood Type</label>
-            <select id="regBloodType" required>
-                <option value="" disabled selected>Select your blood type</option>
-                <option value="A+">A+</option>
-                <option value="A-">A-</option>
-                <option value="B+">B+</option>
-                <option value="B-">B-</option>
-                <option value="AB+">AB+</option>
-                <option value="AB-">AB-</option>
-                <option value="O+">O+</option>
-                <option value="O-">O-</option>
-            </select>
-          </div>
-          <div class="form-group"><label for="regPincode">Pincode</label><input type="text" id="regPincode" required></div>
-          <div class="form-group"><label for="regAddress">Address</label><input type="text" id="regAddress" required></div>
           <div class="form-group"><label for="regPhone">Phone Number</label><input type="tel" id="regPhone" required></div>
-          <input type="hidden" id="latitude"><input type="hidden" id="longitude">
-          <button type="button" class="btn-secondary" onclick="getGeolocation()">Grant Geolocation Permission</button>
+          <div class="form-group"><label for="regBloodType">Blood Type</label>
+            <select id="regBloodType" required><option value="" disabled selected>Select</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select>
+          </div>
+          <div class="form-group"><label for="regPincode">Pincode</label><input type="text" id="regPincode"></div>
           <button type="button" class="btn-primary" onclick="generateRegisterOtp()">Register</button>
           
           <div class="form-group" id="registerOtpGroup" style="display:none;">
@@ -83,64 +71,57 @@
       document.getElementById(`${tabName}-tab`).style.display = 'block';
       document.getElementById(`${tabName}-tab-btn`).classList.add('active');
       messageEl.textContent = '';
+      messageEl.className = 'message-area';
     }
 
-    function getGeolocation() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(position => {
-                document.getElementById('latitude').value = position.coords.latitude;
-                document.getElementById('longitude').value = position.coords.longitude;
-                messageEl.textContent = 'Geolocation captured successfully!';
-                messageEl.className = 'message-success';
-            }, () => {
-                messageEl.textContent = 'Geolocation permission denied. Please enter details manually.';
-                messageEl.className = 'message-error';
-            });
-        } else {
-            messageEl.textContent = 'Geolocation is not supported by this browser.';
-        }
-    }
-
+    // --- LOGIN FUNCTIONS ---
     async function generateLoginOtp() {
-        const phoneNumber = document.getElementById('loginPhone').value;
-        if (!phoneNumber) { messageEl.textContent = 'Please enter a phone number.'; return; }
+      const phoneNumber = document.getElementById('loginPhone').value;
+      if (!phoneNumber) { messageEl.textContent = 'Please enter a phone number.'; return; }
+      messageEl.textContent = 'Generating OTP...';
+      
+      const response = await fetch('/api/server/donor/generate-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber })
+      });
+      const result = await response.json();
+      messageEl.textContent = result.message;
 
-        const response = await fetch('/api/donor/generate-otp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phoneNumber })
-        });
-        const result = await response.json();
-        messageEl.textContent = result.message;
-        if (result.success) {
-            alert(`Your OTP is: ${result.otp}`); // Display OTP
-            document.getElementById('loginOtpGroup').style.display = 'block';
-        } else {
-             messageEl.className = 'message-error';
-        }
+      if (result.success) {
+          messageEl.className = 'message-area message-success';
+          alert(`Your Login OTP is: ${result.otp}`);
+          document.getElementById('loginOtpGroup').style.display = 'block';
+      } else {
+          messageEl.className = 'message-area message-error';
+      }
     }
 
-    document.getElementById('donorLoginForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
+    async function handleLogin(event) {
+        event.preventDefault();
         const payload = {
             phoneNumber: document.getElementById('loginPhone').value,
             otp: document.getElementById('loginOtp').value
         };
-        const response = await fetch('/api/donor/login', {
+        const response = await fetch('/api/server/donor/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         const result = await response.json();
+        messageEl.textContent = result.message;
+
         if (result.success) {
+            messageEl.className = 'message-area message-success';
+            alert('Login Successful!');
             sessionStorage.setItem('donorInfo', JSON.stringify(result.user));
             window.location.href = './donor-dashboard.html';
         } else {
-            messageEl.textContent = `Login failed: ${result.message}`;
-            messageEl.className = 'message-error';
+            messageEl.className = 'message-area message-error';
         }
-    });
+    }
     
+    // --- REGISTRATION FUNCTIONS ---
     async function generateRegisterOtp() {
         const form = document.getElementById('donorRegisterForm');
         if (!form.checkValidity()) {
@@ -148,45 +129,50 @@
             return;
         }
         const phoneNumber = document.getElementById('regPhone').value;
-        const response = await fetch('/api/donor/register-request', {
+        messageEl.textContent = 'Requesting OTP...';
+
+        const response = await fetch('/api/server/donor/register-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phoneNumber })
         });
         const result = await response.json();
         messageEl.textContent = result.message;
+        
         if (result.success) {
-            alert(`Your registration OTP is: ${result.otp}`);
+            messageEl.className = 'message-area message-success';
+            alert(`Your Registration OTP is: ${result.otp}`);
             document.getElementById('registerOtpGroup').style.display = 'block';
+        } else {
+            messageEl.className = 'message-area message-error';
         }
     }
 
-    document.getElementById('donorRegisterForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
+    async function handleRegistration(event) {
+        event.preventDefault();
         const payload = {
             fullName: document.getElementById('regName').value,
-            bloodType: document.getElementById('regBloodType').value, // <-- CAPTURE BLOOD TYPE
-            pincode: document.getElementById('regPincode').value,
-            address: document.getElementById('regAddress').value,
             phoneNumber: document.getElementById('regPhone').value,
-            latitude: document.getElementById('latitude').value,
-            longitude: document.getElementById('longitude').value,
+            pincode: document.getElementById('regPincode').value,
+            bloodType: document.getElementById('regBloodType').value,
             otp: document.getElementById('registerOtp').value
         };
-        const response = await fetch('/api/donor/register-confirm', {
+        const response = await fetch('/api/server/donor/register-confirm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
         const result = await response.json();
         messageEl.textContent = result.message;
+
         if (result.success) {
+            messageEl.className = 'message-area message-success';
             alert('Registered successfully! Please login.');
             setTimeout(() => showTab('login'), 2000);
         } else {
-             messageEl.className = 'message-error';
+            messageEl.className = 'message-area message-error';
         }
-    });
+    }
   </script>
 </body>
 </html>

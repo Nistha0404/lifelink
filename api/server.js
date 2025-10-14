@@ -308,81 +308,95 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
 
 
 // ==========================================================================
-//  DONOR AUTHENTICATION & MANAGEMENT (NEW SECTION)
+//  DONOR OTP AUTHENTICATION (ALERT-BASED)
 // ==========================================================================
 
-// Endpoint to generate OTP for existing user login
-app.post('/api/donor/generate-otp', (req, res) => {
+// Endpoint to generate OTP for an existing donor to log in
+app.post('/api/server/donor/generate-otp', async (req, res) => {
     const { phoneNumber } = req.body;
-    const userExists = donorsDB.find(d => d.phoneNumber === phoneNumber);
-
-    if (!userExists) {
-        return res.status(404).json({ success: false, message: 'Not a user. Register first.' });
+    try {
+        const userCheck = await pool.query("SELECT user_id FROM users WHERE phone_number = $1 AND role = 'donor'", [phoneNumber]);
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Not a registered donor. Please register first.' });
+        }
+        
+        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+        otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 }; // OTP valid for 5 mins
+        console.log(`Generated Login OTP for donor ${phoneNumber}: ${otp}`);
+        
+        // Return OTP in response so the alert on the frontend can show it
+        res.status(200).json({ success: true, message: 'OTP generated successfully.', otp });
+    } catch (error) {
+        console.error('Donor login OTP error:', error);
+        res.status(500).json({ success: false, message: 'Server error.' });
     }
-    
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    donorOtpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 }; // OTP valid for 5 mins
-    console.log(`Generated Login OTP for ${phoneNumber}: ${otp}`);
-    
-    // In a real app, you would send this via SMS. Here we return it.
-    res.status(200).json({ success: true, message: 'OTP generated successfully.', otp });
 });
 
-// Endpoint for donor login with OTP
-app.post('/api/donor/login', (req, res) => {
+// Endpoint to log a donor in using the OTP
+app.post('/api/server/donor/login', async (req, res) => {
     const { phoneNumber, otp } = req.body;
-    const storedOtp = donorOtpStore[phoneNumber];
+    const storedOtp = otpStore[phoneNumber];
 
     if (storedOtp && storedOtp.otp === otp && Date.now() < storedOtp.expiry) {
-        const user = donorsDB.find(d => d.phoneNumber === phoneNumber);
-        delete donorOtpStore[phoneNumber]; // OTP used, so delete it
-        res.status(200).json({ success: true, message: 'Login successful!', user });
+        try {
+            const result = await pool.query("SELECT user_id, full_name, phone_number, pincode, blood_type, role FROM users WHERE phone_number = $1 AND role = 'donor'", [phoneNumber]);
+            const user = result.rows[0];
+            
+            delete otpStore[phoneNumber]; // OTP is used, so delete it
+            res.status(200).json({ success: true, message: 'Login successful!', user: user });
+        } catch (error) {
+            console.error('Database error during donor login:', error);
+            res.status(500).json({ success: false, message: 'Database error during login.' });
+        }
     } else {
         res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
     }
 });
 
-// Endpoint to request an OTP for registration
-app.post('/api/donor/register-request', (req, res) => {
+// Endpoint to request an OTP for a new registration
+app.post('/api/server/donor/register-request', async (req, res) => {
     const { phoneNumber } = req.body;
-     const userExists = donorsDB.find(d => d.phoneNumber === phoneNumber);
-    if (userExists) {
-        return res.status(409).json({ success: false, message: 'This phone number is already registered.' });
+    try {
+        const userExists = await pool.query('SELECT user_id FROM users WHERE phone_number = $1', [phoneNumber]);
+        if (userExists.rows.length > 0) {
+            return res.status(409).json({ success: false, message: 'This phone number is already registered.' });
+        }
+        
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
+        console.log(`Generated Register OTP for donor ${phoneNumber}: ${otp}`);
+        
+        res.status(200).json({ success: true, message: 'OTP sent for registration.', otp });
+    } catch (error) {
+        console.error('Donor registration request error:', error);
+        res.status(500).json({ success: false, message: 'Server error.' });
     }
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    donorOtpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
-    console.log(`Generated Register OTP for ${phoneNumber}: ${otp}`);
-    
-    res.status(200).json({ success: true, message: 'OTP sent for registration.', otp });
 });
 
-
-// Endpoint to confirm registration with OTP
-app.post('/api/donor/register-confirm', (req, res) => {
-    const { phoneNumber, otp, fullName, pincode, address, latitude, longitude } = req.body;
-    const storedOtp = donorOtpStore[phoneNumber];
+// Endpoint to confirm registration with OTP and create the user
+app.post('/api/server/donor/register-confirm', async (req, res) => {
+    const { fullName, phoneNumber, pincode, bloodType, otp } = req.body;
+    const storedOtp = otpStore[phoneNumber];
     
     if (storedOtp && storedOtp.otp === otp && Date.now() < storedOtp.expiry) {
-        const newUser = {
-            userId: `DON${Date.now()}`,
-            fullName,
-            phoneNumber,
-            pincode,
-            address,
-            bloodType: ['A+', 'O-', 'B+', 'AB+', 'A-', 'O+', 'B-', 'AB-'][Math.floor(Math.random() * 8)], // Assign random blood type
-            location: { lat: latitude, lon: longitude },
-            reliabilityScore: 75, // Starting score
-            createdAt: new Date().toISOString()
-        };
-        donorsDB.push(newUser);
-        delete donorOtpStore[phoneNumber];
-        console.log('New donor registered:', newUser);
-        res.status(201).json({ success: true, message: 'Registration successful!' });
+        try {
+            const newUserQuery = `
+                INSERT INTO users (full_name, phone_number, pincode, blood_type, role)
+                VALUES ($1, $2, $3, $4, 'donor') RETURNING user_id;
+            `;
+            await pool.query(newUserQuery, [fullName, phoneNumber, pincode, bloodType]);
+            
+            delete otpStore[phoneNumber];
+            res.status(201).json({ success: true, message: 'Registration successful!' });
+        } catch (error) {
+            console.error('Donor registration confirmation error:', error);
+            res.status(500).json({ success: false, message: 'Database error during registration.' });
+        }
     } else {
         res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
     }
 });
+
 
 
 // ==========================================================================
