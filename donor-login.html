@@ -4,14 +4,6 @@
   <meta charset="UTF-8">
   <title>Donor Portal - LifeLink</title>
   <link rel="stylesheet" href="../style.css">
-  <style>
-    /* You can remove the button styles if they are no longer used elsewhere */
-    .button-group { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
-    .btn-outline { background-color: #fff; border: 1px solid #ccc; padding: 0.5rem 1rem; border-radius: 20px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s ease-in-out; }
-    .btn-outline.active { background-color: #c8102e; color: #fff; border-color: #c8102e; font-weight: bold; }
-    .btn-outline:hover { background-color: #f1f1f1; }
-    .btn-outline.active:hover { background-color: #a80d26; }
-  </style>
 </head>
 <body>
   <header>
@@ -36,12 +28,12 @@
         <form id="donorLoginForm" onsubmit="handleLogin(event)">
           <div class="form-group">
             <label for="loginPhone">Phone Number</label>
-            <input type="tel" id="loginPhone" placeholder="Enter 10-digit number" required>
+            <input type="tel" id="loginPhone" placeholder="Enter 10-digit number">
           </div>
           <button type="button" class="btn-primary" onclick="generateLoginOtp()">Generate OTP</button>
           <div class="form-group" id="loginOtpGroup" style="display:none;">
             <label for="loginOtp">OTP</label>
-            <input type="text" id="loginOtp" placeholder="Enter 6-digit OTP" required>
+            <input type="text" id="loginOtp" placeholder="Enter 6-digit OTP">
             <button type="submit" class="btn-primary">Login</button>
           </div>
         </form>
@@ -50,22 +42,18 @@
       <!-- Register Tab with OTP -->
       <div id="register-tab" style="display:none;">
         <form id="donorRegisterForm" onsubmit="handleRegistration(event)">
-          <div class="form-group"><label for="regName">Full Name</label><input type="text" id="regName" required></div>
-          <div class="form-group"><label for="regPhone">Phone Number</label><input type="tel" id="regPhone" required></div>
-          
-          <!-- =================== NEW TEXT INPUT FOR BLOOD TYPE =================== -->
+          <div class="form-group"><label for="regName">Full Name</label><input type="text" id="regName"></div>
+          <div class="form-group"><label for="regPhone">Phone Number</label><input type="tel" id="regPhone"></div>
           <div class="form-group">
             <label for="regBloodType">Blood Type</label>
-            <input type="text" id="regBloodType" name="bloodType" placeholder="e.g., A+, o-, ab+" required>
+            <input type="text" id="regBloodType" name="bloodType" placeholder="e.g., A+, o-, ab+">
           </div>
-          <!-- ======================= END OF NEW INPUT ======================= -->
-          
           <div class="form-group"><label for="regPincode">Pincode</label><input type="text" id="regPincode"></div>
           <button type="button" class="btn-primary" onclick="generateRegisterOtp()">Register</button>
           
           <div class="form-group" id="registerOtpGroup" style="display:none;">
             <label for="registerOtp">OTP</label>
-            <input type="text" id="registerOtp" placeholder="Enter 6-digit OTP" required>
+            <input type="text" id="registerOtp" placeholder="Enter 6-digit OTP">
             <button type="submit" class="btn-primary">Confirm Registration</button>
           </div>
         </form>
@@ -84,12 +72,16 @@
       document.getElementById(`${tabName}-tab`).style.display = 'block';
       document.getElementById(`${tabName}-tab-btn`).classList.add('active');
       messageEl.textContent = '';
+      messageEl.className = 'message-area';
     }
 
-    // --- LOGIN FUNCTIONS (No changes) ---
+    // --- LOGIN FUNCTIONS ---
     async function generateLoginOtp() {
-      const phoneNumber = document.getElementById('loginPhone').value;
-      if (!phoneNumber) { messageEl.textContent = 'Please enter a phone number.'; return; }
+      const phoneNumber = document.getElementById('loginPhone').value.trim();
+      if (!phoneNumber) {
+          messageEl.textContent = 'Please enter your phone number.';
+          return;
+      }
       messageEl.textContent = 'Generating OTP...';
       const response = await fetch('/api/server/donor/generate-otp', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phoneNumber })
@@ -107,12 +99,14 @@
 
     async function handleLogin(event) {
         event.preventDefault();
-        const payload = {
-            phoneNumber: document.getElementById('loginPhone').value,
-            otp: document.getElementById('loginOtp').value
-        };
+        const phoneNumber = document.getElementById('loginPhone').value.trim();
+        const otp = document.getElementById('loginOtp').value.trim();
+        if(!phoneNumber || !otp) {
+            messageEl.textContent = 'Please enter phone number and OTP.';
+            return;
+        }
         const response = await fetch('/api/server/donor/login', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phoneNumber, otp })
         });
         const result = await response.json();
         if (result.success) {
@@ -125,31 +119,38 @@
         }
     }
     
-    // --- REGISTRATION FUNCTIONS (UPDATED) ---
+    // --- REGISTRATION FUNCTIONS (MANUAL VALIDATION) ---
     async function generateRegisterOtp() {
-        const form = document.getElementById('donorRegisterForm');
-        if (!form.checkValidity()) {
-            messageEl.textContent = 'Please fill out all required fields.';
-            return;
-        }
-
-        // --- NEW: CUSTOM BLOOD TYPE VALIDATION LOGIC ---
+        messageEl.className = 'message-area message-error'; // Default to error style for messages
+        const fullName = document.getElementById('regName').value.trim();
+        const phoneNumber = document.getElementById('regPhone').value.trim();
         const bloodTypeInput = document.getElementById('regBloodType');
-        const bloodTypeValue = bloodTypeInput.value.trim().toUpperCase();
-        
-        // Regex to check for A, B, AB, O followed by + or -
-        const validBloodTypeRegex = /^(A|B|AB|O)[+-]$/;
+        const bloodTypeValue = bloodTypeInput.value.trim();
 
-        if (!validBloodTypeRegex.test(bloodTypeValue)) {
-            messageEl.textContent = 'Invalid Blood Type. Please use format like A+, O-, or AB+.';
-            messageEl.className = 'message-area message-error';
+        // Step-by-step manual validation
+        if (!fullName) {
+            messageEl.textContent = 'Please enter your full name.';
             return;
         }
-        // --- END OF VALIDATION LOGIC ---
+        if (!phoneNumber) {
+            messageEl.textContent = 'Please enter your phone number.';
+            return;
+        }
+        if (!bloodTypeValue) {
+            messageEl.textContent = 'Please enter your blood type.';
+            return;
+        }
 
-        // If validation passes, proceed with OTP generation
-        const phoneNumber = document.getElementById('regPhone').value;
+        // Custom blood type format validation (now case-insensitive)
+        const validBloodTypeRegex = /^(A|B|AB|O)[+-]$/i;
+        if (!validBloodTypeRegex.test(bloodTypeValue)) {
+            messageEl.textContent = 'Invalid Blood Type. Please use format like A+, o-, or AB+.';
+            return;
+        }
+
+        // If all checks pass, proceed with OTP generation
         messageEl.textContent = 'Requesting OTP...';
+        messageEl.className = 'message-area';
         const response = await fetch('/api/server/donor/register-request', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phoneNumber })
         });
@@ -166,23 +167,21 @@
 
     async function handleRegistration(event) {
         event.preventDefault();
-        const bloodTypeInput = document.getElementById('regBloodType');
-        
-        // Final format check before sending to server
-        const bloodTypeValue = bloodTypeInput.value.trim().toUpperCase();
-        const validBloodTypeRegex = /^(A|B|AB|O)[+-]$/;
-        if (!validBloodTypeRegex.test(bloodTypeValue)) {
-             messageEl.textContent = 'Invalid Blood Type. Please use format like A+, O-, or AB+.';
-             messageEl.className = 'message-area message-error';
-             return;
+        const otp = document.getElementById('registerOtp').value.trim();
+        if (!otp) {
+            messageEl.textContent = 'Please enter the OTP you received.';
+            messageEl.className = 'message-area message-error';
+            return;
         }
+        
+        const bloodTypeValue = document.getElementById('regBloodType').value.trim().toUpperCase();
 
         const payload = {
-            fullName: document.getElementById('regName').value,
-            phoneNumber: document.getElementById('regPhone').value,
-            pincode: document.getElementById('regPincode').value,
-            bloodType: bloodTypeValue, // Send the cleaned, uppercase value
-            otp: document.getElementById('registerOtp').value
+            fullName: document.getElementById('regName').value.trim(),
+            phoneNumber: document.getElementById('regPhone').value.trim(),
+            pincode: document.getElementById('regPincode').value.trim(),
+            bloodType: bloodTypeValue,
+            otp: otp
         };
 
         const response = await fetch('/api/server/donor/register-confirm', {
