@@ -5,34 +5,12 @@
   <title>Donor Portal - LifeLink</title>
   <link rel="stylesheet" href="../style.css">
   <style>
-    /* Styles for the new blood type button selector */
-    .button-group {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        margin-top: 0.5rem;
-    }
-    .btn-outline {
-        background-color: #fff;
-        border: 1px solid #ccc;
-        padding: 0.5rem 1rem;
-        border-radius: 20px; /* Rounded buttons */
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: all 0.2s ease-in-out;
-    }
-    .btn-outline.active {
-        background-color: #c8102e; /* Primary red from your theme */
-        color: #fff;
-        border-color: #c8102e;
-        font-weight: bold;
-    }
-    .btn-outline:hover {
-        background-color: #f1f1f1;
-    }
-    .btn-outline.active:hover {
-        background-color: #a80d26; /* Darker red on hover */
-    }
+    /* You can remove the button styles if they are no longer used elsewhere */
+    .button-group { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+    .btn-outline { background-color: #fff; border: 1px solid #ccc; padding: 0.5rem 1rem; border-radius: 20px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s ease-in-out; }
+    .btn-outline.active { background-color: #c8102e; color: #fff; border-color: #c8102e; font-weight: bold; }
+    .btn-outline:hover { background-color: #f1f1f1; }
+    .btn-outline.active:hover { background-color: #a80d26; }
   </style>
 </head>
 <body>
@@ -75,23 +53,12 @@
           <div class="form-group"><label for="regName">Full Name</label><input type="text" id="regName" required></div>
           <div class="form-group"><label for="regPhone">Phone Number</label><input type="tel" id="regPhone" required></div>
           
-          <!-- =================== NEW BUTTON-BASED SELECTOR =================== -->
+          <!-- =================== NEW TEXT INPUT FOR BLOOD TYPE =================== -->
           <div class="form-group">
-            <label>Blood Type</label>
-            <div id="blood-type-selector" class="button-group">
-                <button type="button" class="btn-outline">A+</button>
-                <button type="button" class="btn-outline">A-</button>
-                <button type="button" class="btn-outline">B+</button>
-                <button type="button" class="btn-outline">B-</button>
-                <button type="button" class="btn-outline">AB+</button>
-                <button type="button" class="btn-outline">AB-</button>
-                <button type="button" class="btn-outline">O+</button>
-                <button type="button" class="btn-outline">O-</button>
-            </div>
-            <!-- Hidden input to store the value for the form -->
-            <input type="hidden" id="regBloodType" name="bloodType" required>
+            <label for="regBloodType">Blood Type</label>
+            <input type="text" id="regBloodType" name="bloodType" placeholder="e.g., A+, o-, ab+" required>
           </div>
-          <!-- ======================= END OF NEW SELECTOR ======================= -->
+          <!-- ======================= END OF NEW INPUT ======================= -->
           
           <div class="form-group"><label for="regPincode">Pincode</label><input type="text" id="regPincode"></div>
           <button type="button" class="btn-primary" onclick="generateRegisterOtp()">Register</button>
@@ -118,21 +85,6 @@
       document.getElementById(`${tabName}-tab-btn`).classList.add('active');
       messageEl.textContent = '';
     }
-
-    // --- NEW: LOGIC FOR BLOOD TYPE BUTTONS ---
-    const bloodTypeSelector = document.getElementById('blood-type-selector');
-    const bloodTypeInput = document.getElementById('regBloodType');
-
-    bloodTypeSelector.addEventListener('click', (e) => {
-        if (e.target.tagName === 'BUTTON') {
-            // Remove active class from all buttons
-            bloodTypeSelector.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
-            // Add active class to the one that was clicked
-            e.target.classList.add('active');
-            // Set the value of the hidden input field
-            bloodTypeInput.value = e.target.textContent;
-        }
-    });
 
     // --- LOGIN FUNCTIONS (No changes) ---
     async function generateLoginOtp() {
@@ -173,14 +125,29 @@
         }
     }
     
-    // --- REGISTRATION FUNCTIONS (No changes needed here either) ---
+    // --- REGISTRATION FUNCTIONS (UPDATED) ---
     async function generateRegisterOtp() {
         const form = document.getElementById('donorRegisterForm');
-        // This check will now work correctly because the hidden input gets a value
         if (!form.checkValidity()) {
-            messageEl.textContent = 'Please fill out all required fields, including blood type.';
+            messageEl.textContent = 'Please fill out all required fields.';
             return;
         }
+
+        // --- NEW: CUSTOM BLOOD TYPE VALIDATION LOGIC ---
+        const bloodTypeInput = document.getElementById('regBloodType');
+        const bloodTypeValue = bloodTypeInput.value.trim().toUpperCase();
+        
+        // Regex to check for A, B, AB, O followed by + or -
+        const validBloodTypeRegex = /^(A|B|AB|O)[+-]$/;
+
+        if (!validBloodTypeRegex.test(bloodTypeValue)) {
+            messageEl.textContent = 'Invalid Blood Type. Please use format like A+, O-, or AB+.';
+            messageEl.className = 'message-area message-error';
+            return;
+        }
+        // --- END OF VALIDATION LOGIC ---
+
+        // If validation passes, proceed with OTP generation
         const phoneNumber = document.getElementById('regPhone').value;
         messageEl.textContent = 'Requesting OTP...';
         const response = await fetch('/api/server/donor/register-request', {
@@ -199,13 +166,25 @@
 
     async function handleRegistration(event) {
         event.preventDefault();
+        const bloodTypeInput = document.getElementById('regBloodType');
+        
+        // Final format check before sending to server
+        const bloodTypeValue = bloodTypeInput.value.trim().toUpperCase();
+        const validBloodTypeRegex = /^(A|B|AB|O)[+-]$/;
+        if (!validBloodTypeRegex.test(bloodTypeValue)) {
+             messageEl.textContent = 'Invalid Blood Type. Please use format like A+, O-, or AB+.';
+             messageEl.className = 'message-area message-error';
+             return;
+        }
+
         const payload = {
             fullName: document.getElementById('regName').value,
             phoneNumber: document.getElementById('regPhone').value,
             pincode: document.getElementById('regPincode').value,
-            bloodType: document.getElementById('regBloodType').value, // Reads from the hidden input
+            bloodType: bloodTypeValue, // Send the cleaned, uppercase value
             otp: document.getElementById('registerOtp').value
         };
+
         const response = await fetch('/api/server/donor/register-confirm', {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         });
