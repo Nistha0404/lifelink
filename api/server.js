@@ -9,6 +9,14 @@ const path = require('path');
 const app = express();
 const otpStore = {};
 
+const donorOtpStore = {}; // Use a separate store for donor OTPs
+let donorsDB = []; // In-memory donor database
+let hospitalsDB = [ // In-memory hospital database for simulation
+    { id: 'HOS101', name: 'City Central Hospital', pincode: '147001', address: '123 Mall Road, Patiala', location: { lat: 30.3398, lon: 76.3869 }, stock: {'O+': 5, 'A+': 10} },
+    { id: 'HOS102', name: 'Rajindra Hospital', pincode: '147004', address: '456 Leela Bhawan, Patiala', location: { lat: 30.3213, lon: 76.4055 }, stock: {'B-': 2, 'AB+': 8} },
+    { id: 'HOS103', name: 'General Hospital Sector 22', pincode: '160022', address: '789 Sector 22, Chandigarh', location: { lat: 30.7415, lon: 76.7681 }, stock: {'O-': 0, 'A+': 3} },
+];
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -297,6 +305,186 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
         res.status(500).json([]);
     }
 });
+
+
+// ==========================================================================
+//  DONOR AUTHENTICATION & MANAGEMENT (NEW SECTION)
+// ==========================================================================
+
+// Endpoint to generate OTP for existing user login
+app.post('/api/donor/generate-otp', (req, res) => {
+    const { phoneNumber } = req.body;
+    const userExists = donorsDB.find(d => d.phoneNumber === phoneNumber);
+
+    if (!userExists) {
+        return res.status(404).json({ success: false, message: 'Not a user. Register first.' });
+    }
+    
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    donorOtpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 }; // OTP valid for 5 mins
+    console.log(`Generated Login OTP for ${phoneNumber}: ${otp}`);
+    
+    // In a real app, you would send this via SMS. Here we return it.
+    res.status(200).json({ success: true, message: 'OTP generated successfully.', otp });
+});
+
+// Endpoint for donor login with OTP
+app.post('/api/donor/login', (req, res) => {
+    const { phoneNumber, otp } = req.body;
+    const storedOtp = donorOtpStore[phoneNumber];
+
+    if (storedOtp && storedOtp.otp === otp && Date.now() < storedOtp.expiry) {
+        const user = donorsDB.find(d => d.phoneNumber === phoneNumber);
+        delete donorOtpStore[phoneNumber]; // OTP used, so delete it
+        res.status(200).json({ success: true, message: 'Login successful!', user });
+    } else {
+        res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
+    }
+});
+
+// Endpoint to request an OTP for registration
+app.post('/api/donor/register-request', (req, res) => {
+    const { phoneNumber } = req.body;
+     const userExists = donorsDB.find(d => d.phoneNumber === phoneNumber);
+    if (userExists) {
+        return res.status(409).json({ success: false, message: 'This phone number is already registered.' });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    donorOtpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
+    console.log(`Generated Register OTP for ${phoneNumber}: ${otp}`);
+    
+    res.status(200).json({ success: true, message: 'OTP sent for registration.', otp });
+});
+
+
+// Endpoint to confirm registration with OTP
+app.post('/api/donor/register-confirm', (req, res) => {
+    const { phoneNumber, otp, fullName, pincode, address, latitude, longitude } = req.body;
+    const storedOtp = donorOtpStore[phoneNumber];
+    
+    if (storedOtp && storedOtp.otp === otp && Date.now() < storedOtp.expiry) {
+        const newUser = {
+            userId: `DON${Date.now()}`,
+            fullName,
+            phoneNumber,
+            pincode,
+            address,
+            bloodType: ['A+', 'O-', 'B+', 'AB+', 'A-', 'O+', 'B-', 'AB-'][Math.floor(Math.random() * 8)], // Assign random blood type
+            location: { lat: latitude, lon: longitude },
+            reliabilityScore: 75, // Starting score
+            createdAt: new Date().toISOString()
+        };
+        donorsDB.push(newUser);
+        delete donorOtpStore[phoneNumber];
+        console.log('New donor registered:', newUser);
+        res.status(201).json({ success: true, message: 'Registration successful!' });
+    } else {
+        res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
+    }
+});
+
+
+// ==========================================================================
+//  DONOR DASHBOARD FUNCTIONALITY (NEW SECTION)
+// ==========================================================================
+
+// Endpoint to get the nearest hospital for ETA card
+app.get('/api/hospitals/nearest', (req, res) => {
+    const { lat, lon, bloodType } = req.query;
+    if (!lat || !lon) {
+        return res.status(400).json({ success: false, message: 'Current location is required.' });
+    }
+
+    let closestHospital = null;
+    let minDistance = Infinity;
+
+    hospitalsDB.forEach(hospital => {
+        // Simple logic: prioritize hospitals with low stock of the required blood type
+        const needsBlood = hospital.stock[bloodType] !== undefined && hospital.stock[bloodType] < 5;
+        if (needsBlood) {
+            const distance = calculateDistance(lat, lon, hospital.location.lat, hospital.location.lon);
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestHospital = hospital;
+            }
+        }
+    });
+
+    if (closestHospital) {
+        res.json({ success: true, hospital: { ...closestHospital, distance: minDistance } });
+    } else {
+        res.status(404).json({ success: false, message: 'No hospitals urgently need your blood type nearby.' });
+    }
+});
+
+// Endpoint to schedule a casual donation
+app.post('/api/donor/schedule-donation', (req, res) => {
+    const { pincode, bloodType } = req.body;
+    // Find a hospital in the same pincode
+    const suitableHospital = hospitalsDB.find(h => h.pincode === pincode);
+
+    if (suitableHospital) {
+        console.log(`Donation scheduled for ${bloodType} at ${suitableHospital.name}`);
+        res.json({ success: true, hospital: suitableHospital });
+    } else {
+        res.status(404).json({ success: false, message: `No hospitals found in pincode ${pincode}.` });
+    }
+});
+
+// Endpoint to get a donor's reliability score
+app.get('/api/donor/score/:userId', (req, res) => {
+    const { userId } = req.params;
+    const donor = donorsDB.find(d => d.userId === userId);
+    if (donor) {
+        res.json({ success: true, score: donor.reliabilityScore });
+    } else {
+        res.status(404).json({ success: false, message: 'Donor not found.' });
+    }
+});
+
+
+/*
+// --- REAL-TIME SOS WITH WEBSOCKETS (Concept) ---
+// To implement this fully, you would need a WebSocket library like 'ws' or 'socket.io'
+// 1. Setup WebSocket server:
+const WebSocket = require('ws');
+const wss = new WebSocket.Server({ server: your_http_server });
+
+wss.on('connection', ws => {
+    console.log('Client connected for real-time updates');
+    // You could associate ws with a donorId or location here
+});
+
+// 2. When an SOS is created (e.g., in /api/server/hospital-sos):
+// Instead of just saving to DB, you would also broadcast:
+function broadcastSOS(sosRequest) {
+    const payload = JSON.stringify({ type: 'SOS_ALERT', data: sosRequest });
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            // Add logic here to only send to relevant donors (e.g., by location)
+            client.send(payload);
+        }
+    });
+}
+
+// 3. On the donor-dashboard.html frontend:
+const socket = new WebSocket('ws://your-server-url');
+socket.onmessage = event => {
+    const message = JSON.parse(event.data);
+    if (message.type === 'SOS_ALERT') {
+        // Trigger the SOS modal automatically
+        openModal('sosModal');
+    }
+};
+*/
+
+
+
+
+
+
+
 
 // ==========================================================================
 //  HEALTH CHECK - FOR DEBUGGING

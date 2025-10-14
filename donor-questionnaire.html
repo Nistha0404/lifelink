@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Donor Eligibility - LifeLink</title>
+    <link rel="stylesheet" href="../style.css">
+    <style>
+        .question-group { margin-bottom: 1.5rem; }
+        .question-group p { font-weight: bold; margin-bottom: 0.5rem; }
+        .radio-label { margin-right: 1rem; }
+        #eligibility-message { margin-top: 1.5rem; font-weight: bold; }
+        .message-error { color: #D8000C; }
+        .btn-secondary { background-color: #6c757d; }
+        .btn-secondary:hover { background-color: #5a6268; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <img src="../logo.jpeg" alt="LifeLink Logo">
+            <span>LifeLink</span>
+        </div>
+        <nav>
+            <a href="../index.html">Home</a>
+        </nav>
+    </header>
+    <main>
+        <section class="main-card">
+            <h2>Health Questionnaire</h2>
+            <p>Please answer the following questions to check your eligibility for blood donation.</p>
+            <form id="questionnaireForm">
+                <div class="question-group">
+                    <p>1. Are you 18 years or older?</p>
+                    <label class="radio-label"><input type="radio" name="age" value="yes" required> Yes</label>
+                    <label class="radio-label"><input type="radio" name="age" value="no"> No</label>
+                </div>
+                <div class="question-group">
+                    <p>2. Have you had any infections recently?</p>
+                    <label class="radio-label"><input type="radio" name="infections" value="yes" required> Yes</label>
+                    <label class="radio-label"><input type="radio" name="infections" value="no"> No</label>
+                </div>
+                <div class="question-group">
+                    <p>3. Have you had any tattoos or piercings recently?</p>
+                    <label class="radio-label"><input type="radio" name="tattoos" value="yes" required> Yes</label>
+                    <label class="radio-label"><input type="radio" name="tattoos" value="no"> No</label>
+                </div>
+                <div class="question-group">
+                    <p>4. Have you consumed alcohol in the last 24 hours?</p>
+                    <label class="radio-label"><input type="radio" name="alcohol" value="yes" required> Yes</label>
+                    <label class="radio-label"><input type="radio" name="alcohol" value="no"> No</label>
+                </div>
+                <button type="submit" class="btn-primary">Check Eligibility</button>
+            </form>
+            <p id="eligibility-message"></p>
+        </section>
+    </main>
+
+    <script>
+        document.getElementById('questionnaireForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const age = form.elements['age'].value;
+            const infections = form.elements['infections'].value;
+            const tattoos = form.elements['tattoos'].value;
+            const alcohol = form.elements['alcohol'].value;
+
+            const messageEl = document.getElementById('eligibility-message');
+
+            if (age === 'yes' && infections === 'no' && tattoos === 'no' && alcohol === 'no') {
+                messageEl.textContent = 'Congratulations! You are eligible. Redirecting...';
+                messageEl.className = 'message-success';
+                setTimeout(() => {
+                    window.location.href = './donor-login.html';
+                }, 2000);
+            } else {
+                messageEl.innerHTML = `
+                    <span class="message-error">You are not eligible to donate at this time.</span><br>
+                    Please ensure you are over 18 and have answered 'No' to the health questions.
+                    <br><br>
+                    <button class="btn-secondary" onclick="window.location.reload()">Try Again</button>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
