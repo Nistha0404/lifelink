@@ -1,16 +1,14 @@
-// ---------------------------------
-//  SETUP & IMPORTS
-// ---------------------------------
+
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 
 const app = express();
 
-// In-memory helpers for OTP-only flows (demo)
+
 const otpStore = {};
 const donorOtpStore = {};
-let donorsDB = []; // demo-only donors leaderboard etc.
+let donorsDB = []; 
 let hospitalsDB = [
   { id: 'HOS101', name: 'City Central Hospital', pincode: '147001', address: '123 Mall Road, Patiala', location: { lat: 30.3398, lon: 76.3869 }, stock: {'O+': 5, 'A+': 10} },
   { id: 'HOS102', name: 'Rajindra Hospital',     pincode: '147004', address: '456 Leela Bhawan, Patiala', location: { lat: 30.3213, lon: 76.4055 }, stock: {'B-': 2, 'AB+': 8} },
@@ -20,17 +18,15 @@ let hospitalsDB = [
 app.use(cors());
 app.use(express.json());
 
-// ---------------------------------
-//  DATABASE (Vercel-friendly)
-// ---------------------------------
+
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
   ssl: { rejectUnauthorized: false },
 });
 
-// ---------------------------------
-//  HELPERS
-// ---------------------------------
+
+// helping functions 
+
 function calculateDistance(lat1, lon1, lat2, lon2) {
   if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
   const R = 6371;
@@ -57,7 +53,7 @@ async function generateUniqueDonorToken(client) {
 }
 
 async function generatePatientToken(client) {
-  // Avoid reusing a token on a live request; not globally unique by constraint, but safe in practice.
+  
   for (let i = 0; i < 10; i++) {
     const t = generate4DigitToken();
     const { rows } = await client.query(
@@ -69,9 +65,9 @@ async function generatePatientToken(client) {
   return generate4DigitToken();
 }
 
-// ---------------------------------
-//  PATIENT AUTH
-// ---------------------------------
+
+//  PATIENT ki Auth
+
 app.post('/api/server/send-otp', async (req, res) => {
   const { phoneNumber } = req.body;
   if (!phoneNumber) return res.status(400).json({ success: false, message: 'Phone number is required.' });
@@ -110,9 +106,9 @@ app.post('/api/server/patient-login', async (req, res) => {
   }
 });
 
-// ---------------------------------
-//  HOSPITAL AUTH
-// ---------------------------------
+
+//  HOSPITAL ki Auth
+
 app.post('/api/server/hospital-register', async (req, res) => {
   const { hospitalName, address, pincode, phoneNumber, password } = req.body;
   if (!hospitalName || !pincode || !phoneNumber || !password) {
@@ -150,9 +146,9 @@ app.post('/api/server/hospital-login', async (req, res) => {
   }
 });
 
-// ---------------------------------
-//  HOSPITAL FEATURES
-// ---------------------------------
+
+//  HOSPITAL ka dashboard
+
 app.post('/api/server/hospital-sos', async (req, res) => {
   const { hospitalId, component, bloodType, units, urgency } = req.body;
   if (!hospitalId || !component || !bloodType || !units || !urgency) {
@@ -195,11 +191,11 @@ app.post('/api/server/donor-checkin', async (req, res) => {
   }
 });
 
-// ---------------------------------
-//  SHARED: SOS + HISTORY + TWO-STAGE TOKENS
-// ---------------------------------
 
-// A) PATIENT SOS: create request + patient_token + notify hospitals
+//  SHARED: SOS + HISTORY + TWO-STAGE TOKENS
+
+
+// PATIENT SOS: create request + patient_token + notify hospitals
 app.post('/api/server/request-blood', async (req, res) => {
   const { patientId, bloodType, pincode, latitude, longitude } = req.body;
   if (!patientId || !bloodType || !pincode) {
@@ -220,7 +216,7 @@ app.post('/api/server/request-blood', async (req, res) => {
     const requestId = rows[0].request_id;
     const patient_token = rows[0].patient_token;
 
-    // fanout: notify nearby hospitals (15km or same pincode)
+    // fanout: notify nearby hospitals 
     const { rows: hospitals } = await client.query('SELECT hospital_id, pincode, latitude, longitude FROM hospitals');
     const promises = [];
     for (const h of hospitals) {
@@ -241,7 +237,7 @@ app.post('/api/server/request-blood', async (req, res) => {
   }
 });
 
-// B) Hospital live SOS monitor (allow pending or active)
+// Hospital live SOS monitor 
 app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
   const { hospitalId } = req.params;
   const lastTimestamp = req.query.lastTimestamp || '1970-01-01T00:00:00.000Z';
@@ -261,7 +257,7 @@ app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
   }
 });
 
-// C) Patient history (include patient_token)
+//  Patient history 
 app.get('/api/server/requests/history/:patientId', async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -275,9 +271,9 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
   }
 });
 
-// ---------------------------------
-//  DONOR AUTH (OTP) — unchanged behavior
-// ---------------------------------
+
+//  DONOR ki AUTH 
+
 app.post('/api/server/donor/generate-otp', async (req, res) => {
   const { phoneNumber } = req.body;
   try {
@@ -339,10 +335,9 @@ app.post('/api/server/donor/register-confirm', async (req, res) => {
   }
 });
 
-// ---------------------------------
+
 //  DONOR ACCEPTS REQUEST (Two-Stage: donor_token)
-// ---------------------------------
-// Body: { requestId, donorId }
+
 app.post('/api/donor/accept-request', async (req, res) => {
   const { requestId, donorId } = req.body;
   if (!requestId || !donorId) return res.status(400).json({ success:false, message:'requestId and donorId are required.' });
@@ -363,7 +358,7 @@ app.post('/api/donor/accept-request', async (req, res) => {
       return res.status(404).json({ success:false, message:'Donor not found.' });
     }
 
-    // prevent duplicate commitment (same donor+request)
+    // prevent duplicate donor 
     const exists = await client.query(
       'SELECT donor_token FROM donation_commitments WHERE request_id = $1 AND donor_id = $2',
       [requestId, donorId]
@@ -394,17 +389,17 @@ app.post('/api/donor/accept-request', async (req, res) => {
   }
 });
 
-// ---------------------------------
-//  HOSPITAL: UNIFIED 4-DIGIT TOKEN VERIFICATION
-// ---------------------------------
-// Body: { token }
+
+//  HOSPITAL token verification
+
+// token
 app.post('/api/hospital/verify-token', async (req, res) => {
   const { token } = req.body;
   if (!token || typeof token !== 'string' || token.length !== 4) {
     return res.status(400).json({ success:false, message:'A 4-digit token is required.' });
   }
   try {
-    // 1) Try patient_token
+    //patient_token
     const p = await pool.query(
       `SELECT br.request_id, br.patient_id, br.patient_token, br.blood_type_needed, br.pincode,
               u.full_name AS patient_name
@@ -430,7 +425,7 @@ app.post('/api/hospital/verify-token', async (req, res) => {
       });
     }
 
-    // 2) Try donor_token
+    //donor_token
     const d = await pool.query(
       `SELECT dc.commitment_id, dc.request_id, dc.donor_id, dc.donor_token, dc.status AS commitment_status,
               du.full_name AS donor_name, du.blood_type AS donor_blood_type, du.last_donation_date,
@@ -467,9 +462,9 @@ app.post('/api/hospital/verify-token', async (req, res) => {
   }
 });
 
-// ---------------------------------
-//  PLAYBOOKS & REPORTS (kept as-is)
-// ---------------------------------
+
+//  PLAYBOOKS & REPORTS 
+
 app.get('/api/server/playbooks/:hospitalId', async (req, res) => {
   try {
     const { rows } = await pool.query("SELECT * FROM playbooks WHERE hospital_id = $1 ORDER BY updated_at DESC", [req.params.hospitalId]);
@@ -505,14 +500,10 @@ app.get('/api/server/reports/:hospitalId', async (req, res) => {
   }
 });
 
-// ---------------------------------
-//  HEALTH CHECK
-// ---------------------------------
-app.get('/api/server/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
-});
 
-// ---------------------------------
-//  EXPORT (Vercel)
-// ---------------------------------
-module.exports = app;
+//app.get('/api/server/health', (req, res) => {
+//  res.json({ status: 'ok', message: 'Server is running' });
+//});
+
+
+module.exports=app;
