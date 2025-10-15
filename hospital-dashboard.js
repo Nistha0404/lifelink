@@ -1,151 +1,230 @@
 document.addEventListener('DOMContentLoaded', () => {
-    let currentHospital = null;
+  let currentHospital = null;
 
-    // --- Element Selectors ---
-    const welcomeMessage = document.getElementById('welcome-message');
-    const logoutBtn = document.getElementById('logoutBtn');
-    
-    // SOS
-    const hospitalSosForm = document.getElementById('hospital-sos-form');
-    const hospitalSosMessage = document.getElementById('hospital-sos-message');
-    const liveSosList = document.getElementById('live-sos-list');
-    
-    // Stock Lite
-    const inventoryContainer = document.getElementById('inventory-container');
-    const saveInventoryBtn = document.getElementById('save-inventory-btn');
-    const inventoryMessage = document.getElementById('inventory-message');
+  // Elements
+  const welcomeMessage = document.getElementById('welcome-message');
+  const logoutBtn = document.getElementById('logoutBtn');
 
-    // Check-in
-    const checkinBtn = document.getElementById('checkin-btn');
-    const qrTokenInput = document.getElementById('qr-token-input');
-    const checkinMessage = document.getElementById('checkin-message');
+  // SOS
+  const hospitalSosForm = document.getElementById('hospital-sos-form');
+  const hospitalSosMessage = document.getElementById('hospital-sos-message');
+  const liveSosList = document.getElementById('live-sos-list');
 
-    // --- Initialization ---
-    function initializeDashboard() {
-        const hospitalDataString = sessionStorage.getItem('currentHospital');
-        if (!hospitalDataString) {
-            window.location.href = 'hospital-login.html';
-            return;
-        }
-        currentHospital = JSON.parse(hospitalDataString);
-        welcomeMessage.textContent = `Welcome, ${currentHospital.hospital_name}`;
-        renderStockLiteControls();
-        startPollingForSOS();
+  // Stock Lite
+  const inventoryContainer = document.getElementById('inventory-container');
+  const saveInventoryBtn = document.getElementById('save-inventory-btn');
+  const inventoryMessage = document.getElementById('inventory-message');
+
+  // Check-in
+  const checkinBtn = document.getElementById('checkin-btn');
+  const qrTokenInput = document.getElementById('qr-token-input');
+  const checkinMessage = document.getElementById('checkin-message');
+
+  // NEW: Verification
+  const verifyInput = document.getElementById('verify-token-input');
+  const verifyBtn = document.getElementById('verify-btn');
+  const verifyMsg = document.getElementById('verify-message');
+  const verifyResults = document.getElementById('verify-results');
+
+  function initializeDashboard() {
+    const s = sessionStorage.getItem('currentHospital');
+    if (!s) { window.location.href = 'hospital-login.html'; return; }
+    currentHospital = JSON.parse(s);
+    welcomeMessage.textContent = `Welcome, ${currentHospital.hospital_name}`;
+    renderStockLiteControls();
+    startPollingForSOS();
+  }
+
+  // SOS Broadcast
+  hospitalSosForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const payload = {
+      hospitalId: currentHospital.hospital_id,
+      component: document.getElementById('sos-component').value,
+      bloodType: document.getElementById('sos-blood-type').value,
+      units: document.getElementById('sos-units').value,
+      urgency: document.getElementById('sos-urgency').value,
+    };
+    try {
+      const res = await fetch('/api/server/hospital-sos', {
+        method: 'POST', headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const out = await res.json();
+      displayMessage(hospitalSosMessage, out.message, out.success);
+    } catch {
+      displayMessage(hospitalSosMessage, 'Server connection error.', false);
     }
+  });
 
-    // --- SOS (Hospital Broadcast) ---
-    hospitalSosForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const payload = {
-            hospitalId: currentHospital.hospital_id,
-            component: document.getElementById('sos-component').value,
-            bloodType: document.getElementById('sos-blood-type').value,
-            units: document.getElementById('sos-units').value,
-            urgency: document.getElementById('sos-urgency').value,
-        };
-        try {
-            // --- CHANGED THIS LINE ---
-            const response = await fetch('/api/server/hospital-sos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json();
-            displayMessage(hospitalSosMessage, result.message, result.success);
-        } catch (err) {
-            displayMessage(hospitalSosMessage, 'Server connection error.', false);
-        }
-    });
-
-    // --- Stock Lite ---
-    function renderStockLiteControls() {
-        inventoryContainer.innerHTML = '';
-        const bloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-        const currentInventory = currentHospital.blood_inventory || {};
-
-        bloodGroups.forEach(type => {
-            const item = currentInventory[type] || { units: 0, confidence: 'Low' };
-            const controlHTML = `
-                <div class="inventory-item">
-                    <label>${type}</label>
-                    <input type="number" data-blood-type="${type}" class="stock-units" value="${item.units}" min="0">
-                    <select data-blood-type="${type}" class="stock-confidence">
-                        <option value="High" ${item.confidence === 'High' ? 'selected' : ''}>High</option>
-                        <option value="Medium" ${item.confidence === 'Medium' ? 'selected' : ''}>Medium</option>
-                        <option value="Low" ${item.confidence === 'Low' ? 'selected' : ''}>Low</option>
-                    </select>
-                </div>
-            `;
-            inventoryContainer.insertAdjacentHTML('beforeend', controlHTML);
-        });
+  // Stock Lite
+  function renderStockLiteControls() {
+    inventoryContainer.innerHTML = '';
+    const bloodGroups = ["A+","A-","B+","B-","AB+","AB-","O+","O-"];
+    const inv = currentHospital.blood_inventory || {};
+    for (const type of bloodGroups) {
+      const item = inv[type] || { units: 0, confidence: 'Low' };
+      const html = `
+        <div class="inventory-item">
+          <label>${type}</label>
+          <input type="number" data-blood-type="${type}" class="stock-units" value="${item.units}" min="0">
+          <select data-blood-type="${type}" class="stock-confidence">
+            <option value="High" ${item.confidence === 'High' ? 'selected' : ''}>High</option>
+            <option value="Medium" ${item.confidence === 'Medium' ? 'selected' : ''}>Medium</option>
+            <option value="Low" ${item.confidence === 'Low' ? 'selected' : ''}>Low</option>
+          </select>
+        </div>`;
+      inventoryContainer.insertAdjacentHTML('beforeend', html);
     }
+  }
 
-    saveInventoryBtn.addEventListener('click', async () => {
-        const updatedInventory = {};
-        document.querySelectorAll('.inventory-item').forEach(item => {
-            const type = item.querySelector('.stock-units').dataset.bloodType;
-            const units = parseInt(item.querySelector('.stock-units').value, 10);
-            const confidence = item.querySelector('.stock-confidence').value;
-            updatedInventory[type] = {
-                units,
-                confidence,
-                timestamp: new Date().toISOString()
-            };
-        });
-        
-        try {
-            // --- CHANGED THIS LINE ---
-            const response = await fetch('/api/server/update-inventory', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ hospitalId: currentHospital.hospital_id, inventory: updatedInventory })
-            });
-            const result = await response.json();
-            if (result.success) {
-                currentHospital.blood_inventory = updatedInventory;
-                sessionStorage.setItem('currentHospital', JSON.stringify(currentHospital));
-            }
-            displayMessage(inventoryMessage, result.message, result.success);
-        } catch (err) {
-            displayMessage(inventoryMessage, 'Server connection error.', false);
-        }
+  saveInventoryBtn.addEventListener('click', async () => {
+    const updated = {};
+    document.querySelectorAll('.inventory-item').forEach(item => {
+      const unitsEl = item.querySelector('.stock-units');
+      const confEl = item.querySelector('.stock-confidence');
+      const type = unitsEl.dataset.bloodType;
+      updated[type] = {
+        units: parseInt(unitsEl.value, 10) || 0,
+        confidence: confEl.value,
+        timestamp: new Date().toISOString()
+      };
     });
-
-    // --- Check-in Scanner ---
-    checkinBtn.addEventListener('click', async () => {
-        const qrToken = qrTokenInput.value.trim();
-        if (!qrToken) {
-            displayMessage(checkinMessage, 'Please enter a token.', false);
-            return;
-        }
-        try {
-            // --- CHANGED THIS LINE ---
-            const response = await fetch('/api/server/donor-checkin', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ qrToken })
-            });
-            const result = await response.json();
-            displayMessage(checkinMessage, result.message, result.success);
-            if(result.success) qrTokenInput.value = '';
-        } catch (err) {
-            displayMessage(checkinMessage, 'Server connection error.', false);
-        }
-    });
-
-    // --- Utility & Other Functions ---
-    function displayMessage(element, message, isSuccess) {
-        element.textContent = message;
-        element.style.color = isSuccess ? 'green' : 'red';
-        setTimeout(() => { element.textContent = ''; }, 3000);
+    try {
+      const res = await fetch('/api/server/update-inventory', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ hospitalId: currentHospital.hospital_id, inventory: updated })
+      });
+      const out = await res.json();
+      if (out.success) {
+        currentHospital.blood_inventory = updated;
+        sessionStorage.setItem('currentHospital', JSON.stringify(currentHospital));
+      }
+      displayMessage(inventoryMessage, out.message, out.success);
+    } catch {
+      displayMessage(inventoryMessage, 'Server connection error.', false);
     }
-    
-    // Polling function and logout unchanged
-    async function startPollingForSOS() { /* ... unchanged ... */ }
-    logoutBtn.addEventListener('click', () => {
-        sessionStorage.removeItem('currentHospital');
-        window.location.href = 'hospital-login.html';
-    });
-    
-    initializeDashboard();
+  });
+
+  // Donor Check-in (existing)
+  checkinBtn.addEventListener('click', async () => {
+    const qrToken = qrTokenInput.value.trim();
+    if (!qrToken) { displayMessage(checkinMessage, 'Please enter a token.', false); return; }
+    try {
+      const res = await fetch('/api/server/donor-checkin', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ qrToken })
+      });
+      const out = await res.json();
+      displayMessage(checkinMessage, out.message, out.success);
+      if (out.success) qrTokenInput.value = '';
+    } catch {
+      displayMessage(checkinMessage, 'Server connection error.', false);
+    }
+  });
+
+  // NEW: Unified Token Verification
+  verifyInput.addEventListener('input', () => {
+    verifyInput.value = (verifyInput.value || '').replace(/\D/g, '').slice(0, 4);
+    clearVerifyUI();
+  });
+
+  verifyBtn.addEventListener('click', async () => {
+    const token = (verifyInput.value || '').trim();
+    if (!/^\d{4}$/.test(token)) { showVerifyMsg('Please enter a valid 4-digit token.', false); return; }
+    try {
+      showVerifyMsg('Verifying…', true);
+      const res = await fetch('/api/hospital/verify-token', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ token })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showVerifyMsg(data.message || 'Token not found.', false);
+        verifyResults.innerHTML = '';
+        return;
+      }
+      renderVerificationResult(data);
+      showVerifyMsg('Verified', true);
+    } catch {
+      showVerifyMsg('Server error while verifying.', false);
+      verifyResults.innerHTML = '';
+    }
+  });
+
+  function qrFor(obj) {
+    const payload = encodeURIComponent(JSON.stringify(obj));
+    return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${payload}`;
+  }
+
+  function renderVerificationResult(data) {
+    if (data.type === 'patient') {
+      const { patient_token, patient, request_id } = data;
+      verifyResults.innerHTML = `
+        <div class="kv" style="margin-top:8px;">
+          <div>Type</div><div>Patient</div>
+          <div>Full Name</div><div>${esc(patient.full_name)}</div>
+          <div>Blood Type Needed</div><div>${esc(patient.blood_type_needed)}</div>
+          <div>Pincode</div><div>${esc(patient.pincode || 'N/A')}</div>
+          <div>Request ID</div><div>${esc(String(request_id))}</div>
+          <div>Patient Token</div><div><span class="pill">${esc(patient_token)}</span></div>
+          <div>Token QR</div><div><img class="qr-preview" src="${qrFor({type:'patient_token', token: patient_token})}" alt="Patient QR"></div>
+        </div>
+        <div class="divider"></div>
+        <div class="muted">Confirm patient identity with token/QR before proceeding.</div>
+      `;
+    } else if (data.type === 'donor') {
+      const { donor_token, donor, matched_patient_token, request_id, commitment_id, commitment_status } = data;
+      verifyResults.innerHTML = `
+        <div class="kv" style="margin-top:8px;">
+          <div>Type</div><div>Donor</div>
+          <div>Full Name</div><div>${esc(donor.full_name)}</div>
+          <div>Blood Type</div><div>${esc(donor.blood_type || 'N/A')}</div>
+          <div>Last Donation</div><div>${donor.last_donation_date ? esc(new Date(donor.last_donation_date).toLocaleDateString()) : 'N/A'}</div>
+          <div>Donor Token</div><div><span class="pill">${esc(donor_token)}</span></div>
+          <div>Token QR</div><div><img class="qr-preview" src="${qrFor({type:'donor_token', token: donor_token})}" alt="Donor QR"></div>
+        </div>
+        <div class="divider"></div>
+        <div class="kv">
+          <div>Matched Patient Token</div><div><span class="pill">${esc(matched_patient_token)}</span></div>
+          <div>Request ID</div><div>${esc(String(request_id))}</div>
+          <div>Commitment</div><div>#${esc(String(commitment_id))} (${esc(commitment_status)})</div>
+        </div>
+        <div class="divider"></div>
+        <div class="muted">Confirm donor identity and cross-check matched patient token.</div>
+      `;
+    } else {
+      verifyResults.innerHTML = '';
+    }
+  }
+
+  function clearVerifyUI() {
+    verifyMsg.textContent = '';
+    verifyMsg.className = 'message-area';
+    verifyResults.innerHTML = '';
+  }
+  function showVerifyMsg(msg, ok) {
+    verifyMsg.textContent = msg;
+    verifyMsg.className = 'message-area ' + (ok ? 'ok' : 'err');
+  }
+  function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // Live SOS polling stub (keep your original if you had one)
+  async function startPollingForSOS() { /* your existing logic */ }
+
+  function displayMessage(el, msg, ok) {
+    el.textContent = msg;
+    el.style.color = ok ? 'green' : 'red';
+    setTimeout(() => { el.textContent = ''; }, 3000);
+  }
+
+  logoutBtn.addEventListener('click', () => {
+    sessionStorage.removeItem('currentHospital');
+    window.location.href = 'hospital-login.html';
+  });
+
+  initializeDashboard();
 });
