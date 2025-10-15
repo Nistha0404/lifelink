@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <title>Hospital Dashboard - LifeLink</title>
     <link rel="stylesheet" href="style.css">
-    
-    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     </head>
 <body>
     <header>
@@ -21,6 +19,7 @@
                 <h2 id="welcome-message">Hospital Console</h2>
             </div>
             <div class="dashboard-grid">
+
                 <div class="dashboard-card sos-creator-card">
                     <h3>One-Click SOS Broadcast</h3>
                     <form id="hospital-sos-form">
@@ -58,12 +57,15 @@
                     </form>
                     <p id="hospital-sos-message" class="message-area"></p>
                 </div>
+
                 <div class="dashboard-card inventory-card">
                     <h3>Stock Lite Management</h3>
-                    <div id="inventory-container" class="inventory-grid-management"></div>
+                    <div id="inventory-container" class="inventory-grid-management">
+                        </div>
                     <button id="save-inventory-btn" class="btn-primary">Save Stock Levels</button>
                     <p id="inventory-message" class="message-area"></p>
                 </div>
+
                 <div class="dashboard-card scanner-card">
                     <h3>Donor Check-in Scanner</h3>
                     <div class="form-group">
@@ -73,66 +75,33 @@
                     <button id="checkin-btn" class="btn-primary">Check-in Donor</button>
                     <p id="checkin-message" class="message-area"></p>
                 </div>
+
                 <div class="dashboard-card sos-card">
                     <h3>Live SOS Monitor</h3>
                     <ul id="live-sos-list" class="live-sos-list">
                         <li class="no-requests">No active SOS requests.</li>
                     </ul>
                 </div>
+
                 <div class="dashboard-card playbooks-card">
                     <h3>Operational Playbooks</h3>
-                    <div id="playbooks-list"></div>
+                    <div id="playbooks-list">
+                        </div>
                     <textarea id="playbook-editor" placeholder="Write a new policy..."></textarea>
                     <input type="text" id="playbook-title" placeholder="Policy Title">
                     <button id="save-playbook-btn" class="btn-secondary">Save Playbook</button>
                 </div>
+                
                 <div class="dashboard-card reports-card">
                     <h3>Audit & Reports</h3>
                     <button id="generate-report-btn" class="btn-secondary">Generate Report</button>
-                    <div id="reports-output"></div>
+                    <div id="reports-output">
+                        </div>
                 </div>
+
             </div>
         </section>
     </main>
-
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const hospitalData = sessionStorage.getItem('hospitalInfo');
-        if (!hospitalData) {
-            console.error("Not logged in. Cannot initialize real-time alerts.");
-            // In a real app, you would redirect:
-            // window.location.href = '/hospital-login.html'; 
-            return;
-        }
-        
-        const hospital = JSON.parse(hospitalData);
-        document.getElementById('welcome-message').textContent = `Console: ${hospital.hospital_name}`;
-
-        // --- START: PUSHER INTEGRATION ---
-        try {
-            const pusher = new Pusher('fe426ad42d7dc0ba7dfa', {
-                cluster: 'ap2'
-            });
-
-            // Subscribe to the hospital's unique channel
-            // The channel name must match what the server uses: 'hospital-' + hospital.hospital_id
-            const channelName = 'hospital-' + hospital.hospital_id;
-            const channel = pusher.subscribe(channelName);
-            console.log(`Subscribed to Pusher channel: ${channelName}`);
-
-            // Bind to the 'sos-request' event
-            channel.bind('sos-request', function(data) {
-                console.log('Received SOS:', data);
-                // Display an immediate alert
-                alert(`!! INCOMING PATIENT SOS !!\n\n${data.message}`);
-            });
-        } catch (error) {
-            console.error("Pusher initialization failed: ", error);
-            alert("Could not connect to the real-time notification service.");
-        }
-        // --- END: PUSHER INTEGRATION ---
-    });
-    </script>
     <script src="hospital-dashboard.js"></script>
 </body>
 </html>

@@ -5,9 +5,6 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path');
-// --- START: PUSHER INTEGRATION ---
-const Pusher = require('pusher');
-// --- END: PUSHER INTEGRATION ---
 
 const app = express();
 const otpStore = {};
@@ -23,17 +20,6 @@ let hospitalsDB = [ // In-memory hospital database for simulation
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// --- START: PUSHER INTEGRATION ---
-// Initialize Pusher with your credentials.
-const pusher = new Pusher({
-  appId: "2064101",
-  key: "fe426ad42d7dc0ba7dfa",
-  secret: "2f5bda6c639ff6cd5a04",
-  cluster: "ap2",
-  useTLS: true
-});
-// --- END: PUSHER INTEGRATION ---
 
 //  DATABASE CONFIGURATION (UPDATED FOR VERCEL)
 // ---------------------------------
@@ -253,80 +239,39 @@ app.get('/api/server/reports/:hospitalId', async (req, res) => {
 // ==========================================================================
 //  SHARED FUNCTIONALITY (SOS & DASHBOARDS)
 // ==========================================================================
-
-// --- START: PUSHER INTEGRATION ---
-// This endpoint is completely replaced with the new real-time logic.
 app.post('/api/server/request-blood', async (req, res) => {
     const { patientId, bloodType, pincode, latitude, longitude } = req.body;
-
-    if (!patientId || !bloodType || !latitude || !longitude) {
-        return res.status(400).json({ success: false, message: 'Missing required fields (ID, blood type, and location).' });
+    if (!patientId || !bloodType || !pincode) {
+        return res.status(400).json({ success: false, message: 'Missing required fields.' });
     }
-
+    const client = await pool.connect();
     try {
-        // --- Phase 1: Search for Hospitals (15 km radius) ---
-        const allHospitals = await pool.query('SELECT hospital_id, hospital_name, latitude, longitude, blood_inventory FROM hospitals');
-        
-        const suitableHospitals = allHospitals.rows.filter(hospital => {
+        await client.query('BEGIN');
+        const requestQuery = `
+            INSERT INTO blood_requests (patient_id, creator_user_id, blood_type_needed, pincode, latitude, longitude, status)
+            VALUES ($1, $1, $2, $3, $4, $5, 'active') RETURNING request_id;`;
+        const newRequest = await client.query(requestQuery, [patientId, bloodType, pincode, latitude, longitude]);
+        const requestId = newRequest.rows[0].request_id;
+        const hospitals = await client.query('SELECT hospital_id, pincode, latitude, longitude FROM hospitals');
+        const notificationPromises = [];
+        hospitals.rows.forEach(hospital => {
             const distance = calculateDistance(latitude, longitude, hospital.latitude, hospital.longitude);
-            const hasStock = hospital.blood_inventory && hospital.blood_inventory[bloodType] > 0;
-            return distance <= 15 && hasStock;
-        });
-
-        if (suitableHospitals.length > 0) {
-            console.log(`Found ${suitableHospitals.length} suitable hospital(s). Notifying via Pusher.`);
-            for (const hospital of suitableHospitals) {
-                const distance = calculateDistance(latitude, longitude, hospital.latitude, hospital.longitude);
-                const payload = {
-                    patientId: patientId,
-                    bloodType: bloodType,
-                    distance: distance,
-                    message: `Emergency request for ${bloodType} from a patient ~${distance.toFixed(1)}km away.`
-                };
-                // Channel name is specific to each hospital (e.g., 'hospital-HOS101')
-                await pusher.trigger(`hospital-${hospital.hospital_id}`, 'sos-request', payload);
+            if (distance <= 15 || hospital.pincode === pincode) {
+                const notificationQuery = `INSERT INTO sos_notifications (request_id, hospital_id) VALUES ($1, $2);`;
+                notificationPromises.push(client.query(notificationQuery, [requestId, hospital.hospital_id]));
             }
-            return res.status(200).json({ success: true, message: 'SOS Alert sent to nearby hospitals!' });
-        }
-
-        // --- Phase 2: Search for Donors (30 km radius) if no hospitals found ---
-        console.log('No suitable hospitals found. Searching for donors...');
-        const allDonors = await pool.query(
-            "SELECT user_id, full_name, latitude, longitude FROM users WHERE role = 'donor' AND blood_type = $1",
-            [bloodType]
-        );
-
-        const suitableDonors = allDonors.rows.filter(donor => {
-            const distance = calculateDistance(latitude, longitude, donor.latitude, donor.longitude);
-            return distance <= 30; 
         });
-
-        if (suitableDonors.length > 0) {
-            console.log(`Found ${suitableDonors.length} suitable donor(s). Notifying via Pusher.`);
-            for (const donor of suitableDonors) {
-                const distance = calculateDistance(latitude, longitude, donor.latitude, donor.longitude);
-                const payload = {
-                    patientId: patientId,
-                    bloodType: bloodType,
-                    distance: distance,
-                    message: `A patient ~${distance.toFixed(1)}km away needs your help with a ${bloodType} blood donation.`
-                };
-                // Channel name is specific to each donor (e.g., 'donor-123')
-                await pusher.trigger(`donor-${donor.user_id}`, 'sos-request', payload);
-            }
-            return res.status(200).json({ success: true, message: 'No hospitals with stock found. Alerting nearby donors!' });
-        }
-
-        // --- Phase 3: No one found ---
-        console.log('No suitable hospitals or donors found.');
-        return res.status(404).json({ success: false, message: 'Could not find any suitable hospitals or donors nearby.' });
-
+        await Promise.all(notificationPromises);
+        await client.query('COMMIT');
+        res.status(201).json({ success: true, message: 'SOS Alert sent to nearby hospitals!' });
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error in /request-blood:', error);
         res.status(500).json({ success: false, message: 'An internal server error occurred.' });
+    } finally {
+        client.release();
     }
 });
-// --- END: PUSHER INTEGRATION ---
 
 app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
     const { hospitalId } = req.params;
@@ -363,94 +308,88 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
 
 
 // ==========================================================================
-//  DONOR OTP AUTHENTICATION (ALERT-BASED)
+//  DONOR AUTHENTICATION & MANAGEMENT (NEW SECTION)
 // ==========================================================================
 
-app.post('/api/server/donor/generate-otp', async (req, res) => {
+// Endpoint to generate OTP for existing user login
+app.post('/api/donor/generate-otp', (req, res) => {
     const { phoneNumber } = req.body;
-    try {
-        const userCheck = await pool.query("SELECT user_id FROM users WHERE phone_number = $1 AND role = 'donor'", [phoneNumber]);
-        if (userCheck.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Not a registered donor. Please register first.' });
-        }
-        
-        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
-        otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 }; // OTP valid for 5 mins
-        console.log(`Generated Login OTP for donor ${phoneNumber}: ${otp}`);
-        
-        res.status(200).json({ success: true, message: 'OTP generated successfully.', otp });
-    } catch (error) {
-        console.error('Donor login OTP error:', error);
-        res.status(500).json({ success: false, message: 'Server error.' });
+    const userExists = donorsDB.find(d => d.phoneNumber === phoneNumber);
+
+    if (!userExists) {
+        return res.status(404).json({ success: false, message: 'Not a user. Register first.' });
     }
+    
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    donorOtpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 }; // OTP valid for 5 mins
+    console.log(`Generated Login OTP for ${phoneNumber}: ${otp}`);
+    
+    // In a real app, you would send this via SMS. Here we return it.
+    res.status(200).json({ success: true, message: 'OTP generated successfully.', otp });
 });
 
-app.post('/api/server/donor/login', async (req, res) => {
+// Endpoint for donor login with OTP
+app.post('/api/donor/login', (req, res) => {
     const { phoneNumber, otp } = req.body;
-    const storedOtp = otpStore[phoneNumber];
+    const storedOtp = donorOtpStore[phoneNumber];
 
     if (storedOtp && storedOtp.otp === otp && Date.now() < storedOtp.expiry) {
-        try {
-            const result = await pool.query("SELECT user_id, full_name, phone_number, pincode, blood_type, role FROM users WHERE phone_number = $1 AND role = 'donor'", [phoneNumber]);
-            const user = result.rows[0];
-            
-            delete otpStore[phoneNumber]; 
-            res.status(200).json({ success: true, message: 'Login successful!', user: user });
-        } catch (error) {
-            console.error('Database error during donor login:', error);
-            res.status(500).json({ success: false, message: 'Database error during login.' });
-        }
+        const user = donorsDB.find(d => d.phoneNumber === phoneNumber);
+        delete donorOtpStore[phoneNumber]; // OTP used, so delete it
+        res.status(200).json({ success: true, message: 'Login successful!', user });
     } else {
         res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
     }
 });
 
-app.post('/api/server/donor/register-request', async (req, res) => {
+// Endpoint to request an OTP for registration
+app.post('/api/donor/register-request', (req, res) => {
     const { phoneNumber } = req.body;
-    try {
-        const userExists = await pool.query('SELECT user_id FROM users WHERE phone_number = $1', [phoneNumber]);
-        if (userExists.rows.length > 0) {
-            return res.status(409).json({ success: false, message: 'This phone number is already registered.' });
-        }
-        
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
-        console.log(`Generated Register OTP for donor ${phoneNumber}: ${otp}`);
-        
-        res.status(200).json({ success: true, message: 'OTP sent for registration.', otp });
-    } catch (error) {
-        console.error('Donor registration request error:', error);
-        res.status(500).json({ success: false, message: 'Server error.' });
+     const userExists = donorsDB.find(d => d.phoneNumber === phoneNumber);
+    if (userExists) {
+        return res.status(409).json({ success: false, message: 'This phone number is already registered.' });
     }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    donorOtpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
+    console.log(`Generated Register OTP for ${phoneNumber}: ${otp}`);
+    
+    res.status(200).json({ success: true, message: 'OTP sent for registration.', otp });
 });
 
-app.post('/api/server/donor/register-confirm', async (req, res) => {
-    const { fullName, phoneNumber, pincode, bloodType, otp } = req.body;
-    const storedOtp = otpStore[phoneNumber];
+
+// Endpoint to confirm registration with OTP
+app.post('/api/donor/register-confirm', (req, res) => {
+    const { phoneNumber, otp, fullName, pincode, address, latitude, longitude } = req.body;
+    const storedOtp = donorOtpStore[phoneNumber];
     
     if (storedOtp && storedOtp.otp === otp && Date.now() < storedOtp.expiry) {
-        try {
-            const newUserQuery = `
-                INSERT INTO users (full_name, phone_number, pincode, blood_type, role)
-                VALUES ($1, $2, $3, $4, 'donor') RETURNING user_id;
-            `;
-            await pool.query(newUserQuery, [fullName, phoneNumber, pincode, bloodType]);
-            
-            delete otpStore[phoneNumber];
-            res.status(201).json({ success: true, message: 'Registration successful!' });
-        } catch (error) {
-            console.error('Donor registration confirmation error:', error);
-            res.status(500).json({ success: false, message: 'Database error during registration.' });
-        }
+        const newUser = {
+            userId: `DON${Date.now()}`,
+            fullName,
+            phoneNumber,
+            pincode,
+            address,
+            bloodType: ['A+', 'O-', 'B+', 'AB+', 'A-', 'O+', 'B-', 'AB-'][Math.floor(Math.random() * 8)], // Assign random blood type
+            location: { lat: latitude, lon: longitude },
+            reliabilityScore: 75, // Starting score
+            createdAt: new Date().toISOString()
+        };
+        donorsDB.push(newUser);
+        delete donorOtpStore[phoneNumber];
+        console.log('New donor registered:', newUser);
+        res.status(201).json({ success: true, message: 'Registration successful!' });
     } else {
         res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
     }
 });
 
+
 // ==========================================================================
 //  DONOR DASHBOARD FUNCTIONALITY (NEW SECTION)
 // ==========================================================================
 
+// Endpoint to get the nearest hospital for ETA card
 app.get('/api/hospitals/nearest', (req, res) => {
     const { lat, lon, bloodType } = req.query;
     if (!lat || !lon) {
@@ -461,6 +400,7 @@ app.get('/api/hospitals/nearest', (req, res) => {
     let minDistance = Infinity;
 
     hospitalsDB.forEach(hospital => {
+        // Simple logic: prioritize hospitals with low stock of the required blood type
         const needsBlood = hospital.stock[bloodType] !== undefined && hospital.stock[bloodType] < 5;
         if (needsBlood) {
             const distance = calculateDistance(lat, lon, hospital.location.lat, hospital.location.lon);
@@ -478,8 +418,10 @@ app.get('/api/hospitals/nearest', (req, res) => {
     }
 });
 
+// Endpoint to schedule a casual donation
 app.post('/api/donor/schedule-donation', (req, res) => {
     const { pincode, bloodType } = req.body;
+    // Find a hospital in the same pincode
     const suitableHospital = hospitalsDB.find(h => h.pincode === pincode);
 
     if (suitableHospital) {
@@ -490,6 +432,7 @@ app.post('/api/donor/schedule-donation', (req, res) => {
     }
 });
 
+// Endpoint to get a donor's reliability score
 app.get('/api/donor/score/:userId', (req, res) => {
     const { userId } = req.params;
     const donor = donorsDB.find(d => d.userId === userId);
@@ -499,6 +442,49 @@ app.get('/api/donor/score/:userId', (req, res) => {
         res.status(404).json({ success: false, message: 'Donor not found.' });
     }
 });
+
+
+/*
+// --- REAL-TIME SOS WITH WEBSOCKETS (Concept) ---
+// To implement this fully, you would need a WebSocket library like 'ws' or 'socket.io'
+// 1. Setup WebSocket server:
+const WebSocket = require('ws');
+const wss = new WebSocket.Server({ server: your_http_server });
+
+wss.on('connection', ws => {
+    console.log('Client connected for real-time updates');
+    // You could associate ws with a donorId or location here
+});
+
+// 2. When an SOS is created (e.g., in /api/server/hospital-sos):
+// Instead of just saving to DB, you would also broadcast:
+function broadcastSOS(sosRequest) {
+    const payload = JSON.stringify({ type: 'SOS_ALERT', data: sosRequest });
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            // Add logic here to only send to relevant donors (e.g., by location)
+            client.send(payload);
+        }
+    });
+}
+
+// 3. On the donor-dashboard.html frontend:
+const socket = new WebSocket('ws://your-server-url');
+socket.onmessage = event => {
+    const message = JSON.parse(event.data);
+    if (message.type === 'SOS_ALERT') {
+        // Trigger the SOS modal automatically
+        openModal('sosModal');
+    }
+};
+*/
+
+
+
+
+
+
+
 
 // ==========================================================================
 //  HEALTH CHECK - FOR DEBUGGING
