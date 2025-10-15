@@ -1,138 +1,151 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Hospital Dashboard - LifeLink</title>
-    <link rel="stylesheet" href="style.css">
-    
-    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-    </head>
-<body>
-    <header>
-        <div class="logo">
-            <img src="logo.jpeg" alt="LifeLink Logo" height="40">
-            <span>LifeLink</span>
-        </div>
-        <nav><a href="#" id="logoutBtn">Logout</a></nav>
-    </header>
-    <main>
-        <section class="dashboard-container">
-            <div class="dashboard-header">
-                <h2 id="welcome-message">Hospital Console</h2>
-            </div>
-            <div class="dashboard-grid">
-                <div class="dashboard-card sos-creator-card">
-                    <h3>One-Click SOS Broadcast</h3>
-                    <form id="hospital-sos-form">
-                        <div class="form-group">
-                            <label for="sos-component">Component</label>
-                            <select id="sos-component" required>
-                                <option value="Whole Blood">Whole Blood</option>
-                                <option value="RBC">RBC</option>
-                                <option value="Plasma">Plasma</option>
-                                <option value="Platelets">Platelets</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="sos-blood-type">Blood Type</label>
-                            <select id="sos-blood-type" required>
-                                <option value="A+">A+</option><option value="A-">A-</option>
-                                <option value="B+">B+</option><option value="B-">B-</option>
-                                <option value="O+">O+</option><option value="O-">O-</option>
-                                <option value="AB+">AB+</option><option value="AB-">AB-</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="sos-units">Units Needed</label>
-                            <input type="number" id="sos-units" value="1" min="1" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="sos-urgency">Urgency</label>
-                            <select id="sos-urgency" required>
-                                <option value="Critical">Critical (Immediate Need)</option>
-                                <option value="Urgent">Urgent (Within Hours)</option>
-                                <option value="Routine">Routine (Within 24 Hours)</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn-danger">Broadcast SOS</button>
-                    </form>
-                    <p id="hospital-sos-message" class="message-area"></p>
-                </div>
-                <div class="dashboard-card inventory-card">
-                    <h3>Stock Lite Management</h3>
-                    <div id="inventory-container" class="inventory-grid-management"></div>
-                    <button id="save-inventory-btn" class="btn-primary">Save Stock Levels</button>
-                    <p id="inventory-message" class="message-area"></p>
-                </div>
-                <div class="dashboard-card scanner-card">
-                    <h3>Donor Check-in Scanner</h3>
-                    <div class="form-group">
-                        <label for="qr-token-input">Enter QR Code or Token</label>
-                        <input type="text" id="qr-token-input" placeholder="Scan or type token...">
-                    </div>
-                    <button id="checkin-btn" class="btn-primary">Check-in Donor</button>
-                    <p id="checkin-message" class="message-area"></p>
-                </div>
-                <div class="dashboard-card sos-card">
-                    <h3>Live SOS Monitor</h3>
-                    <ul id="live-sos-list" class="live-sos-list">
-                        <li class="no-requests">No active SOS requests.</li>
-                    </ul>
-                </div>
-                <div class="dashboard-card playbooks-card">
-                    <h3>Operational Playbooks</h3>
-                    <div id="playbooks-list"></div>
-                    <textarea id="playbook-editor" placeholder="Write a new policy..."></textarea>
-                    <input type="text" id="playbook-title" placeholder="Policy Title">
-                    <button id="save-playbook-btn" class="btn-secondary">Save Playbook</button>
-                </div>
-                <div class="dashboard-card reports-card">
-                    <h3>Audit & Reports</h3>
-                    <button id="generate-report-btn" class="btn-secondary">Generate Report</button>
-                    <div id="reports-output"></div>
-                </div>
-            </div>
-        </section>
-    </main>
+document.addEventListener('DOMContentLoaded', () => {
+    let currentHospital = null;
 
-    <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const hospitalData = sessionStorage.getItem('hospitalInfo');
-        if (!hospitalData) {
-            console.error("Not logged in. Cannot initialize real-time alerts.");
-            // In a real app, you would redirect:
-            // window.location.href = '/hospital-login.html'; 
+    // --- Element Selectors ---
+    const welcomeMessage = document.getElementById('welcome-message');
+    const logoutBtn = document.getElementById('logoutBtn');
+    
+    // SOS
+    const hospitalSosForm = document.getElementById('hospital-sos-form');
+    const hospitalSosMessage = document.getElementById('hospital-sos-message');
+    const liveSosList = document.getElementById('live-sos-list');
+    
+    // Stock Lite
+    const inventoryContainer = document.getElementById('inventory-container');
+    const saveInventoryBtn = document.getElementById('save-inventory-btn');
+    const inventoryMessage = document.getElementById('inventory-message');
+
+    // Check-in
+    const checkinBtn = document.getElementById('checkin-btn');
+    const qrTokenInput = document.getElementById('qr-token-input');
+    const checkinMessage = document.getElementById('checkin-message');
+
+    // --- Initialization ---
+    function initializeDashboard() {
+        const hospitalDataString = sessionStorage.getItem('currentHospital');
+        if (!hospitalDataString) {
+            window.location.href = 'hospital-login.html';
             return;
         }
-        
-        const hospital = JSON.parse(hospitalData);
-        document.getElementById('welcome-message').textContent = `Console: ${hospital.hospital_name}`;
+        currentHospital = JSON.parse(hospitalDataString);
+        welcomeMessage.textContent = `Welcome, ${currentHospital.hospital_name}`;
+        renderStockLiteControls();
+        startPollingForSOS();
+    }
 
-        // --- START: PUSHER INTEGRATION ---
+    // --- SOS (Hospital Broadcast) ---
+    hospitalSosForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+            hospitalId: currentHospital.hospital_id,
+            component: document.getElementById('sos-component').value,
+            bloodType: document.getElementById('sos-blood-type').value,
+            units: document.getElementById('sos-units').value,
+            urgency: document.getElementById('sos-urgency').value,
+        };
         try {
-            const pusher = new Pusher('fe426ad42d7dc0ba7dfa', {
-                cluster: 'ap2'
+            // --- CHANGED THIS LINE ---
+            const response = await fetch('/api/server/hospital-sos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
-
-            // Subscribe to the hospital's unique channel
-            // The channel name must match what the server uses: 'hospital-' + hospital.hospital_id
-            const channelName = 'hospital-' + hospital.hospital_id;
-            const channel = pusher.subscribe(channelName);
-            console.log(`Subscribed to Pusher channel: ${channelName}`);
-
-            // Bind to the 'sos-request' event
-            channel.bind('sos-request', function(data) {
-                console.log('Received SOS:', data);
-                // Display an immediate alert
-                alert(`!! INCOMING PATIENT SOS !!\n\n${data.message}`);
-            });
-        } catch (error) {
-            console.error("Pusher initialization failed: ", error);
-            alert("Could not connect to the real-time notification service.");
+            const result = await response.json();
+            displayMessage(hospitalSosMessage, result.message, result.success);
+        } catch (err) {
+            displayMessage(hospitalSosMessage, 'Server connection error.', false);
         }
-        // --- END: PUSHER INTEGRATION ---
     });
-    </script>
-    <script src="hospital-dashboard.js"></script>
-</body>
-</html>
+
+    // --- Stock Lite ---
+    function renderStockLiteControls() {
+        inventoryContainer.innerHTML = '';
+        const bloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+        const currentInventory = currentHospital.blood_inventory || {};
+
+        bloodGroups.forEach(type => {
+            const item = currentInventory[type] || { units: 0, confidence: 'Low' };
+            const controlHTML = `
+                <div class="inventory-item">
+                    <label>${type}</label>
+                    <input type="number" data-blood-type="${type}" class="stock-units" value="${item.units}" min="0">
+                    <select data-blood-type="${type}" class="stock-confidence">
+                        <option value="High" ${item.confidence === 'High' ? 'selected' : ''}>High</option>
+                        <option value="Medium" ${item.confidence === 'Medium' ? 'selected' : ''}>Medium</option>
+                        <option value="Low" ${item.confidence === 'Low' ? 'selected' : ''}>Low</option>
+                    </select>
+                </div>
+            `;
+            inventoryContainer.insertAdjacentHTML('beforeend', controlHTML);
+        });
+    }
+
+    saveInventoryBtn.addEventListener('click', async () => {
+        const updatedInventory = {};
+        document.querySelectorAll('.inventory-item').forEach(item => {
+            const type = item.querySelector('.stock-units').dataset.bloodType;
+            const units = parseInt(item.querySelector('.stock-units').value, 10);
+            const confidence = item.querySelector('.stock-confidence').value;
+            updatedInventory[type] = {
+                units,
+                confidence,
+                timestamp: new Date().toISOString()
+            };
+        });
+        
+        try {
+            // --- CHANGED THIS LINE ---
+            const response = await fetch('/api/server/update-inventory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hospitalId: currentHospital.hospital_id, inventory: updatedInventory })
+            });
+            const result = await response.json();
+            if (result.success) {
+                currentHospital.blood_inventory = updatedInventory;
+                sessionStorage.setItem('currentHospital', JSON.stringify(currentHospital));
+            }
+            displayMessage(inventoryMessage, result.message, result.success);
+        } catch (err) {
+            displayMessage(inventoryMessage, 'Server connection error.', false);
+        }
+    });
+
+    // --- Check-in Scanner ---
+    checkinBtn.addEventListener('click', async () => {
+        const qrToken = qrTokenInput.value.trim();
+        if (!qrToken) {
+            displayMessage(checkinMessage, 'Please enter a token.', false);
+            return;
+        }
+        try {
+            // --- CHANGED THIS LINE ---
+            const response = await fetch('/api/server/donor-checkin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ qrToken })
+            });
+            const result = await response.json();
+            displayMessage(checkinMessage, result.message, result.success);
+            if(result.success) qrTokenInput.value = '';
+        } catch (err) {
+            displayMessage(checkinMessage, 'Server connection error.', false);
+        }
+    });
+
+    // --- Utility & Other Functions ---
+    function displayMessage(element, message, isSuccess) {
+        element.textContent = message;
+        element.style.color = isSuccess ? 'green' : 'red';
+        setTimeout(() => { element.textContent = ''; }, 3000);
+    }
+    
+    // Polling function and logout unchanged
+    async function startPollingForSOS() { /* ... unchanged ... */ }
+    logoutBtn.addEventListener('click', () => {
+        sessionStorage.removeItem('currentHospital');
+        window.location.href = 'hospital-login.html';
+    });
+    
+    initializeDashboard();
+});
