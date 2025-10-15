@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <title>Donor Dashboard - LifeLink</title>
     <link rel="stylesheet" href="../style.css">
-    <!-- QR Code Library -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
     <style>
         .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
         .dashboard-card { background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -13,7 +14,6 @@
         #qr-code-container { width: 150px; height: 150px; margin: 1rem auto; }
         .sos-card { background-color: #fffbe6; border: 1px solid #ffe58f; }
         .reliability-score { font-size: 2rem; font-weight: bold; color: #28a745; text-align: center; }
-        /* Modal Styles */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; }
         .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
@@ -32,38 +32,32 @@
     <main>
         <h2>Welcome, <span id="donor-name">Donor</span>!</h2>
         <div class="dashboard-grid">
-            <!-- SOS Recheck Card -->
             <div class="dashboard-card sos-card">
                 <h3>SOS Alerts</h3>
                 <p>You will be notified here for urgent requests.</p>
                 <button class="btn-primary" onclick="openModal('sosModal')">Simulate SOS</button>
             </div>
-            <!-- Smart ETA Card -->
             <div class="dashboard-card">
                 <h3>Smart ETA</h3>
                 <div id="eta-info">Calculating...</div>
             </div>
-             <!-- Check-in QR Card -->
-            <div class="dashboard-card">
+             <div class="dashboard-card">
                 <h3>Hospital Check-in</h3>
                 <p>Present this QR code upon arrival.</p>
                 <div id="qr-code-container"></div>
             </div>
-            <!-- Casual Donation Card -->
             <div class="dashboard-card">
                 <h3>Schedule a Donation</h3>
                 <p>Schedule a donation at your convenience.</p>
                 <button class="btn-primary" onclick="openDonationModal()">Donate Now</button>
             </div>
-             <!-- Reliability Score Card -->
-            <div class="dashboard-card">
+             <div class="dashboard-card">
                 <h3>Reliability Score</h3>
                 <p class="reliability-score" id="reliability-score">--</p>
             </div>
         </div>
     </main>
 
-    <!-- SOS Modal -->
     <div id="sosModal" class="modal">
       <div class="modal-content">
         <span class="close-btn" onclick="closeModal('sosModal')">&times;</span>
@@ -74,19 +68,16 @@
       </div>
     </div>
     
-    <!-- Casual Donation Modal -->
     <div id="donationModal" class="modal">
       <div class="modal-content">
         <span class="close-btn" onclick="closeModal('donationModal')">&times;</span>
         <h3>Schedule a Donation</h3>
         <form id="casualDonationForm">
             <div class="form-group"><label>Pincode</label><input type="text" id="donationPincode"></div>
-            <!-- =================== UPDATED BLOOD TYPE INPUT =================== -->
             <div class="form-group">
                 <label>Blood Type</label>
                 <input type="text" id="donationBloodType" name="bloodType" placeholder="e.g., A+, o-, ab+">
             </div>
-            <!-- ======================= END OF UPDATE ======================= -->
             <div class="form-group"><label>Preferred Date</label><input type="date" id="donationDate"></div>
             <div class="form-group"><label>Preferred Time Slot</label>
                 <select id="donationTime"><option>Morning (9am-12pm)</option><option>Afternoon (1pm-4pm)</option></select>
@@ -99,19 +90,46 @@
     </div>
 
     <script>
-        const donor = JSON.parse(sessionStorage.getItem('donorInfo'));
+        let donor = null;
 
-        window.onload = () => {
-            if (!donor) {
+        document.addEventListener('DOMContentLoaded', () => {
+            const donorData = sessionStorage.getItem('donorInfo');
+            if (!donorData) {
+                alert('You are not logged in. Redirecting...');
                 window.location.href = './donor-login.html';
                 return;
             }
+            donor = JSON.parse(donorData);
             document.getElementById('donor-name').textContent = donor.full_name;
-            // Pre-fill the blood type input with the donor's registered blood type
             document.getElementById('donationBloodType').value = donor.blood_type || '';
             
             generateQRCode();
-        };
+            
+            // --- START: PUSHER INTEGRATION ---
+            try {
+                // Initialize Pusher with your public key and cluster
+                const pusher = new Pusher('fe426ad42d7dc0ba7dfa', {
+                    cluster: 'ap2'
+                });
+
+                // Subscribe to the donor's unique channel
+                // The channel name must match what the server uses: 'donor-' + donor.user_id
+                const channelName = 'donor-' + donor.user_id;
+                const channel = pusher.subscribe(channelName);
+                console.log(`Subscribed to Pusher channel: ${channelName}`);
+
+                // Bind to the 'sos-request' event
+                channel.bind('sos-request', function(data) {
+                    console.log('Received SOS:', data);
+                    // Display an immediate alert to the donor
+                    alert(`!! URGENT BLOOD REQUEST !!\n\n${data.message}`);
+                });
+            } catch (error) {
+                console.error("Pusher initialization failed: ", error);
+                alert("Could not connect to the real-time notification service.");
+            }
+            // --- END: PUSHER INTEGRATION ---
+        });
         
         function generateQRCode() {
             if (donor && donor.user_id) {
@@ -124,39 +142,8 @@
         
         document.getElementById('casualDonationForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const donationMessageEl = document.getElementById('donationMessage');
-            donationMessageEl.textContent = '';
-            
-            // --- NEW CUSTOM VALIDATION FOR BLOOD TYPE ---
-            const bloodTypeInput = document.getElementById('donationBloodType');
-            const bloodTypeValue = bloodTypeInput.value.trim();
-
-            if (!bloodTypeValue) {
-                donationMessageEl.textContent = 'Please enter your blood type.';
-                donationMessageEl.className = 'message-area message-error';
-                return;
-            }
-
-            const validBloodTypeRegex = /^(A|B|AB|O)[+-]$/i; // Case-insensitive
-            if (!validBloodTypeRegex.test(bloodTypeValue)) {
-                donationMessageEl.textContent = 'Invalid Blood Type. Please use format like A+, o-, or AB+.';
-                donationMessageEl.className = 'message-area message-error';
-                return;
-            }
-            // --- END OF VALIDATION ---
-
-            const payload = {
-                pincode: document.getElementById('donationPincode').value,
-                bloodType: bloodTypeValue.toUpperCase(), // Send cleaned, uppercase value
-                date: document.getElementById('donationDate').value,
-                timeSlot: document.getElementById('donationTime').value,
-                donorId: donor.user_id
-            };
-            
-            // NOTE: This assumes an endpoint like '/api/donor/schedule-donation' exists in your server.js
-            // You would need to create this endpoint to handle the scheduling logic.
             const suggestionEl = document.getElementById('hospitalSuggestion');
-            suggestionEl.innerHTML = `<p class="message-success">Searching for hospitals... (This is a demo). You selected ${payload.bloodType} for pincode ${payload.pincode}.</p>`;
+            suggestionEl.innerHTML = `<p class="message-success">Searching for hospitals...</p>`;
         });
         
         function logout() {
@@ -164,7 +151,6 @@
             window.location.href = './donor-login.html';
         }
 
-        // Modal Functions
         function openModal(id) { document.getElementById(id).style.display = 'block'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         function openDonationModal() { openModal('donationModal'); }
