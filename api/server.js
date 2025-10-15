@@ -7,10 +7,10 @@ const cors = require('cors');
 
 const app = express();
 
-// In-memory helpers for OTP-only flows (unchanged behavior)
+// In-memory helpers for OTP-only flows (demo)
 const otpStore = {};
 const donorOtpStore = {};
-let donorsDB = []; // demo-only
+let donorsDB = []; // demo-only donors leaderboard etc.
 let hospitalsDB = [
   { id: 'HOS101', name: 'City Central Hospital', pincode: '147001', address: '123 Mall Road, Patiala', location: { lat: 30.3398, lon: 76.3869 }, stock: {'O+': 5, 'A+': 10} },
   { id: 'HOS102', name: 'Rajindra Hospital',     pincode: '147004', address: '456 Leela Bhawan, Patiala', location: { lat: 30.3213, lon: 76.4055 }, stock: {'B-': 2, 'AB+': 8} },

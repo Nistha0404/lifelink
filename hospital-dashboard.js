@@ -15,12 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveInventoryBtn = document.getElementById('save-inventory-btn');
   const inventoryMessage = document.getElementById('inventory-message');
 
-  // Check-in
-  const checkinBtn = document.getElementById('checkin-btn');
-  const qrTokenInput = document.getElementById('qr-token-input');
-  const checkinMessage = document.getElementById('checkin-message');
-
-  // NEW: Verification
+  // Verification
   const verifyInput = document.getElementById('verify-token-input');
   const verifyBtn = document.getElementById('verify-btn');
   const verifyMsg = document.getElementById('verify-message');
@@ -52,7 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const out = await res.json();
       displayMessage(hospitalSosMessage, out.message, out.success);
-    } catch {
+    } catch (err) {
+      console.error(err);
       displayMessage(hospitalSosMessage, 'Server connection error.', false);
     }
   });
@@ -101,41 +97,38 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.setItem('currentHospital', JSON.stringify(currentHospital));
       }
       displayMessage(inventoryMessage, out.message, out.success);
-    } catch {
+    } catch (err) {
+      console.error(err);
       displayMessage(inventoryMessage, 'Server connection error.', false);
     }
   });
 
-  // Donor Check-in (existing)
-  checkinBtn.addEventListener('click', async () => {
-    const qrToken = qrTokenInput.value.trim();
-    if (!qrToken) { displayMessage(checkinMessage, 'Please enter a token.', false); return; }
-    try {
-      const res = await fetch('/api/server/donor-checkin', {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ qrToken })
-      });
-      const out = await res.json();
-      displayMessage(checkinMessage, out.message, out.success);
-      if (out.success) qrTokenInput.value = '';
-    } catch {
-      displayMessage(checkinMessage, 'Server connection error.', false);
-    }
-  });
-
-  // NEW: Unified Token Verification
+  // Unified Token Verification
   verifyInput.addEventListener('input', () => {
+    // digits only, max 4
     verifyInput.value = (verifyInput.value || '').replace(/\D/g, '').slice(0, 4);
     clearVerifyUI();
   });
 
+  // Support Enter key to verify
+  verifyInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      verifyBtn.click();
+    }
+  });
+
   verifyBtn.addEventListener('click', async () => {
     const token = (verifyInput.value || '').trim();
-    if (!/^\d{4}$/.test(token)) { showVerifyMsg('Please enter a valid 4-digit token.', false); return; }
+    if (!/^\d{4}$/.test(token)) {
+      showVerifyMsg('Please enter a valid 4-digit token.', false);
+      return;
+    }
     try {
       showVerifyMsg('Verifying…', true);
       const res = await fetch('/api/hospital/verify-token', {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ token })
       });
       const data = await res.json();
@@ -146,7 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       renderVerificationResult(data);
       showVerifyMsg('Verified', true);
-    } catch {
+    } catch (err) {
+      console.error(err);
       showVerifyMsg('Server error while verifying.', false);
       verifyResults.innerHTML = '';
     }
@@ -209,11 +203,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function esc(s) {
     if (s == null) return '';
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
-  // Live SOS polling stub (keep your original if you had one)
-  async function startPollingForSOS() { /* your existing logic */ }
+  // Live SOS polling (fill in your existing logic if applicable)
+  async function startPollingForSOS() { /* ... your implementation ... */ }
 
   function displayMessage(el, msg, ok) {
     el.textContent = msg;
