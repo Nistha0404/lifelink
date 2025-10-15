@@ -35,7 +35,6 @@ const pusher = new Pusher({
 });
 // --- END: PUSHER INTEGRATION ---
 
-
 //  DATABASE CONFIGURATION (UPDATED FOR VERCEL)
 // ---------------------------------
 const pool = new Pool({
@@ -46,7 +45,7 @@ const pool = new Pool({
 });
 
 // ==========================================================================
-//  GEOLOCATION HELPER FUNCTION (Haversine Formula)
+//  GEOLOCATION HELPER FUNCTION
 // ==========================================================================
 function calculateDistance(lat1, lon1, lat2, lon2) {
     if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
@@ -256,7 +255,7 @@ app.get('/api/server/reports/:hospitalId', async (req, res) => {
 // ==========================================================================
 
 // --- START: PUSHER INTEGRATION ---
-// This entire endpoint has been rewritten for the new real-time logic.
+// This endpoint is completely replaced with the new real-time logic.
 app.post('/api/server/request-blood', async (req, res) => {
     const { patientId, bloodType, pincode, latitude, longitude } = req.body;
 
@@ -329,7 +328,6 @@ app.post('/api/server/request-blood', async (req, res) => {
 });
 // --- END: PUSHER INTEGRATION ---
 
-
 app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
     const { hospitalId } = req.params;
     const lastTimestamp = req.query.lastTimestamp || '1970-01-01T00:00:00.000Z';
@@ -367,6 +365,7 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
 // ==========================================================================
 //  DONOR OTP AUTHENTICATION (ALERT-BASED)
 // ==========================================================================
+
 app.post('/api/server/donor/generate-otp', async (req, res) => {
     const { phoneNumber } = req.body;
     try {
@@ -451,13 +450,16 @@ app.post('/api/server/donor/register-confirm', async (req, res) => {
 // ==========================================================================
 //  DONOR DASHBOARD FUNCTIONALITY (NEW SECTION)
 // ==========================================================================
+
 app.get('/api/hospitals/nearest', (req, res) => {
     const { lat, lon, bloodType } = req.query;
     if (!lat || !lon) {
         return res.status(400).json({ success: false, message: 'Current location is required.' });
     }
+
     let closestHospital = null;
     let minDistance = Infinity;
+
     hospitalsDB.forEach(hospital => {
         const needsBlood = hospital.stock[bloodType] !== undefined && hospital.stock[bloodType] < 5;
         if (needsBlood) {
@@ -468,6 +470,7 @@ app.get('/api/hospitals/nearest', (req, res) => {
             }
         }
     });
+
     if (closestHospital) {
         res.json({ success: true, hospital: { ...closestHospital, distance: minDistance } });
     } else {
@@ -478,6 +481,7 @@ app.get('/api/hospitals/nearest', (req, res) => {
 app.post('/api/donor/schedule-donation', (req, res) => {
     const { pincode, bloodType } = req.body;
     const suitableHospital = hospitalsDB.find(h => h.pincode === pincode);
+
     if (suitableHospital) {
         console.log(`Donation scheduled for ${bloodType} at ${suitableHospital.name}`);
         res.json({ success: true, hospital: suitableHospital });
