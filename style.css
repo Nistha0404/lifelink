@@ -27,7 +27,8 @@
 }
 
 body {
-  background: linear-gradient(to bottom right, var(--body-bg-start), var(--body-bg-end));
+  /* MODIFICATION: Using a simple light background for the multi-section page */
+  background: white; 
   color: var(--dark-theme-color);
   min-height: 100vh;
   display: flex;
@@ -43,11 +44,9 @@ header {
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  /* Make header sit on top of content */
   position: relative;
   z-index: 10;
 }
-/* ... (rest of header/footer styles are unchanged) ... */
 header .logo {
   display: flex;
   align-items: center;
@@ -55,21 +54,18 @@ header .logo {
   font-size: 1.4em;
   font-weight: bold;
 }
-
 header .logo img {
     height: 40px;
     width: 40px; 
     border-radius: 4px; 
     filter: brightness(0) invert(1); 
 }
-
 header nav a {
   color: white;
   margin-left: 20px;
   text-decoration: none;
   font-weight: bold;
 }
-
 header nav a:hover { text-decoration: underline; }
 
 footer {
@@ -87,18 +83,12 @@ footer {
 main {
   flex: 1;
   display: flex;
-  /* MODIFICATION: Changed to 'center' to support the hero layout */
-  justify-content: center; 
+  justify-content: flex-start; /* MODIFIED: Content starts from the top */
   align-items: center;
-  padding: 40px 20px;
+  padding: 0; /* MODIFIED: No padding on main */
   flex-direction: column;
 }
 
-/* --- 
-  MODIFICATION: 
-  I've kept .main-card for your *other* pages (login, etc.)
-  The landing page will now use the new .hero-container style instead.
---- */
 .main-card {
   background: white;
   padding: 40px 30px;
@@ -108,14 +98,12 @@ main {
   box-shadow: 0 8px 16px rgba(0,0,0,0.1);
   text-align: center;
 }
-
 .main-card h2 {
   color: var(--primary-theme-color);
   margin-bottom: 25px;
 }
 
-/* ... (Sections 4, 5, 6 - Forms, Buttons, Tabs - are unchanged) ... */
-
+/* --- 4. Form Styling (Unchanged) --- */
 .form-group {
   display: grid;
   grid-template-columns: 1fr 2fr;
@@ -136,15 +124,21 @@ main {
   border-radius: 6px;
   font-size: 1em;
 }
-button, .btn-primary, .btn-success, .btn-danger, .btn-secondary {
+
+/* --- 5. Button System (Added new buttons) --- */
+button, .btn-primary, .btn-success, .btn-danger, .btn-secondary, .btn-gradient, .btn-light, .btn-primary-outline {
   border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
+  padding: 12px 24px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 1em;
   font-weight: bold;
-  transition: background-color 0.3s, transform 0.2s;
+  transition: all 0.3s;
+  text-decoration: none;
+  text-align: center;
+  display: inline-block;
 }
+
 .btn-primary, button {
   background-color: var(--primary-theme-color);
   color: white;
@@ -156,12 +150,37 @@ button, .btn-primary, .btn-success, .btn-danger, .btn-secondary {
   background-color: var(--primary-theme-hover);
   transform: translateY(-2px);
 }
+
+/* NEW: Outline button style */
+.btn-primary-outline {
+    background-color: transparent;
+    color: var(--primary-theme-color);
+    border: 2px solid var(--primary-theme-color);
+}
+.btn-primary-outline:hover {
+    background-color: var(--primary-theme-color);
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* NEW: Light button for dark backgrounds */
+.btn-light {
+    background-color: white;
+    color: var(--dark-theme-color);
+}
+.btn-light:hover {
+    background-color: var(--light-gray);
+    transform: translateY(-2px);
+}
+
 .btn-success { background-color: var(--success-color); color: white; }
 .btn-success:hover { background-color: var(--success-hover); }
 .btn-danger { background-color: var(--danger-color); color: white; }
 .btn-danger:hover { background-color: var(--danger-hover); }
 .btn-secondary { background-color: var(--secondary-color); color: white; }
 .btn-secondary:hover { background-color: var(--secondary-hover); }
+
+/* --- 6. Login/Register Tabs (Unchanged) --- */
 .tabs {
   display: flex;
   margin-bottom: 25px;
@@ -187,46 +206,41 @@ button, .btn-primary, .btn-success, .btn-danger, .btn-secondary {
 
 /* --- 
   7. Index Page (Landing Page) Specific Styles 
-  MODIFICATION: This whole section is updated for the new layout.
+  MODIFICATION: This whole section is updated.
 --- */
 
-/* Special header for the landing page (Unchanged) */
+/* MODIFIED: Header is no longer floating */
 body.landing-page header {
-    background: transparent;
-    box-shadow: none;
-    position: absolute; /* Make header float over the hero */
+    background: var(--dark-theme-color);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    position: relative; /* Back to normal */
     width: 100%;
 }
 body.landing-page header .logo,
 body.landing-page header nav a {
-    color: var(--dark-theme-color); 
+    color: white; /* Back to white text */
 }
 body.landing-page header .logo img {
-    filter: none; 
+    filter: brightness(0) invert(1); /* Back to white logo */
 }
 
-/* This makes sure the landing page <main> is full-width for the hero */
+/* MODIFIED: Landing page main starts normally */
 body.landing-page main {
     padding: 0;
     max-width: 100%;
-    /* We add padding-top to prevent header from overlapping content */
-    padding-top: 90px; /* Height of your header + padding */
+    padding-top: 0; /* No top padding needed */
 }
 
-/* NEW: The main two-column container */
+/* MODIFIED: Hero container is now a full-width section with a background */
 .hero-container {
     display: grid;
     grid-template-columns: 1fr; /* Single column on mobile */
-    max-width: 1200px;
-    width: 90%;
-    margin: 2rem auto;
-    background: white;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    border-radius: 16px;
-    overflow: hidden; /* Important for border-radius on image */
+    width: 100%;
+    background: var(--body-bg-start); /* Light background */
+    padding: 3rem 0;
 }
 
-/* NEW: The left column with text and buttons */
+/* MODIFIED: Content column */
 .hero-content {
     padding: 2.5rem;
     display: flex;
@@ -234,58 +248,53 @@ body.landing-page main {
     justify-content: center;
 }
 
-/* NEW: The right column with the image */
+/* MODIFIED: Image column */
 .hero-image {
     width: 100%;
-    min-height: 300px; /* Height for mobile */
+    min-height: 300px;
     background-size: cover;
     background-position: center;
-    /* IMAGE SPACE: Replace this URL with your chosen image.
-      A vertical image (like 600x800) works best.
-    */
     background-image: url('https://images.unsplash.com/photo-1542884748-0365b5b383f2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNjUyOXwwfDF8c2VhcmNofDEyfHxibG9vZCUyMGRvbmF0aW9uJTIwaG9zcGl0YWx8ZW58MHx8fHwxNzMwMDQ5ODgyfDA&ixlib=rb-4.0.3&q=80&w=1080');
-    /* This places the image *first* on mobile, which is cleaner */
     order: -1; 
+    border-radius: 12px;
+    margin: 0 2.5rem; /* Add margin on mobile */
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
 }
 
-
-/* MODIFIED: Text is now left-aligned, not centered */
+/* Text is left-aligned */
 body.landing-page .hero {
   text-align: left;
   margin-bottom: 2rem;
 }
 body.landing-page .hero h1 {
-  font-size: 2.8rem; /* Adjusted for the new layout */
+  font-size: 3.2rem; 
   font-weight: 700;
   color: var(--dark-theme-color);
   margin-bottom: 0.5rem;
 }
 body.landing-page .hero p {
   font-size: 1.1rem;
+  max-width: 500px; /* Constrain line length */
+  line-height: 1.6;
 }
 
-/* MODIFIED: Button stack is now left-aligned */
-.login-button-stack {
-    display: flex;
-    flex-direction: column;
+/* NEW: Login buttons now a 2x2 grid */
+.login-button-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 1rem;
     width: 100%;
-    max-width: 450px; /* Unchanged, still looks good */
+    max-width: 450px; 
 }
 
-/* Button styles (Unchanged) */
+/* Button styles */
 .btn-gradient {
     display: block;
-    text-decoration: none;
     color: white;
-    text-align: center;
     padding: 16px 20px;
-    border-radius: 10px;
-    font-weight: bold;
     font-size: 1.1em;
     background: linear-gradient(145deg, var(--primary-theme-hover), var(--primary-theme-color));
     box-shadow: 0 5px 10px rgba(0,0,0,0.15);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .btn-gradient:hover {
     transform: translateY(-3px) scale(1.02);
@@ -293,8 +302,7 @@ body.landing-page .hero p {
 }
 
 
-/* --- 8. Dashboard Styling --- */
-/* ... (This section is unchanged) ... */
+/* --- 8. Dashboard Styling (Unchanged) --- */
 .dashboard-container {
   max-width: 1200px;
   width: 100%;
@@ -304,7 +312,7 @@ body.landing-page .hero p {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 20px;
 }
-/* ... (rest of file is unchanged) ... */
+/* ... (rest of dashboard styles) ... */
 .dashboard-card {
   background: white;
   padding: 20px;
@@ -404,8 +412,7 @@ body.landing-page .hero p {
 }
 
 
-/* --- 9. Facts Page Specific Styles --- */
-/* This section is unchanged */
+/* --- 9. Facts Page Specific Styles (Unchanged) --- */
 .hero-inner {
   text-align: center;
   width: 100%;
@@ -422,6 +429,7 @@ body.landing-page .hero p {
   font-size: 1.1rem;
   color: var(--secondary-color);
 }
+/* ... (rest of facts page styles) ... */
 .facts-grid {
   display: flex;
   flex-direction: column;
@@ -492,30 +500,135 @@ body.landing-page .hero p {
   font-style: normal;
 }
 
-/* NEW: This makes the two-column layout work on desktop */
-@media (min-width: 768px) {
-    body.landing-page main {
-        /* Add more top padding on desktop to account for floating header */
-        padding-top: 120px; 
-    }
+/* --- NEW: Section 10: Multi-Section Landing Page --- */
 
+.info-section {
+    display: grid;
+    grid-template-columns: 1fr; /* Mobile first: stacked */
+    gap: 2rem;
+    align-items: center;
+    max-width: 1100px;
+    margin: 4rem auto; /* Space between sections */
+    padding: 0 2rem;
+}
+
+.info-content {
+    padding: 1rem;
+    text-align: left;
+}
+
+.info-content .category {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary-theme-hover);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.info-content h2 {
+  font-size: 2.5rem;
+  color: var(--dark-theme-color);
+  margin-bottom: 1rem;
+}
+
+.info-content p {
+  font-size: 1.1rem;
+  line-height: 1.7;
+  color: var(--secondary-color);
+  margin-bottom: 2rem;
+  max-width: 500px;
+}
+
+.info-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    min-height: 350px;
+}
+
+.quote-section {
+    padding: 6rem 2rem;
+    text-align: center;
+    background-color: var(--dark-theme-color);
+    color: white;
+    position: relative;
+    /* IMAGE SPACE: Replace this with a quote background */
+    background-image: url('https://images.unsplash.com/photo-1519702228616-a08b03c00329?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNjUyOXwwfDF8c2VhcmNofDE2fHxibHVyJTIwZGFyayUyMG1lZGljYWx8ZW58MHx8fHwxNzMwMDgzMzIyfDA&ixlib=rb-4.0.3&q=80&w=1080');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed; /* Parallax effect */
+}
+
+.quote-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(21, 44, 51, 0.8); /* Dark overlay using your --dark-theme-color */
+    z-index: 1;
+}
+
+.quote-content {
+    position: relative;
+    z-index: 2;
+    max-width: 800px;
+    margin: 0 auto;
+}
+.quote-content h2 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+}
+.quote-content p {
+    font-size: 1.1rem;
+    font-style: italic;
+    color: var(--light-gray);
+    margin-bottom: 2rem;
+}
+
+
+/* --- 11. Media Queries (Responsive) --- */
+
+@media (min-width: 768px) {
+    /* --- Hero Section (Desktop) --- */
     .hero-container {
         grid-template-columns: 1fr 1fr; /* Two columns */
-        width: 90%;
-        margin: 2rem auto 4rem; /* More vertical margin */
+        align-items: center;
+        padding: 4rem 2.5rem; /* More padding */
     }
-    
     .hero-image {
-        min-height: 600px; /* Taller image for desktop */
-        order: 1; /* Puts image on the right */
+        order: 1; /* Image on the right */
+        min-height: 500px;
+        margin: 0; /* Remove mobile margin */
     }
-    
     .hero-content {
-        padding: 4rem; /* More spacing on desktop */
-        order: 0; /* Puts content on the left */
+        padding: 2rem 4rem; /* More padding on the content */
+        order: 0; 
+    }
+    body.landing-page .hero h1 {
+        font-size: 3.5rem;
     }
 
-    /* --- This is for the Facts page, unchanged --- */
+    /* --- Info Sections (Desktop) --- */
+    .info-section {
+        grid-template-columns: 1fr 1fr;
+        padding: 0 2rem;
+        margin: 6rem auto; /* More space */
+    }
+    .info-section.alt-layout .info-image {
+        order: -1; /* Flips image to the left */
+    }
+    .info-content {
+        padding: 2rem;
+    }
+
+    /* --- Facts Page (Desktop - Unchanged) --- */
     .fact-card {
         flex-direction: row;
     }
@@ -533,14 +646,16 @@ body.landing-page .hero p {
     }
 }
 
-/* NEW: A bit more refinement for very large screens */
+/* More refinement for very large screens */
 @media (min-width: 1200px) {
     .hero-content {
-        padding: 5rem;
+        padding: 3rem 5rem;
     }
-
-    body.landing-page .hero h1 {
-        font-size: 3.2rem;
+    .info-content h2 {
+        font-size: 2.8rem;
+    }
+    .quote-content h2 {
+        font-size: 2.5rem;
     }
 }
 

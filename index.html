@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Welcome to LifeLink - A Lifesaving Connection</title>
     
-    <!-- Using the 'Inter' font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
@@ -22,26 +21,26 @@
         <nav>
             <a href="index.html">Home</a>
             <a href="volunteer-login.html">Be a Volunteer</a>
-            <a href="facts.html">Facts</a>
+            
         </nav>
     </header>
 
     <!-- 
-      MODIFICATION: The <main> tag now holds the new two-column hero-container.
-      This matches the layout of your inspiration image.
+      MODIFICATION: The <main> tag now holds the new multi-section layout.
     -->
     <main>
+        
+        <!-- SECTION 1: HERO -->
         <div class="hero-container">
             <!-- Column 1: Content (Text + Buttons) -->
             <div class="hero-content">
-                <!-- Hero Section -->
                 <section class="hero">
                     <h1>Welcome to LifeLink</h1>
-                    <p>Please choose your login type to get started.</p>
+                    <p>Connecting donors, patients, and hospitals to save lives. Please choose your login to get started.</p>
                 </section>
 
-                <!-- Role Selection Section -->
-                <div class="login-button-stack">
+                <!-- NEW: Role Selection Section as a 2x2 Grid -->
+                <div class="login-button-grid">
                     <a href="patient-login.html" class="btn-gradient">Patient Login</a>
                     <a href="donor-questionnaire.html" class="btn-gradient">Donor Login</a>
                     <a href="hospital-login.html" class="btn-gradient">Hospital Login</a>
@@ -50,14 +49,52 @@
             </div>
             
             <!-- Column 2: Image -->
-            <!-- 
-              IMAGE SPACE: Replace the 'background-image' URL in style.css
-              in the '.hero-image' rule.
-            -->
             <div class="hero-image">
-                <!-- This div is intentionally empty. The image is added via CSS. -->
+                <img src="image copy 4.png" alt="Diverse group of people donating blood">
+                <!-- Image is added via CSS -->
             </div>
         </div>
+
+        <!-- SECTION 2: INFO (Text Left, Image Right) -->
+        <section class="info-section">
+            <div class="info-content">
+                <span class="category">For Donors</span>
+                <h2>Give the Gift of Life</h2>
+                <p>Every two seconds, someone in the U.S. needs blood. Your single donation can help save up to three lives. Our platform makes it easy to find donation centers, schedule appointments, and track your impact.</p>
+                <a href="donor-questionnaire.html" class="btn-primary-outline">Become a Donor</a>
+            </div>
+            <div class="info-image">
+                <!-- IMAGE SPACE: Replace this placeholder -->
+                <img src="image copy 5.png" alt="Smiling doctor holding a blood bag">
+            </div>
+        </section>
+
+        <!-- SECTION 3: INFO (Image Left, Text Right) -->
+        <section class="info-section alt-layout">
+            <div class="info-content">
+                <span class="category">For Hospitals</span>
+                <h2>Streamline Your Inventory</h2>
+                <p>Manage your blood supply with real-time data. Our dashboard allows you to view inventory levels, request specific blood types, and coordinate with donation centers seamlessly, ensuring you have what you need, when you need it.</p>
+                <a href="hospital-login.html" class="btn-primary-outline">Hospital Portal</a>
+            </div>
+            <div class="info-image">
+                <!-- IMAGE SPACE: Replace this placeholder -->
+                <img src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNjUyOXwwfDF8c2VhcmNofDExfHxkb2N0b3IlMjBjb21wdXRlcnxlbnwwfHx8fDE3MzAwODMwOTV8MA&ixlib=rb-4.0.3&q=80&w=1080" alt="Medical professional using a laptop">
+            </div>
+        </section>
+        
+        <!-- SECTION 4: QUOTE (Full width background image) -->
+        <section class="quote-section">
+            <!-- This is the semi-transparent overlay -->
+            <div class="quote-overlay"></div>
+            
+            <div class="quote-content">
+                <h2>"The blood you donate is a lifeline in an emergency. It's a gift that costs nothing but is worth more than gold."</h2>
+                <p>- Anonymous Recipient</p>
+                <a href="facts.html" class="btn-light">Learn More Facts</a>
+            </div>
+        </section>
+
     </main>
 
     <!-- Consistent Footer -->
