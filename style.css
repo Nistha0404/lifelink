@@ -381,3 +381,37 @@ body.landing-page header .logo img {
     border: 1px solid #ccc;
     border-radius: 4px;
 }
+
+
+
+.hero {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.hero h1 {
+  font-size: 3.5rem; 
+  font-weight: 700;
+  color: var(--dark-theme-color);
+  margin-bottom: 0.5rem;
+}
+.hero p {
+  font-size: 1.1rem;
+}
+
+/* --- 7. Index Page (Landing Page) Specific Styles --- */
+
+/* ... (other styles) ... */
+
+body.landing-page .hero {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+body.landing-page .hero h1 {
+  font-size: 3.5rem; 
+  font-weight: 700;
+  color: var(--dark-theme-color);
+  margin-bottom: 0.5rem;
+}
+body.landing-page .hero p {
+  font-size: 1.1rem;
+}
