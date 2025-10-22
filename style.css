@@ -229,7 +229,7 @@ body.landing-page header .logo img {
     border-radius: 10px;
     font-weight: bold;
     font-size: 1.1em;
-    background: linear-gradient(145deg, #d44c4c, #b71c1c);
+    background: linear-gradient(145deg, #49888d,#143b3e);
     box-shadow: 0 5px 10px rgba(0,0,0,0.15);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
