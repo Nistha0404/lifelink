@@ -4,11 +4,11 @@
 
 /* --- 1. Global Setup & Variables --- */
 :root {
-  --primary-theme-color: #b71c1c;
-  --primary-theme-hover: #8a1212;
-  --dark-theme-color: #520707;
+  --primary-theme-color: #2a5c60;
+  --primary-theme-hover: #367588;
+  --dark-theme-color:#152c33;
   --body-bg-start: #c7deed;
-  --body-bg-end: #d4a498;
+  --body-bg-end: #9cc5cd;
   --light-gray: #f4f4f4;
   --success-color: #28a745;
   --success-hover: #218838;
@@ -297,7 +297,7 @@ body.landing-page header .logo img {
     border: 1px solid #ccc;
     border-radius: 4px;
     font-size: 1rem;
-    -moz-appearance: textfield; /* Hides the default arrows in Firefox */
+    
 }
 
 /* Hides the default arrows in Chrome, Safari, and Edge */
