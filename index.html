@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Welcome to LifeLink - A Lifesaving Connection</title>
+    
+    <!-- 
+      SUGGESTION 1 (Part A): Import the 'Inter' font.
+      This is a clean, professional UI font that works better than Arial.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    
     <!-- Link to your existing stylesheet -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -12,7 +21,7 @@
     <header>
         <div class="logo">
             <!-- Make sure you have a logo file at this path or update it -->
-            <img src="logo.jpeg" alt="LifeLink Logo">
+            <img src="logo.jpeg" alt="LifeLink Logo" onerror="this.src='https://placehold.co/40x40/2a5c60/FFFFFF?text=LL'; this.onerror=null;">
             <span>LifeLink</span>
         </div>
         <nav>
@@ -35,7 +44,7 @@
             <a href="donor-questionnaire.html" class="btn-gradient">Donor Login</a>
             <a href="hospital-login.html" class="btn-gradient">Hospital Login</a>
             <a href="admin-login.html" class="btn-gradient">Admin Login</a>
-                   </div>
+        </div>
     </main>
 
     <!-- Consistent Footer -->

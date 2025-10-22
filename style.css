@@ -1,5 +1,5 @@
 /* ---
-   LifeLink Unified Stylesheet - Final Version
+    LifeLink Unified Stylesheet - Final Version
 --- */
 
 /* --- 1. Global Setup & Variables --- */
@@ -7,8 +7,14 @@
   --primary-theme-color: #2a5c60;
   --primary-theme-hover: #367588;
   --dark-theme-color:#152c33;
-  --body-bg-start: #c7deed;
-  --body-bg-end: #9cc5cd;
+  
+  /* SUGGESTION 2: Made the background gradient more subtle.
+    This creates a cleaner, more professional, and modern feel
+    instead of the bright blue.
+  */
+  --body-bg-start: #f4f7f8; /* Was: #c7deed */
+  --body-bg-end: #e8eef0;   /* Was: #9cc5cd */
+
   --light-gray: #f4f4f4;
   --success-color: #28a745;
   --success-hover: #218838;
@@ -23,7 +29,9 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: Arial, sans-serif;
+  /* SUGGESTION 1 (Part B): Use the imported 'Inter' font.
+  */
+  font-family: 'Inter', sans-serif; /* Was: Arial, sans-serif */
 }
 
 body {
@@ -56,6 +64,8 @@ header .logo {
 
 header .logo img {
     height: 40px;
+    width: 40px; /* Added width for consistency */
+    border-radius: 4px; /* Added for softer edges on logo */
     filter: brightness(0) invert(1); /* Makes logo white for dark header */
 }
 
@@ -229,7 +239,13 @@ body.landing-page header .logo img {
     border-radius: 10px;
     font-weight: bold;
     font-size: 1.1em;
-    background: linear-gradient(145deg, #49888d,#143b3e);
+    
+    /* SUGGESTION 3: Use your CSS variables for the gradient.
+      This makes your buttons consistent with your theme.
+    */
+    background: linear-gradient(145deg, var(--primary-theme-hover), var(--primary-theme-color));
+    /* Was: background: linear-gradient(145deg, #49888d,#143b3e); */
+
     box-shadow: 0 5px 10px rgba(0,0,0,0.15);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
