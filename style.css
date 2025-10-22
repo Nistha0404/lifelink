@@ -415,3 +415,128 @@ body.landing-page .hero h1 {
 body.landing-page .hero p {
   font-size: 1.1rem;
 }
+
+/* --- 9. Facts Page Specific Styles --- */
+
+/* This styles the new title on the facts page */
+.hero-inner {
+  text-align: center;
+  width: 100%;
+  padding: 1rem 0;
+  margin-bottom: 2.5rem;
+}
+.hero-inner h1 {
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: var(--dark-theme-color);
+  margin-bottom: 0.5rem;
+}
+.hero-inner p {
+  font-size: 1.1rem;
+  color: var(--secondary-color);
+}
+
+/* This is the container for your new abstract grid */
+.facts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem; /* Space between each fact card */
+  width: 100%;
+  max-width: 900px; /* Keeps the cards from getting too wide */
+  margin-bottom: 3rem; /* Extra space before the footer */
+}
+
+/* This is the individual fact card */
+.fact-card {
+  display: flex;
+  flex-direction: column; /* Default for mobile */
+  align-items: center;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.08); /* Softer shadow */
+  overflow: hidden; /* Keeps images inside the rounded corners */
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.fact-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+}
+
+/* Styles for the image container */
+.fact-image {
+  width: 100%;
+  height: 250px; /* Fixed height for images on mobile */
+}
+.fact-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Prevents images from stretching */
+  display: block;
+}
+
+/* Styles for the text content */
+.fact-content {
+  padding: 2rem;
+}
+
+/* This is the "Did You Know?" text, styled like the inspiration */
+.fact-content .category {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--secondary-hover);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.fact-content h2 {
+  font-size: 1.75rem;
+  color: var(--primary-theme-color);
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.fact-content p {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #333;
+}
+
+/* Specific styles for the quotes */
+.fact-content blockquote {
+  font-style: italic;
+  font-size: 1.25rem;
+  color: var(--dark-theme-color);
+  border-left: 4px solid var(--primary-theme-hover);
+  padding-left: 1.5rem;
+  margin: 1rem 0;
+  line-height: 1.6;
+}
+.fact-content .quote-author {
+  display: block;
+  font-weight: 700;
+  color: var(--primary-theme-color);
+  margin-top: 0.75rem;
+  font-style: normal;
+}
+
+/* --- This is the "abstract grid" magic for larger screens --- */
+@media (min-width: 768px) {
+  .fact-card {
+    flex-direction: row; /* Go side-by-side on desktop */
+  }
+
+  .fact-image {
+    flex-basis: 40%; /* Image takes 40% of the card width */
+    height: auto; /* Auto-height on desktop */
+    min-height: 300px;
+  }
+  
+  .fact-content {
+    flex-basis: 60%; /* Text takes 60% */
+    padding: 2.5rem;
+  }
+
+  /* This flips the layout for cards with the .image-right class */
+  .fact-card.image-right {
+    flex-direction: row-reverse;
+  }
+}
