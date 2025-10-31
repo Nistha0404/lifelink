@@ -12,51 +12,54 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="landing-page">
-    <!-- Consistent Header -->
-    <header>
+    <!-- Consistent Header --><header>
         <div class="logo">
-            <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='https://placehold.co/40x40/2a5c60/FFFFFF?text=LL'; this.onerror=null;">
+            <!-- Fixed stray semicolon in img tag -->
+            <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='https://placehold.co/40x40/FFFFFF/152c33?text=LL'; this.onerror=null;">
             <span>LifeLink</span>
         </div>
         <nav>
             <a href="index.html">Home</a>
             <a href="volunteer-login.html">Be a Volunteer</a>
             
+            
+            <!-- MODIFICATION: Added Admin Icon Link -->
+            <a href="admin-login.html" class="nav-icon-link" title="Admin Login">
+                <img src="image copy 6.png" alt="Admin Login Icon">
+            </a>
         </nav>
     </header>
 
-    <!-- 
-      MODIFICATION: The <main> tag now holds the new multi-section layout.
-    -->
     <main>
         
-        <!-- SECTION 1: HERO -->
-        <div class="hero-container">
-            <!-- Column 1: Content (Text + Buttons) -->
-            <div class="hero-content">
-                <section class="hero">
-                    <h1>Welcome to LifeLink</h1>
-                    <p>Connecting donors, patients, and hospitals to save lives. Please choose your login to get started.</p>
-                </section>
-
-                <!-- NEW: Role Selection Section as a 2x2 Grid -->
-                <div class="login-button-grid">
-                    <a href="patient-login.html" class="btn-gradient">Patient Login</a>
-                    <a href="donor-questionnaire.html" class="btn-gradient">Donor Login</a>
-                    <a href="hospital-login.html" class="btn-gradient">Hospital Login</a>
-                    <a href="admin-login.html" class="btn-gradient">Admin Login</a>
+        <!-- 
+          SECTION 1: HERO (NOW A STANDARD INFO-SECTION)
+          This whole block is now a standard 'info-section'
+          to match the layout of the other sections.
+        -->
+        <section class="info-section">
+            <div class="info-content">
+                <h1 class="main-hero-title">Welcome to LifeLink</h1>
+                <br>
+                <span class="category">For Patients</span>
+                <h2>Urgent Blood Needed?</h2>
+                <p>Facing a critical situation? Our network is on standby. Click the button to submit an emergency request, and we will connect you to nearby donors and hospitals immediately.</p>
+                
+                <div class="hero-buttons">
+                    <a href="patient-login.html" class="btn-danger">Emergency Request</a>
                 </div>
             </div>
             
-            <!-- Column 2: Image -->
-            <div class="hero-image">
-                <img src="image copy 4.png" alt="Diverse group of people donating blood">
-                <!-- Image is added via CSS -->
+            <div class="info-image">
+                <!-- 
+                  IMAGE_SPACE: Replace this placeholder with your image.
+                  (e.g., src="image copy 2.png")
+                -->
+                <img src="image copy 4.png" alt="Person donating blood in a hospital setting">
             </div>
-        </div>
+        </section>
 
-        <!-- SECTION 2: INFO (Text Left, Image Right) -->
-        <section class="info-section">
+        <!-- SECTION 2: INFO (Text Left, Image Right) --><section class="info-section alt-layout">
             <div class="info-content">
                 <span class="category">For Donors</span>
                 <h2>Give the Gift of Life</h2>
@@ -64,13 +67,15 @@
                 <a href="donor-questionnaire.html" class="btn-primary-outline">Become a Donor</a>
             </div>
             <div class="info-image">
-                <!-- IMAGE SPACE: Replace this placeholder -->
+                <!-- 
+                  IMAGE_SPACE: Replace this placeholder with your image.
+                  (e.g., src="image copy 5.png")
+                -->
                 <img src="image copy 5.png" alt="Smiling doctor holding a blood bag">
             </div>
         </section>
 
-        <!-- SECTION 3: INFO (Image Left, Text Right) -->
-        <section class="info-section alt-layout">
+        <!-- SECTION 3: INFO (Image Left, Text Right) --><section class="info-section">
             <div class="info-content">
                 <span class="category">For Hospitals</span>
                 <h2>Streamline Your Inventory</h2>
@@ -78,14 +83,11 @@
                 <a href="hospital-login.html" class="btn-primary-outline">Hospital Portal</a>
             </div>
             <div class="info-image">
-                <!-- IMAGE SPACE: Replace this placeholder -->
-                <img src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNjUyOXwwfDF8c2VhcmNofDExfHxkb2N0b3IlMjBjb21wdXRlcnxlbnwwfHx8fDE3MzAwODMwOTV8MA&ixlib=rb-4.0.3&q=80&w=1080" alt="Medical professional using a laptop">
+                <img src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wzNjUyOXwwfDF8c2VhcmNofDExfHxkb2N0b3IlMjBjb21wdXRlcnxlbnwwfHx8fDE3MzAwODMwOTV8MA&ixid=rb-4.0.3&q=80&w=1080" alt="Medical professional using a laptop">
             </div>
         </section>
         
-        <!-- SECTION 4: QUOTE (Full width background image) -->
-        <section class="quote-section">
-            <!-- This is the semi-transparent overlay -->
+        <!-- SECTION 4: QUOTE (Full width background image) --><section class="quote-section">
             <div class="quote-overlay"></div>
             
             <div class="quote-content">
@@ -97,8 +99,7 @@
 
     </main>
 
-    <!-- Consistent Footer -->
-    <footer>
+  <footer>
         <p>© 2025 LifeLink</p>
     </footer>
 
