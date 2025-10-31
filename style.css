@@ -124,6 +124,7 @@ main {
   width: 100%;
   box-shadow: 0 8px 16px rgba(0,0,0,0.1);
   text-align: center;
+  margin: 4rem 1rem;
 }
 .main-card h2 {
   color: var(--primary-theme-color);
