@@ -284,6 +284,21 @@ body.landing-page main {
 .dashboard-container {
   max-width: 1200px;
   width: 100%;
+  margin-top: 2rem; /* ADDS A GAP below the header */
+  margin-bottom: 4rem; /* ADDS THE GAP above the footer */
+  padding: 0 1rem;
+}
+
+/* ADDS SPACE AROUND YOUR "Welcome..." TITLE */
+.dashboard-header {
+  padding: 1.5rem 0; /* Adds top/bottom padding to the title */
+  margin-bottom: 2rem; /* ADDS THE GAP below the title */
+  border-bottom: 1px solid var(--border-color); /* Adds a nice separator */
+}
+.dashboard-header h2 {
+  font-size: 2.2rem;
+  color: var(--dark-theme-color);
+  padding: 0 1rem; /* Adds side padding on mobile */
 }
 .dashboard-grid {
   display: grid;
