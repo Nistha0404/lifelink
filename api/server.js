@@ -68,6 +68,57 @@ async function generatePatientToken(client) {
   return generate4DigitToken();
 }
 
+// ADD THIS new helper function to your server.js
+async function checkAndEscalate(requestId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // 1. Lock the request to prevent race conditions
+    const reqRes = await client.query(
+      "SELECT status FROM blood_requests WHERE request_id = $1 FOR UPDATE", 
+      [requestId]
+    );
+    
+    // 2. Check if request is still 'pending' (i.e., not 'accepted' or 'escalated')
+    if (!reqRes.rows.length || reqRes.rows[0].status !== 'pending') {
+      await client.query('ROLLBACK');
+      return; // Already handled
+    }
+
+    // 3. Find all 'sent' alerts for this request
+    const sentAlerts = await client.query(
+      "SELECT 1 FROM alert_status WHERE request_id = $1 AND status = 'sent'",
+      [requestId]
+    );
+
+    // 4. If there are NO 'sent' alerts left, it means all have been 'rejected' or 'timed_out'
+    if (sentAlerts.rows.length === 0) {
+      console.log(`Escalating request ${requestId}...`);
+      
+      // 5. Update main request status to 'escalated'
+      await client.query(
+        "UPDATE blood_requests SET status = 'escalated' WHERE request_id = $1", 
+        [requestId]
+      );
+      
+      // 6. Find and notify donors (your logic here)
+      // Example:
+      // const { rows: donors } = await client.query("SELECT * FROM users WHERE role = 'donor' AND blood_type = ... ");
+      // for (const donor of donors) {
+      //   // io.to(donor.user_id).emit('donor-sos', ...);
+      // }
+    }
+    
+    await client.query('COMMIT');
+    
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(`Error in checkAndEscalate: ${e.message}`);
+  } finally {
+    client.release();
+  }
+}
 
 //  PATIENT ki Auth
 
@@ -269,60 +320,101 @@ app.post('/api/server/donor-checkin', async (req, res) => {
 });
 
 // --- NEW: HOSPITAL ACCEPTS AN SOS REQUEST ---
-app.post('/api/server/accept-request', async (req, res) => {
-  const { requestId, hospitalId } = req.body;
-
-  if (!requestId || !hospitalId) {
-    return res.status(400).json({ success: false, message: 'Request ID and Hospital ID are required.' });
-  }
-
+// ADD THIS NEW ENDPOINT. You can DELETE your old /api/server/accept-request
+app.post('/api/server/hospital-response', async (req, res) => {
+  const { requestId, hospitalId, response } = req.body; // response = 'accept' or 'reject'
+  
+  const client = await pool.connect();
   try {
-    // This query is "atomic". It will only update the request IF the
-    // status is still 'active'. This prevents two hospitals
-    // from accepting the same request.
-    const { rows } = await pool.query(
-      `UPDATE blood_requests 
-       SET status = 'pending', accepting_hospital_id = $1 
-       WHERE request_id = $2 AND status = 'active'
-       RETURNING request_id`,
-      [hospitalId, requestId]
-    );
+    await client.query('BEGIN');
 
-    // If rows.length is 0, it means another hospital just accepted it.
-    if (rows.length === 0) {
-      return res.status(409).json({ success: false, message: 'Sorry, this request was just accepted by another hospital.' });
+    // 1. Check if the main request is still 'pending'
+    const reqRes = await client.query(
+      "SELECT status FROM blood_requests WHERE request_id = $1 FOR UPDATE", 
+      [requestId]
+    );
+    
+    if (!reqRes.rows.length || reqRes.rows[0].status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, message: 'This request is no longer active.' });
     }
 
-    // You are the hospital that successfully accepted it.
-    res.json({ success: true, message: 'Request accepted. The patient will be notified.' });
+    if (response === 'accept') {
+      // 2a. Mark this hospital's alert as 'accepted'
+      await client.query(
+        "UPDATE alert_status SET status = 'accepted', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2",
+        [requestId, hospitalId]
+      );
+      
+      // 2b. Mark all other alerts for this request as 'closed'
+      await client.query(
+        "UPDATE alert_status SET status = 'closed', response_at = NOW() WHERE request_id = $1 AND hospital_id != $2 AND status = 'sent'",
+        [requestId, hospitalId]
+      );
+      
+      // 2c. Update the main blood request
+      await client.query(
+        "UPDATE blood_requests SET status = 'accepted', accepted_by_hospital_id = $1 WHERE request_id = $2",
+        [hospitalId, requestId]
+      );
+
+    } else { // response === 'reject'
+      // 3. Mark this hospital's alert as 'rejected'
+      await client.query(
+        "UPDATE alert_status SET status = 'rejected', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2",
+        [requestId, hospitalId]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    // 4. If rejected, immediately check if escalation is needed
+    if (response === 'reject') {
+      checkAndEscalate(requestId);
+    }
+    
+    res.json({ success: true });
 
   } catch (e) {
+    await client.query('ROLLBACK');
     console.error(e);
     res.status(500).json({ success: false, message: 'Server error.' });
+  } finally {
+    client.release();
   }
 });
 
 
 // --- NEW: PATIENT CHECKS IF THEIR REQUEST WAS ACCEPTED ---
+// REPLACE your existing /api/server/request-status/:requestId
 app.get('/api/server/request-status/:requestId', async (req, res) => {
   const { requestId } = req.params;
   try {
-    // Check if a hospital has accepted the request
+    // Check the request status
     const { rows } = await pool.query(
       `SELECT br.status, h.hospital_name, h.pincode
        FROM blood_requests br
-       JOIN hospitals h ON h.hospital_id = br.accepting_hospital_id
-       WHERE br.request_id = $1 AND br.status = 'pending'`,
+       LEFT JOIN hospitals h ON h.hospital_id = br.accepted_by_hospital_id
+       WHERE br.request_id = $1`,
       [requestId]
     );
 
-    // If no rows, the request is still 'active' (no hospital accepted yet)
     if (rows.length === 0) {
-      return res.json({ status: 'active', hospital: null });
+      return res.status(404).json({ status: 'not_found' });
     }
 
-    // A hospital has accepted! Send the hospital's details back to the patient.
-    res.json({ status: 'pending', hospital: rows[0] });
+    const request = rows[0];
+    
+    if (request.status === 'accepted') {
+      // A hospital accepted!
+      res.json({ status: 'pending', hospital: { hospital_name: request.hospital_name, pincode: request.pincode } });
+    } else if (request.status === 'escalated') {
+      // No hospitals accepted, it went to donors
+      res.json({ status: 'escalated', hospital: null });
+    } else {
+      // Still 'pending' (no hospital has accepted yet)
+      res.json({ status: 'active', hospital: null });
+    }
 
   } catch (e) {
     console.error(e);
@@ -335,10 +427,15 @@ app.get('/api/server/request-status/:requestId', async (req, res) => {
 
 
 // PATIENT SOS: create request + patient_token + notify hospitals
+// REPLACE your existing /api/server/request-blood
 app.post('/api/server/request-blood', async (req, res) => {
   const { patientId, bloodType, pincode, latitude, longitude } = req.body;
-  if (!patientId || !bloodType || !pincode) {
+  
+  if (!patientId || !bloodType) {
     return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+  if (!latitude || !longitude) {
+    return res.status(400).json({ success: false, message: 'Precise location is required.' });
   }
 
   const client = await pool.connect();
@@ -346,56 +443,100 @@ app.post('/api/server/request-blood', async (req, res) => {
     await client.query('BEGIN');
 
     const patientToken = await generatePatientToken(client);
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
 
+    // 1. Create the main request with 'pending' status and deadline
     const ins = `
-      INSERT INTO blood_requests (patient_id, creator_user_id, blood_type_needed, pincode, latitude, longitude, status, patient_token)
-      VALUES ($1,$1,$2,$3,$4,$5,'active',$6)
+      INSERT INTO blood_requests (patient_id, creator_user_id, blood_type_needed, pincode, latitude, longitude, status, patient_token, deadline)
+      VALUES ($1, $1, $2, $3, $4, $5, 'pending', $6, $7)
       RETURNING request_id, patient_token`;
-    const { rows } = await client.query(ins, [patientId, bloodType, pincode, latitude, longitude, patientToken]);
+      
+    const { rows } = await client.query(ins, [patientId, bloodType, pincode, latitude, longitude, patientToken, deadline]);
     const requestId = rows[0].request_id;
-    const patient_token = rows[0].patient_token;
 
-    // fanout: notify nearby hospitals 
-    const { rows: hospitals } = await client.query('SELECT hospital_id, pincode, latitude, longitude FROM hospitals');
-    const promises = [];
+    // 2. Find nearby hospitals (within 10km)
+    const { rows: hospitals } = await client.query('SELECT hospital_id, latitude, longitude FROM hospitals');
+    const alertPromises = [];
+    
     for (const h of hospitals) {
       const dist = calculateDistance(latitude, longitude, h.latitude, h.longitude);
-      if (dist <= 15 || h.pincode === pincode) {
-        promises.push(client.query('INSERT INTO sos_notifications (request_id, hospital_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [requestId, h.hospital_id]));
+      
+      if (dist <= 10) { // <-- Your 10km radius logic
+        // 3. Insert into the NEW alert_status table
+        alertPromises.push(
+          client.query(
+            'INSERT INTO alert_status (request_id, hospital_id, distance, status) VALUES ($1, $2, $3, $4)',
+            [requestId, h.hospital_id, dist, 'sent']
+          )
+        );
       }
     }
-    await Promise.all(promises);
+    await Promise.all(alertPromises);
 
     await client.query('COMMIT');
-    res.status(201).json({ success: true, message: 'SOS Alert sent to nearby hospitals!', requestId, patient_token });
+
+    // 4. Set the 10-minute server-side timer to check for escalation
+    setTimeout(() => {
+      checkAndEscalate(requestId);
+    }, 10 * 60 * 1000 + 1000); // 10 mins + 1 sec buffer
+
+    res.status(201).json({ 
+      success: true, 
+      message: `SOS Alert sent to ${alertPromises.length} nearby hospitals!`, 
+      requestId, 
+      patient_token: rows[0].patient_token 
+    });
+
   } catch (e) {
     await client.query('ROLLBACK');
-    console.error(e); res.status(500).json({ success:false, message:'Internal server error.' });
+    console.error(e); 
+    res.status(500).json({ success:false, message:'Internal server error.' });
   } finally {
     client.release();
   }
 });
 
 // Hospital live SOS monitor 
+// REPLACE your existing /api/server/sos-alerts/:hospitalId
 app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
   const { hospitalId } = req.params;
-  const lastTimestamp = req.query.lastTimestamp || '1970-01-01T00:00:00.000Z';
   try {
+    // Find alerts for this hospital that are still 'sent'
     const q = `
-      SELECT br.request_id, br.blood_type_needed, br.pincode, br.created_at, br.patient_token
-      FROM blood_requests br
-      JOIN sos_notifications sn ON br.request_id = sn.request_id
-      WHERE sn.hospital_id = $1
-        AND br.status = 'active'
-        AND br.created_at > $2
-      ORDER BY br.created_at ASC`;
-    const { rows } = await pool.query(q, [hospitalId.toUpperCase(), lastTimestamp]);
-    res.json(rows);
+      SELECT 
+        br.request_id,
+        br.blood_type_needed,
+        br.patient_token,
+        br.deadline,
+        u.full_name AS patient_name,
+        als.distance
+      FROM alert_status als
+      JOIN blood_requests br ON als.request_id = br.request_id
+      JOIN users u ON br.patient_id = u.user_id
+      WHERE als.hospital_id = $1
+        AND als.status = 'sent'
+        AND br.status = 'pending' -- Check if request is still active
+      ORDER BY als.created_at DESC
+    `;
+    const { rows } = await pool.query(q, [hospitalId.toUpperCase()]);
+
+    // Format the data for the client
+    const alerts = rows.map(req => ({
+      requestId: req.request_id,
+      patientName: req.patient_name,
+      bloodType: req.blood_type_needed,
+      patientToken: req.patient_token,
+      distance: parseFloat(req.distance), // Ensure it's a number
+      deadline: req.deadline // Pass the absolute deadline
+    }));
+
+    res.json(alerts);
+
   } catch (e) {
-    console.error(e); res.status(500).json({ message: 'Server error fetching alerts.' });
+    console.error("Error in /api/server/sos-alerts/:", e); 
+    res.status(500).json({ message: 'Server error fetching alerts.' });
   }
 });
-
 //  Patient history 
 app.get('/api/server/requests/history/:patientId', async (req, res) => {
   try {
