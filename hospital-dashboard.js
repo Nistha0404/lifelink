@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     try {
       showVerifyMsg('Verifying…', true);
-      const res = await fetch('/api/hospital/verify-token', {
+      const res = await fetch('/api/server/verify-token', {
         method:'POST',
         headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ token })
