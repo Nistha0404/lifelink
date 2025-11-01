@@ -18,14 +18,14 @@
     }
 
     /* === 2. DEFINE THE GRID === */
-    .dashboard-grid1 { 
+    .dashboard-grid { 
         display: grid; 
         grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
         gap: 1.5rem; 
     }
 
     /* === 3. MAKE CARDS EQUAL HEIGHT === */
-    .dashboard-card1 { 
+    .dashboard-card { 
         background: #fff; 
         padding: 1.5rem; 
         border-radius: 8px; 
@@ -108,8 +108,8 @@
     <main>
         <h2>Welcome, <span id="donor-name">Donor</span>!</h2>
         <!-- Sos requests -->
-        <div class="dashboard-card1">
-            <div class="dashboard-card1 sos-card">
+        <div class="dashboard-card">
+            <div class="dashboard-card sos-card">
     <h3>Urgent SOS Log</h3>
     <p>Active requests for your blood type. Please respond quickly.</p>
     <div id="sos-log-container" style="display: flex; flex-direction: column; gap: 1rem;">
@@ -147,24 +147,24 @@
 
 
             <!-- Smart ETA Card -->
-            <div class="dashboard-card1">
+            <div class="dashboard-card">
                 <h3>Smart ETA</h3>
                 <div id="eta-info">Calculating...</div>
             </div>
              <!-- Check-in QR Card -->
-            <div class="dashboard-card1">
+            <div class="dashboard-card">
                 <h3>Hospital Check-in</h3>
                 <p>Present this QR code upon arrival.</p>
                 <div id="qr-code-container"></div>
             </div>
             <!-- Casual Donation Card -->
-            <div class="dashboard-card1">
+            <div class="dashboard-card">
                 <h3>Schedule a Donation</h3>
                 <p>Schedule a donation at your convenience.</p>
                 <button class="btn-primary" onclick="openDonationModal()">Donate Now</button>
             </div>
              <!-- Reliability Score Card -->
-            <div class="dashboard-card1">
+            <div class="dashboard-card">
                 <h3>Reliability Score</h3>
                 <p class="reliability-score" id="reliability-score">--</p>
             </div>
