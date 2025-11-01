@@ -92,10 +92,12 @@
           messageEl.className = 'message-area message-success';
           alert(`Your Login OTP is: ${result.otp}`);
           document.getElementById('loginOtpGroup').style.display = 'block';
-      } else {
+      } 
+      document.getElementById('loginSubmitBtn').style.display = 'block';
+    }else {
           messageEl.className = 'message-area message-error';
       }
-    }
+    
 
     async function handleLogin(event) {
         event.preventDefault();
