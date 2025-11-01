@@ -24,6 +24,9 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+const axios = require('axios');
+const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY; // This gets the key from Vercel environment variables
+
 
 // helping functions 
 
@@ -68,13 +71,35 @@ async function generatePatientToken(client) {
 
 //  PATIENT ki Auth
 
+// REPLACES your existing /api/server/send-otp function
 app.post('/api/server/send-otp', async (req, res) => {
   const { phoneNumber } = req.body;
   if (!phoneNumber) return res.status(400).json({ success: false, message: 'Phone number is required.' });
   try {
     const otp = Math.floor(1000 + Math.random() * 9000).toString();
     otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
+    
+    // This is your current "alert" system. It will run.
     console.log(`Patient OTP for ${phoneNumber}: ${otp}`);
+
+    /* --- FOR FINAL RUN: Un-comment this block and comment the line above ---
+    try {
+      if (!FAST2SMS_API_KEY) throw new Error('FAST2SMS_API_KEY not set');
+      await axios.get('https://www.fast2sms.com/dev/bulkV2', {
+        params: {
+          authorization: FAST2SMS_API_KEY,
+          message: `Your LifeLink patient OTP is ${otp}.`,
+          language: 'english',
+          route: 'q',
+          numbers: phoneNumber
+        }
+      });
+      console.log('Live Patient OTP sent to ' + phoneNumber);
+    } catch (smsError) {
+      console.error("Fast2SMS Error:", smsError.message);
+    }
+    --- END OF Fast2SMS BLOCK --- */
+    
     res.json({ success: true, otp, message: 'OTP generated.' });
   } catch (e) {
     console.error(e); res.status(500).json({ success: false, message: 'Server error.' });
