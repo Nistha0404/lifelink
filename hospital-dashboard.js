@@ -209,7 +209,86 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Live SOS polling (fill in your existing logic if applicable)
-  async function startPollingForSOS() { /* ... your implementation ... */ }
+  // Live SOS polling
+  let sosPollInterval; // This will store our timer
+  async function startPollingForSOS() {
+    if (!currentHospital || !currentHospital.hospital_id) {
+        console.log("No hospital info, can't start monitor.");
+        return;
+    }
+    
+    // Stop any old timer
+    if (sosPollInterval) clearInterval(sosPollInterval);
+
+    // Fetch alerts immediately
+    await fetchSosAlerts();
+    
+    // Then, check for new alerts every 15 seconds
+    sosPollInterval = setInterval(fetchSosAlerts, 15000);
+  }
+
+  // This function fetches new alerts from your server
+  async function fetchSosAlerts() {
+    try {
+        const response = await fetch(`/api/server/sos-alerts/${currentHospital.hospital_id}`);
+        const requests = await response.json();
+
+        liveSosList.innerHTML = ''; // Clear the list
+
+        if (!requests || requests.length === 0) {
+            liveSosList.innerHTML = '<li class="no-requests">No active SOS requests.</li>';
+            return;
+        }
+
+        // Add each new request to the list
+        requests.forEach(req => {
+            const li = document.createElement('li');
+            li.className = 'sos-request-item'; // Add a class for styling
+            li.innerHTML = `
+                <div class="sos-info">
+                    <strong>Blood: ${req.blood_type_needed}</strong>
+                    <span>Pincode: ${req.pincode}</span>
+                    <span class="muted">Token: ${req.patient_token}</span>
+                </div>
+                <div class="sos-actions">
+                    <button class="btn-primary" onclick="acceptRequest(${req.request_id})">Accept</button>
+                </div>
+            `;
+            liveSosList.appendChild(li);
+        });
+    } catch (e) {
+        console.error("Error fetching SOS alerts:", e);
+        liveSosList.innerHTML = '<li>Error loading requests.</li>';
+    }
+  }
+
+  // This runs when the hospital clicks the "Accept" button
+  // We must make it global so the "onclick" in the HTML can find it
+  window.acceptRequest = async (requestId) => {
+    try {
+        const response = await fetch('/api/server/accept-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                requestId: requestId,
+                hospitalId: currentHospital.hospital_id
+            })
+        });
+        
+        const result = await response.json();
+
+        if (result.success) {
+            alert('Request accepted! The patient is being notified.');
+        } else {
+            alert(`Error: ${result.message}`);
+        }
+        
+        // Refresh the list immediately
+        fetchSosAlerts();
+    } catch (e) {
+        alert('An error occurred. Please try again.');
+    }
+  }
 
   function displayMessage(el, msg, ok) {
     el.textContent = msg;

@@ -216,6 +216,68 @@ app.post('/api/server/donor-checkin', async (req, res) => {
   }
 });
 
+// --- NEW: HOSPITAL ACCEPTS AN SOS REQUEST ---
+app.post('/api/server/accept-request', async (req, res) => {
+  const { requestId, hospitalId } = req.body;
+
+  if (!requestId || !hospitalId) {
+    return res.status(400).json({ success: false, message: 'Request ID and Hospital ID are required.' });
+  }
+
+  try {
+    // This query is "atomic". It will only update the request IF the
+    // status is still 'active'. This prevents two hospitals
+    // from accepting the same request.
+    const { rows } = await pool.query(
+      `UPDATE blood_requests 
+       SET status = 'pending', accepting_hospital_id = $1 
+       WHERE request_id = $2 AND status = 'active'
+       RETURNING request_id`,
+      [hospitalId, requestId]
+    );
+
+    // If rows.length is 0, it means another hospital just accepted it.
+    if (rows.length === 0) {
+      return res.status(409).json({ success: false, message: 'Sorry, this request was just accepted by another hospital.' });
+    }
+
+    // You are the hospital that successfully accepted it.
+    res.json({ success: true, message: 'Request accepted. The patient will be notified.' });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+
+// --- NEW: PATIENT CHECKS IF THEIR REQUEST WAS ACCEPTED ---
+app.get('/api/server/request-status/:requestId', async (req, res) => {
+  const { requestId } = req.params;
+  try {
+    // Check if a hospital has accepted the request
+    const { rows } = await pool.query(
+      `SELECT br.status, h.hospital_name, h.pincode
+       FROM blood_requests br
+       JOIN hospitals h ON h.hospital_id = br.accepting_hospital_id
+       WHERE br.request_id = $1 AND br.status = 'pending'`,
+      [requestId]
+    );
+
+    // If no rows, the request is still 'active' (no hospital accepted yet)
+    if (rows.length === 0) {
+      return res.json({ status: 'active', hospital: null });
+    }
+
+    // A hospital has accepted! Send the hospital's details back to the patient.
+    res.json({ status: 'pending', hospital: rows[0] });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ status: 'error', message: 'Server error.' });
+  }
+});
+
 
 //  SHARED: SOS + HISTORY + TWO-STAGE TOKENS
 
@@ -272,7 +334,7 @@ app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
       FROM blood_requests br
       JOIN sos_notifications sn ON br.request_id = sn.request_id
       WHERE sn.hospital_id = $1
-        AND br.status IN ('active','pending')
+        AND br.status = 'active'
         AND br.created_at > $2
       ORDER BY br.created_at ASC`;
     const { rows } = await pool.query(q, [hospitalId.toUpperCase(), lastTimestamp]);

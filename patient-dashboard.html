@@ -105,6 +105,7 @@
   const patientQrImg = document.getElementById('patientQrImg');
 
   let currentUser = null;
+  let requestPollInterval; // This will store our polling timer
 
   document.addEventListener('DOMContentLoaded', () => {
     const userData = sessionStorage.getItem('currentUser');
@@ -219,10 +220,16 @@ Time: ${timeOfRequest}`;
           );
           
           // 3. Show the QR code card
+          // 3. Show the QR code card
           patientTokenCard.classList.remove('hidden');
         }
-        historySection.classList.remove('hidden');
-        fetchRequestHistory();
+
+        // --- NEW LINE: START POLLING FOR A RESPONSE ---
+        startRequestPolling(result.requestId); 
+        // ------------------------------------------
+
+        historySection.classList.remove('hidden');
+        fetchRequestHistory();
       } else {
         sosMessage.style.color = 'red';
         sosMessage.textContent = `Error: ${result.message}`;
@@ -259,6 +266,40 @@ Time: ${timeOfRequest}`;
       historyBody.innerHTML = '<tr><td colspan="5">Could not load history.</td></tr>';
     }
   }
+
+  // --- NEW FUNCTION: Add this to your patient dashboard script ---
+function startRequestPolling(requestId) {
+    // Clear any old timer
+    if (requestPollInterval) clearInterval(requestPollInterval);
+
+    // Check the server every 10 seconds
+    requestPollInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/server/request-status/${requestId}`);
+            const result = await response.json();
+
+            // Check if a hospital has accepted
+            if (result.status === 'pending' && result.hospital) {
+                // SUCCESS!
+                clearInterval(requestPollInterval); // Stop checking
+                
+                // Use your existing 'sosMessage' element to show the update
+                sosMessage.style.color = 'green';
+                
+                // Display the hospital's name and pincode
+                sosMessage.innerHTML = `
+                    <strong>REQUEST ACCEPTED!</strong><br>
+                    Please go to: <strong>${result.hospital.hospital_name}</strong><br>
+                    Pincode: ${result.hospital.pincode}
+                `;
+            }
+            // If status is 'active', it will just loop and check again in 10s
+        } catch (e) {
+            // If the server errors, just keep polling
+            console.error("Polling error:", e);
+        }
+    }, 10000); // 10000ms = 10 seconds
+}
 </script>
 <footer>
         <p>© 2025 LifeLink</p>
