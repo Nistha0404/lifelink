@@ -7,8 +7,23 @@
     <!-- QR Code Library -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <style>
+        main {
+    max-width: 1300px;  /* Adjust this width as you like */
+    margin: 2rem auto;  /* Centers the block on the page */
+    padding: 0 1.5rem;  /* Adds spacing on the sides */
+}
         .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
-        .dashboard-card { background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .dashboard-card { 
+    background: #fff; 
+    padding: 1.5rem; 
+    border-radius: 8px; 
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+    
+    /* --- ADD THESE 3 LINES --- */
+    height: 100%; 
+    display: flex;
+    flex-direction: column;
+}
         .dashboard-card h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
         #qr-code-container { width: 150px; height: 150px; margin: 1rem auto; }
         .sos-card { background-color: #fffbe6; border: 1px solid #ffe58f; }
