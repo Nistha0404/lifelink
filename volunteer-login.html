@@ -66,7 +66,7 @@
                 <p>An OTP has been sent to your mobile number.</p>
                 <div class="form-group">
                     <label for="otp">Enter OTP</label>
-                    <input type="text" id="otp" placeholder="Enter 4-digit OTP" maxlength="4">
+                    <input type="text" id="otp" placeholder="Enter 6-digit OTP" maxlength="6">
                 </div>
                 <button type="button" id="verifyBtn" class="btn-primary">Verify & Login</button>
             </div>
@@ -78,95 +78,154 @@
     
 
     <script>
-        let generatedOtp = null;
-        let currentUserType = 'volunteer';
+    // --- NO MORE FAKE OTP ---
+    let currentUserType = 'volunteer';
 
-        const messageEl = document.getElementById('message');
-        const otpSection = document.getElementById('otpSection');
+    const messageEl = document.getElementById('message');
+    const otpSection = document.getElementById('otpSection');
 
-        function toggleRegistrationForm() {
-            currentUserType = document.getElementById('userType').value;
-            document.getElementById('volunteerFormContainer').style.display = (currentUserType === 'volunteer') ? 'block' : 'none';
-            document.getElementById('ngoFormContainer').style.display = (currentUserType === 'ngo') ? 'block' : 'none';
-            
-            otpSection.style.display = 'none';
-            messageEl.textContent = '';
-            document.getElementById('getVolunteerOtpBtn').style.display = 'block';
-            document.getElementById('getNgoOtpBtn').style.display = 'block';
+    function toggleRegistrationForm() {
+        currentUserType = document.getElementById('userType').value;
+        document.getElementById('volunteerFormContainer').style.display = (currentUserType === 'volunteer') ? 'block' : 'none';
+        document.getElementById('ngoFormContainer').style.display = (currentUserType === 'ngo') ? 'block' : 'none';
+        
+        otpSection.style.display = 'none';
+        messageEl.textContent = '';
+        document.getElementById('getVolunteerOtpBtn').style.display = 'block';
+        document.getElementById('getNgoOtpBtn').style.display = 'block';
+    }
+
+    /**
+     * NEW: Calls the server to get a real OTP
+     */
+    async function handleGetOtp() {
+        let phone;
+        let btn;
+
+        if (currentUserType === 'volunteer') {
+            phone = document.getElementById('volunteerPhone').value.trim();
+            btn = document.getElementById('getVolunteerOtpBtn');
+        } else {
+            phone = document.getElementById('ngoPhone').value.trim();
+            btn = document.getElementById('getNgoOtpBtn');
         }
 
-        function handleGetOtp() {
-            let phone;
-            if (currentUserType === 'volunteer') {
-                phone = document.getElementById('volunteerPhone').value.trim();
-            } else {
-                phone = document.getElementById('ngoPhone').value.trim();
-            }
-
-            if (!/^\d{10}$/.test(phone)) {
-                messageEl.style.color = 'var(--error-color)';
-                messageEl.textContent = "Please enter a valid 10-digit phone number.";
-                return;
-            }
-
-            generatedOtp = Math.floor(1000 + Math.random() * 9000);
-            messageEl.style.color = 'var(--success-color)';
-            messageEl.textContent = `(For Demo) Your OTP is: ${generatedOtp}`;
-            
-            otpSection.style.display = 'block';
-            document.getElementById('getVolunteerOtpBtn').style.display = 'none';
-            document.getElementById('getNgoOtpBtn').style.display = 'none';
+        if (!/^\d{10}$/.test(phone)) {
+            messageEl.style.color = 'var(--error-color)';
+            messageEl.textContent = "Please enter a valid 10-digit phone number.";
+            return;
         }
 
-        document.getElementById('getVolunteerOtpBtn').addEventListener('click', handleGetOtp);
-        document.getElementById('getNgoOtpBtn').addEventListener('click', handleGetOtp);
+        // Disable button and show loading
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+        messageEl.textContent = '';
 
-        document.getElementById('verifyBtn').addEventListener('click', async () => {
-            const enteredOtp = document.getElementById('otp').value;
-            if (enteredOtp != generatedOtp) {
-                messageEl.style.color = 'var(--error-color)';
-                messageEl.textContent = "Invalid OTP. Please try again.";
-                return;
-            }
+        try {
+            // Call the new server endpoint
+            const response = await fetch('/api/volunteer/generate-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phoneNumber: phone })
+            });
+            const result = await response.json();
 
-            let payload = { type: currentUserType };
-            if (currentUserType === 'volunteer') {
-                payload.fullName = document.getElementById('volunteerName').value.trim();
-                payload.phoneNumber = document.getElementById('volunteerPhone').value.trim();
+            if (result.success) {
+                // --- HERE IS YOUR ALERT ---
+                alert(`(For Demo) Your OTP is: ${result.otp}`);
+                
+                messageEl.style.color = 'var(--success-color)';
+                messageEl.textContent = 'An OTP has been sent to your mobile.';
+                otpSection.style.display = 'block';
+                btn.style.display = 'none'; // Hide the 'Get OTP' button
             } else {
-                payload.ngoName = document.getElementById('ngoName').value.trim();
-                payload.registrationId = document.getElementById('ngoRegId').value.trim();
-                payload.phoneNumber = document.getElementById('ngoPhone').value.trim();
-            }
-
-            try {
-                // --- CHANGED THIS LINE ---
-                const response = await fetch('/api/server/auth/volunteer-ngo', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    const name = (currentUserType === 'volunteer') ? result.user.full_name : result.user.ngo_name;
-                    sessionStorage.setItem('currentUserName', name);
-                    messageEl.style.color = 'var(--success-color)';
-                    messageEl.textContent = "Login successful! Redirecting...";
-                    setTimeout(() => {
-                        window.location.href = "volunteer-dashboard.html"; 
-                    }, 1500);
-                } else {
-                    messageEl.style.color = 'var(--error-color)';
-                    messageEl.textContent = `Login failed: ${result.message}`;
-                }
-            } catch (error) {
-                console.error('Login error:', error);
                 messageEl.style.color = 'var(--error-color)';
-                messageEl.textContent = 'Could not connect to the server.';
+                messageEl.textContent = result.message;
             }
-        });
-    </script>
+
+        } catch (error) {
+            console.error('OTP Error:', error);
+            messageEl.style.color = 'var(--error-color)';
+            messageEl.textContent = 'Could not connect to the server.';
+        } finally {
+            // Re-enable button in case of failure
+            btn.disabled = false;
+            btn.textContent = 'Get OTP';
+        }
+    }
+
+    // Attach listeners
+    document.getElementById('getVolunteerOtpBtn').addEventListener('click', handleGetOtp);
+    document.getElementById('getNgoOtpBtn').addEventListener('click', handleGetOtp);
+
+    /**
+     * NEW: Calls the server to verify and login
+     */
+    document.getElementById('verifyBtn').addEventListener('click', async () => {
+        const enteredOtp = document.getElementById('otp').value;
+        const btn = document.getElementById('verifyBtn');
+
+        // 1. Build the full payload
+        let payload = { 
+            type: currentUserType,
+            otp: enteredOtp
+        };
+
+        if (currentUserType === 'volunteer') {
+            payload.fullName = document.getElementById('volunteerName').value.trim();
+            payload.phoneNumber = document.getElementById('volunteerPhone').value.trim();
+        } else {
+            payload.ngoName = document.getElementById('ngoName').value.trim();
+            payload.registrationId = document.getElementById('ngoRegId').value.trim();
+            payload.phoneNumber = document.getElementById('ngoPhone').value.trim();
+        }
+
+        // 2. Client-side validation
+        if (payload.otp.length !== 6) {
+             messageEl.style.color = 'var(--error-color)';
+             messageEl.textContent = "Please enter a 6-digit OTP.";
+             return;
+        }
+        // (Add more validation for name, etc. if needed)
+
+        // 3. Send to server
+        btn.disabled = true;
+        btn.textContent = 'Verifying...';
+        
+        try {
+            // --- CALLS THE NEW VERIFY ENDPOINT ---
+            const response = await fetch('/api/volunteer/verify-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                // Use 'full_name' from server response, which works for both
+                sessionStorage.setItem('currentUserName', result.user.full_name);
+                sessionStorage.setItem('currentUserInfo', JSON.stringify(result.user)); // Store full user info
+
+                messageEl.style.color = 'var(--success-color)';
+                messageEl.textContent = `${result.message} Redirecting...`;
+                setTimeout(() => {
+                    window.location.href = "volunteer-dashboard.html"; 
+                }, 1500);
+            } else {
+                messageEl.style.color = 'var(--error-color)';
+                messageEl.textContent = `Login failed: ${result.message}`;
+                btn.disabled = false;
+                btn.textContent = 'Verify & Login';
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            messageEl.style.color = 'var(--error-color)';
+            messageEl.textContent = 'Could not connect to the server.';
+            btn.disabled = false;
+            btn.textContent = 'Verify & Login';
+        }
+    });
+</script>
 
     <footer>
         <p>© 2025 LifeLink</p>

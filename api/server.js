@@ -823,6 +823,97 @@ app.get('/api/server/reports/:hospitalId', async (req, res) => {
 });
 
 
+//
+// --- ADD THESE 2 NEW ENDPOINTS TO server.js ---
+//
+
+// 1. GENERATE OTP FOR VOLUNTEER/NGO
+app.post('/api/volunteer/generate-otp', async (req, res) => {
+  const { phoneNumber } = req.body;
+
+  if (!phoneNumber || !/^\d{10}$/.test(phoneNumber)) {
+    return res.status(400).json({ success: false, message: 'A valid 10-digit phone number is required.' });
+  }
+
+  try {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 }; // 5-minute expiry
+
+    // --- This sends the OTP back to the client for the alert ---
+    // (In production, you'd send an SMS here instead)
+    console.log(`Volunteer/NGO OTP for ${phoneNumber}: ${otp}`);
+    res.json({ success: true, otp: otp, message: 'OTP generated.' });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+
+// 2. VERIFY OTP, THEN LOGIN OR REGISTER VOLUNTEER/NGO
+app.post('/api/volunteer/verify-login', async (req, res) => {
+  // We expect the full payload: type, name, phone, otp, etc.
+  const {
+    type,           // 'volunteer' or 'ngo'
+    fullName,       // For volunteer
+    ngoName,        // For NGO
+    registrationId, // For NGO
+    phoneNumber,
+    otp
+  } = req.body;
+
+  // 1. Verify OTP
+  const record = otpStore[phoneNumber];
+  if (!record || record.otp !== otp || Date.now() >= record.expiry) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
+  }
+
+  // OTP is valid, delete it
+  delete otpStore[phoneNumber];
+
+  // 2. Find or Create User
+  try {
+    // Check if user already exists
+    const { rows } = await pool.query(
+      "SELECT user_id, full_name, phone_number, role, registration_id FROM users WHERE phone_number = $1 AND (role = 'volunteer' OR role = 'ngo')",
+      [phoneNumber]
+    );
+
+    // --- A: User exists, LOG THEM IN ---
+    if (rows.length) {
+      const user = rows[0];
+      // Just in case they switched types, update their info
+      const updateName = (type === 'volunteer') ? fullName : ngoName;
+      await pool.query(
+        "UPDATE users SET full_name = $1, role = $2, registration_id = $3 WHERE user_id = $4",
+        [updateName, type, (type === 'ngo') ? registrationId : null, user.user_id]
+      );
+      user.full_name = updateName; // Send back the updated name
+      user.role = type;
+      return res.json({ success: true, message: 'Login successful!', user: user });
+    }
+    
+    // --- B: User doesn't exist, REGISTER THEM ---
+    let name = (type === 'volunteer') ? fullName : ngoName;
+    let regId = (type === 'ngo') ? registrationId : null;
+
+    const newUser = await pool.query(
+      `INSERT INTO users (full_name, phone_number, role, registration_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING user_id, full_name, phone_number, role, registration_id`,
+      [name, phoneNumber, type, regId]
+    );
+
+    res.status(201).json({ success: true, message: 'Registration successful!', user: newUser.rows[0] });
+
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Database error.' });
+  }
+});
+
+
 //app.get('/api/server/health', (req, res) => {
 //  res.json({ status: 'ok', message: 'Server is running' });
 //});
