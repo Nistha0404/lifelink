@@ -31,13 +31,45 @@
     </header>
     <main>
         <h2>Welcome, <span id="donor-name">Donor</span>!</h2>
-        <div class="dashboard-grid">
-            <!-- SOS Recheck Card -->
+        <!-- Sos requests -->
+        <div class="dashboard-card">
             <div class="dashboard-card sos-card">
-                <h3>SOS Alerts</h3>
-                <p>You will be notified here for urgent requests.</p>
-                <button class="btn-primary" onclick="openModal('sosModal')">Simulate SOS</button>
-            </div>
+    <h3>Urgent SOS Log</h3>
+    <p>Active requests for your blood type. Please respond quickly.</p>
+    <div id="sos-log-container" style="display: flex; flex-direction: column; gap: 1rem;">
+        <p>Checking for requests...</p>
+    </div>
+</div>
+
+</div>
+</div>
+
+<div id="locationModal" class="modal">
+    <div class="modal-content">
+        <h3>Step 1: Verify Location</h3>
+        <p>Please confirm you are within 10km of the patient to accept this request.</p>
+        
+        <div id="location-status-message" class="message-area" style="margin-bottom: 1rem;">
+            Click the button to verify your location.
+        </div>
+        
+        <input type="hidden" id="active-sos-id" value="">
+        
+        <button id="verify-location-btn" class="btn-primary" onclick="handleVerifyLocation()">
+            Verify My Location
+        </button>
+        
+        <button id="confirm-commitment-btn" class="btn-primary" onclick="handleConfirmCommitment()" style="display:none;">
+            Confirm & Accept
+        </button>
+
+        <button id="cancel-commitment-btn" class="btn-secondary" onclick="closeModal('locationModal')">
+            Cancel
+        </button>
+    </div>
+</div>
+
+
             <!-- Smart ETA Card -->
             <div class="dashboard-card">
                 <h3>Smart ETA</h3>
@@ -98,29 +130,81 @@
       </div>
     </div>
 
-    <script>
-        const donor = JSON.parse(sessionStorage.getItem('donorInfo'));
+    
 
-        window.onload = () => {
-            if (!donor) {
-                window.location.href = './donor-login.html';
-                return;
-            }
-            document.getElementById('donor-name').textContent = donor.full_name;
-            // Pre-fill the blood type input with the donor's registered blood type
-            document.getElementById('donationBloodType').value = donor.blood_type || '';
-            
-            generateQRCode();
-        };
-        
-        function generateQRCode() {
-            if (donor && donor.user_id) {
-                new QRCode(document.getElementById("qr-code-container"), {
-                    text: JSON.stringify({ donorId: donor.user_id, type: 'check-in' }),
-                    width: 150, height: 150,
-                });
-            }
+    <script>
+// ... inside the <script> tag at the bottom of your HTML ...
+
+    const donor = JSON.parse(sessionStorage.getItem('donorInfo'));
+
+    window.onload = () => {
+        if (!donor) {
+            window.location.href = './donor-login.html';
+            return;
         }
+        document.getElementById('donor-name').textContent = donor.full_name;
+        document.getElementById('donationBloodType').value = donor.blood_type || '';
+        
+        // --- MODIFIED PART ---
+        // Instead of just calling generateQRCode(), we now
+        // fetch the active token first.
+        fetchActiveTokenAndGenerateQR();
+    };
+
+    /**
+     * NEW FUNCTION
+     * Fetches the active donor_token from the server, then calls generateQRCode.
+     */
+    async function fetchActiveTokenAndGenerateQR() {
+        if (!donor || !donor.user_id) {
+            console.error('No donor info, cannot fetch token.');
+            return;
+        }
+
+        // We assume your server is running on the same domain
+        const apiUrl = `/api/donor/active-token/${donor.user_id}`;
+        
+        // This is the URL your hospital staff's scanner will open
+        // Make sure it matches the route in your server.js
+        const verificationApiUrl = '/verify-token/'; // Or 'https://your-site.com/verify-token/'
+
+        try {
+            const response = await fetch(apiUrl);
+            const data = await response.json();
+
+            if (data.success && data.donor_token) {
+                // SUCCESS! We got the token.
+                const uniqueDonorToken = data.donor_token;
+                const qrDataString = verificationApiUrl + uniqueDonorToken;
+
+                // Now generate the QR code with the correct URL
+                generateQRCode(qrDataString);
+                
+            } else {
+                // No active commitment. Show a message in the QR area.
+                const qrContainer = document.getElementById("qr-code-container");
+                qrContainer.innerHTML = "<p style='font-size: 0.8rem; padding: 10px; color: #555;'>No active check-in. Please schedule a donation.</p>";
+            }
+        } catch (error) {
+            console.error('Error fetching token:', error);
+            const qrContainer = document.getElementById("qr-code-container");
+            qrContainer.innerHTML = "<p style='font-size: 0.8rem; color: red;'>Could not load QR Code.</p>";
+        }
+    }
+        
+        function generateQRCode(qrText) {
+        if (qrText) {
+            // Clear the container first (in case it had an error message)
+            const qrContainer = document.getElementById("qr-code-container");
+            qrContainer.innerHTML = ""; 
+            
+            new QRCode(qrContainer, {
+                text: qrText, // This is now the verification URL
+                width: 150,
+                height: 150,
+            });
+        }
+    }
         
         document.getElementById('casualDonationForm').addEventListener('submit', async (e) => {
             e.preventDefault();

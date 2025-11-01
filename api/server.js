@@ -571,6 +571,219 @@ app.post('/api/hospital/verify-token', async (req, res) => {
   }
 });
 
+//
+// --- NEW SOS REAL-TIME FLOW ---
+//
+
+// 1. GET /api/sos/active/:donorId
+//    Gets active SOS requests for the donor's blood type (for the new SOS log)
+app.get('/api/sos/active/:donorId', async (req, res) => {
+  const { donorId } = req.params;
+  try {
+    const donor = await pool.query('SELECT blood_type FROM users WHERE user_id = $1', [donorId]);
+    if (!donor.rows.length) {
+      return res.status(404).json({ success: false, message: 'Donor not found.' });
+    }
+    const { blood_type } = donor.rows[0];
+
+    // Find active requests ('pending') for the donor's blood type
+    // that this donor has NOT already committed to.
+    const requests = await pool.query(
+      `SELECT br.request_id, br.patient_name, br.required_blood_type, br.location_lat, br.location_lon
+       FROM blood_requests br
+       WHERE br.required_blood_type = $1
+         AND br.status = 'pending'
+         AND NOT EXISTS (
+           SELECT 1 FROM donation_commitments dc 
+           WHERE dc.request_id = br.request_id AND dc.donor_id = $2
+         )
+       ORDER BY br.created_at DESC`,
+      [blood_type, donorId]
+    );
+
+    res.json({ success: true, requests: requests.rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error fetching SOS requests.' });
+  }
+});
+
+
+// 2. POST /api/sos/verify-location
+//    Verifies if donor is within 10km of the patient
+app.post('/api/sos/verify-location', async (req, res) => {
+  const { sosId, donorLat, donorLon } = req.body;
+  
+  try {
+    const r = await pool.query(
+      'SELECT location_lat, location_lon FROM blood_requests WHERE request_id = $1',
+      [sosId]
+    );
+    if (!r.rows.length) {
+      return res.status(404).json({ success: false, message: 'Request not found.' });
+    }
+
+    const patient = r.rows[0];
+    
+    // --- Uses your 'calculateDistance' function ---
+    const distance = calculateDistance(
+      patient.location_lat,
+      patient.location_lon,
+      donorLat,
+      donorLon
+    );
+    
+    const isVerified = distance <= 10; // The 10km check!
+
+    if (isVerified) {
+      res.json({ 
+        success: true, 
+        verified: true, 
+        distance: distance.toFixed(2) // e.g., "8.45"
+      });
+    } else {
+      res.json({
+        success: true,
+        verified: false,
+        distance: distance.toFixed(2),
+        message: `You are ${distance.toFixed(1)} km away. You must be within 10km to accept.`
+      });
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error verifying location.' });
+  }
+});
+
+
+// 3. POST /api/sos/confirm-commitment
+//    Assigns hospital, creates token, and notifies.
+app.post('/api/sos/confirm-commitment', async (req, res) => {
+  const { sosId, donorId, donorLat, donorLon } = req.body;
+
+  const client = await pool.connect();
+  try {
+    // Start a transaction
+    await client.query('BEGIN');
+
+    // Get patient's location and token (and lock the row)
+    const reqRes = await client.query(
+      'SELECT location_lat, location_lon, patient_token FROM blood_requests WHERE request_id = $1 FOR UPDATE',
+      [sosId]
+    );
+    if (!reqRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Request not found.' });
+    }
+    const patientLat = reqRes.rows[0].location_lat;
+    const patientLon = reqRes.rows[0].location_lon;
+    const patientToken = reqRes.rows[0].patient_token; // For WebSocket flash
+
+    // --- Find Closest Hospital to the PATIENT ---
+    // (Assumes you have a 'hospitals' table with 'lat' and 'lon' columns)
+    const hospitalRes = await client.query(
+      `SELECT hospital_id, name, lat, lon,
+        ( 6371 * acos( cos( radians($1) ) * cos( radians( lat ) ) * cos( radians( lon ) - radians($2) ) + sin( radians($1) ) * sin( radians( lat ) ) ) ) AS distance
+       FROM hospitals
+       ORDER BY distance
+       LIMIT 1`,
+      [patientLat, patientLon]
+    );
+    
+    if (!hospitalRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'No hospitals found.' });
+    }
+    const assignedHospital = hospitalRes.rows[0];
+
+    // --- Create Donation Commitment & Donor Token ---
+    const donorToken = `DON-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+
+    await client.query(
+      `INSERT INTO donation_commitments (request_id, donor_id, hospital_id, donor_token, status, donor_lat_on_accept, donor_lon_on_accept)
+       VALUES ($1, $2, $3, $4, 'accepted', $5, $6)
+       RETURNING commitment_id`,
+      [sosId, donorId, assignedHospital.hospital_id, donorToken, donorLat, donorLon]
+    );
+
+    // Update the blood request to 'in_progress' and assign the hospital
+    await client.query(
+      "UPDATE blood_requests SET status = 'in_progress', assigned_hospital_id = $1 WHERE request_id = $2",
+      [assignedHospital.hospital_id, sosId]
+    );
+
+    // Commit the transaction
+    await client.query('COMMIT');
+
+    // --- !! PATIENT PAGE FLASH !! ---
+    // --- Uses your 'calculateDistance' function ---
+    const etaKm = calculateDistance(donorLat, donorLon, assignedHospital.lat, assignedHospital.lon);
+    const etaMinutes = Math.round((etaKm / 30) * 60); // Assuming 30km/h avg speed
+    
+    console.log(`(SIMULATE WEBSOCKET) Sending to Patient ${patientToken}:`);
+    console.log(`- Donor confirmed! Please go to ${assignedHospital.name}.`);
+    console.log(`- Donor is ${etaKm.toFixed(1)} km away (${etaMinutes} mins).`);
+    console.log(`- Token: ${donorToken}`);
+    // e.g., io.to(patientToken).emit('donor_confirmed', { hospital: assignedHospital.name, distance: etaKm.toFixed(1), time: etaMinutes, token: donorToken });
+
+    // Send the good news back to the donor
+    res.json({
+      success: true,
+      hospital: {
+        name: assignedHospital.name,
+        lat: assignedHospital.lat,
+        lon: assignedHospital.lon
+      },
+      donor_token: donorToken
+    });
+
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error confirming commitment.' });
+  } finally {
+    client.release();
+  }
+});
+
+//
+//
+// --- REPLACE your existing /api/donor/active-token/:donorId with this one ---
+//
+// GET /api/donor/active-token/:donorId
+// Fetches the 'donor_token' for a donor's most recent active commitment
+app.get('/api/donor/active-token/:donorId', async (req, res) => {
+  const { donorId } = req.params;
+
+  if (!donorId) {
+    return res.status(400).json({ success: false, message: 'Donor ID is required.' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT dc.donor_token, dc.donor_lat_on_accept, dc.donor_lon_on_accept,
+              h.name AS hospital_name, h.lat AS hospital_lat, h.lon AS hospital_lon
+       FROM donation_commitments dc
+       LEFT JOIN hospitals h ON h.hospital_id = dc.hospital_id
+       WHERE dc.donor_id = $1 
+         AND (dc.status = 'committed' OR dc.status = 'accepted') -- Finds BOTH types of active tokens
+       ORDER BY dc.created_at DESC -- Get the newest one
+       LIMIT 1`,
+      [donorId]
+    );
+
+    if (result.rows.length) {
+      // Found an active token! Return it all.
+      res.json({ success: true, ...result.rows[0] });
+    } else {
+      // No active token found for this donor
+      res.status(404).json({ success: false, message: 'No active commitment found.' });
+    }
+  } catch (e) {
+    console.error('Error fetching active token:', e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
 
 //  PLAYBOOKS & REPORTS 
 
