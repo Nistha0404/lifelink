@@ -303,3 +303,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initializeDashboard();
 });
+
+// Add these at the top with your other element selectors
+const donorLogList = document.getElementById('donor-log-list');
+const donorLogPlaceholder = document.getElementById('donor-log-placeholder');
+const refreshDonorLogBtn = document.getElementById('refresh-donor-log-btn');
+
+// Add this function somewhere in your file
+/**
+ * NEW: Fetches scheduled donor appointments from the server
+ */
+async function fetchDonorAppointments() {
+    if (!currentHospital) return;
+
+    // Show loading state
+    donorLogList.innerHTML = ''; // Clear old list
+    donorLogPlaceholder.textContent = 'Loading appointments...';
+    donorLogPlaceholder.style.display = 'block';
+
+    try {
+        const res = await fetch(`/api/hospital/appointments/${currentHospital.hospital_id}`);
+        const appointments = await res.json();
+
+        if (appointments.success && appointments.data.length > 0) {
+            donorLogPlaceholder.style.display = 'none'; // Hide placeholder
+            
+            appointments.data.forEach(appt => {
+                const li = document.createElement('li');
+                // Format date to be more readable
+                const apptDate = new Date(appt.appointment_date).toLocaleDateString();
+                
+                li.innerHTML = `
+                    <strong>${appt.full_name} (${appt.blood_type})</strong> - ${apptDate}, ${appt.appointment_time}
+                    <span>Status: ${appt.status}</span>
+                `;
+                donorLogList.appendChild(li);
+            });
+        } else if (appointments.success) {
+            donorLogPlaceholder.textContent = 'No appointments found.';
+        } else {
+            donorLogPlaceholder.textContent = 'Error loading appointments.';
+        }
+    } catch (err) {
+        console.error('Fetch Appointments Error:', err);
+        donorLogPlaceholder.textContent = 'Could not connect to server.';
+    }
+}
+
+// Add this listener for the new "Refresh" button
+refreshDonorLogBtn.addEventListener('click', fetchDonorAppointments);
+
+// Add this call inside your existing initializeDashboard() function
+// This will load appointments when the page starts
+function initializeDashboard() {
+    const s = sessionStorage.getItem('currentHospital');
+    if (!s) { window.location.href = 'hospital-login.html'; return; }
+    currentHospital = JSON.parse(s);
+    welcomeMessage.textContent = `Welcome, ${currentHospital.hospital_name}`;
+    renderStockLiteControls();
+    startPollingForSOS();
+    fetchDonorAppointments(); // <-- ADD THIS LINE
+}
+
+// Make sure the rest of your initializeDashboard() and other functions are still there
