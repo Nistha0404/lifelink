@@ -14,6 +14,8 @@
     table { width:100%; border-collapse:collapse; }
     th, td { padding:8px 10px; border-bottom:1px solid #eee; }
   </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 <header>
@@ -138,10 +140,21 @@
     });
   }
 
-  function setQrForToken(imgEl, token) {
-    const data = encodeURIComponent(JSON.stringify({ type: 'patient_token', token }));
+  // This REPLACES your old setQrForToken function
+function setQrForToken(imgEl, token, patientName, patientPhone, pincode, timeOfRequest) {
+    // 1. Create the human-readable string you wanted
+    const qrDataString = `Patient Name: ${patientName}
+Phone: ${patientPhone}
+Token: ${token}
+Pincode: ${pincode}
+Time: ${timeOfRequest}`;
+
+    // 2. URL-encode the entire string for the API
+    const data = encodeURIComponent(qrDataString);
+    
+    // 3. Set the image source to the API URL
     imgEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${data}`;
-  }
+}
 
   async function handleSosRequest(event) {
     event.preventDefault();
@@ -186,12 +199,28 @@
         sosMessage.textContent = result.message;
 
         // Show patient token + QR immediately
-        if (result.patient_token) {
-          patientTokenText.textContent = result.patient_token;
-          setQrForToken(patientQrImg, result.patient_token);
-          patientTokenCard.classList.remove('hidden');
-        }
+        // Show patient token + QR immediately
+        if (result.patient_token) {
+          const token = result.patient_token;
+          const timeOfRequest = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
 
+          // 1. Display the token number in the blue box
+          patientTokenText.textContent = token;
+
+          // 2. Call your updated QR function with all the info
+          // It gets the name and phone from your 'currentUser' object
+          setQrForToken(
+              patientQrImg,        // The <img> element
+              token,               // The new token
+              currentUser.full_name, // From your session
+              currentUser.phone_number, // From your session
+              pincode,             // From the form
+              timeOfRequest        // The time we just created
+          );
+          
+          // 3. Show the QR code card
+          patientTokenCard.classList.remove('hidden');
+        }
         historySection.classList.remove('hidden');
         fetchRequestHistory();
       } else {
