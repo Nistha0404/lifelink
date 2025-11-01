@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Donor Dashboard - LifeLink</title>
     <link rel="stylesheet" href="../style.css">
+    <!-- QR Code Library -->
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <style>
         .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
@@ -16,11 +17,6 @@
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px; }
         .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
-        /* Key-Value Pair styling for appointment card */
-        .kv-list { font-size: 0.9rem; }
-        .kv-list div { display: flex; justify-content: space-between; padding: 4px 0; }
-        .kv-list div span:first-child { font-weight: 600; color: #333; }
-        .kv-list div span:last-child { color: #555; text-align: right; }
     </style>
 </head>
 <body>
@@ -36,52 +32,69 @@
     <main>
         <h2>Welcome, <span id="donor-name">Donor</span>!</h2>
         <div class="dashboard-grid">
-            
+            <!-- SOS Recheck Card -->
+            <div class="dashboard-card sos-card">
+                <h3>SOS Alerts</h3>
+                <p>You will be notified here for urgent requests.</p>
+                <button class="btn-primary" onclick="openModal('sosModal')">Simulate SOS</button>
+            </div>
+            <!-- Smart ETA Card -->
+            <div class="dashboard-card">
+                <h3>Smart ETA</h3>
+                <div id="eta-info">Calculating...</div>
+            </div>
+             <!-- Check-in QR Card -->
             <div class="dashboard-card">
                 <h3>Hospital Check-in</h3>
                 <p>Present this QR code upon arrival.</p>
                 <div id="qr-code-container"></div>
             </div>
-
+            <!-- Casual Donation Card -->
             <div class="dashboard-card">
                 <h3>Schedule a Donation</h3>
                 <p>Schedule a donation at your convenience.</p>
                 <button class="btn-primary" onclick="openDonationModal()">Donate Now</button>
             </div>
-
-            <div class="dashboard-card" id="my-appointment-card" style="display: none; background-color: #e6f7ff; border: 1px solid #b3e0ff;">
-                <h3>My Upcoming Appointment</h3>
-                <div class="kv-list" id="my-appointment-details">
-                    </div>
-                <p style="font-size: 0.8rem; margin-top: 10px;">Your QR code is now active for this appointment.</p>
+             <!-- Reliability Score Card -->
+            <div class="dashboard-card">
+                <h3>Reliability Score</h3>
+                <p class="reliability-score" id="reliability-score">--</p>
             </div>
-            
-            </div>
+        </div>
     </main>
 
+    <!-- SOS Modal -->
+    <div id="sosModal" class="modal">
+      <div class="modal-content">
+        <span class="close-btn" onclick="closeModal('sosModal')">&times;</span>
+        <h3>Emergency Blood Request!</h3>
+        <p>A nearby hospital requires your blood type urgently. Are you sure you want to accept this request?</p>
+        <button class="btn-primary" onclick="alert('Confirmed!'); closeModal('sosModal');">Confirm</button>
+        <button class="btn-secondary" onclick="closeModal('sosModal')">Cancel</button>
+      </div>
+    </div>
+    
+    <!-- Casual Donation Modal -->
     <div id="donationModal" class="modal">
       <div class="modal-content">
         <span class="close-btn" onclick="closeModal('donationModal')">&times;</span>
         <h3>Schedule a Donation</h3>
         <form id="casualDonationForm">
-            <div class="form-group">
-                <label>Pincode (backup if location fails)</label>
-                <input type="text" id="donationPincode" maxlength="6">
-            </div>
+            <div class="form-group"><label>Pincode</label><input type="text" id="donationPincode"></div>
+            <!-- =================== UPDATED BLOOD TYPE INPUT =================== -->
             <div class="form-group">
                 <label>Blood Type</label>
                 <input type="text" id="donationBloodType" name="bloodType" placeholder="e.g., A+, o-, ab+">
             </div>
+            <!-- ======================= END OF UPDATE ======================= -->
             <div class="form-group"><label>Preferred Date</label><input type="date" id="donationDate"></div>
             <div class="form-group"><label>Preferred Time Slot</label>
-                <select id="donationTime">
-                    <option>Morning (9am-12pm)</option>
-                    <option>Afternoon (1pm-4pm)</option>
-                </select>
+                <select id="donationTime"><option>Morning (9am-12pm)</option><option>Afternoon (1pm-4pm)</option></select>
             </div>
-            <button type="submit" class="btn-primary" id="find-hospital-btn">Find Hospital</button>
+            <button type="submit" class="btn-primary">Find Hospital</button>
         </form>
         <p id="donationMessage" class="message-area"></p>
+        <div id="hospitalSuggestion"></div>
       </div>
     </div>
 
