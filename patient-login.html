@@ -82,7 +82,7 @@
             messageEl.textContent = 'Sending...';
             try {
                 // --- CHANGED THIS LINE ---
-                const response = await fetch('/server/send-otp', {
+                const response = await fetch('/api/server/send-otp', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phoneNumber })
@@ -119,7 +119,7 @@
 
             try {
                 // --- CHANGED THIS LINE ---
-                const response = await fetch('/server/patient-login', {
+                const response = await fetch('/api/server/patient-login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
