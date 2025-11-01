@@ -824,7 +824,7 @@ app.get('/api/server/reports/:hospitalId', async (req, res) => {
 
 
 //
-// --- ADD THESE 2 NEW ENDPOINTS TO server.js ---
+// --- ADD THIS: VOLUNTEER & NGO AUTH ---
 //
 
 // 1. GENERATE OTP FOR VOLUNTEER/NGO
@@ -839,8 +839,7 @@ app.post('/api/volunteer/generate-otp', async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 }; // 5-minute expiry
 
-    // --- This sends the OTP back to the client for the alert ---
-    // (In production, you'd send an SMS here instead)
+    // This sends the OTP back to the client for the alert
     console.log(`Volunteer/NGO OTP for ${phoneNumber}: ${otp}`);
     res.json({ success: true, otp: otp, message: 'OTP generated.' });
 
@@ -853,7 +852,6 @@ app.post('/api/volunteer/generate-otp', async (req, res) => {
 
 // 2. VERIFY OTP, THEN LOGIN OR REGISTER VOLUNTEER/NGO
 app.post('/api/volunteer/verify-login', async (req, res) => {
-  // We expect the full payload: type, name, phone, otp, etc.
   const {
     type,           // 'volunteer' or 'ngo'
     fullName,       // For volunteer
@@ -883,7 +881,7 @@ app.post('/api/volunteer/verify-login', async (req, res) => {
     // --- A: User exists, LOG THEM IN ---
     if (rows.length) {
       const user = rows[0];
-      // Just in case they switched types, update their info
+      // Update their info just in case they switched types
       const updateName = (type === 'volunteer') ? fullName : ngoName;
       await pool.query(
         "UPDATE users SET full_name = $1, role = $2, registration_id = $3 WHERE user_id = $4",
