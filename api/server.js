@@ -299,6 +299,7 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
 
 //  DONOR ki AUTH 
 
+// REPLACES your existing /api/server/donor/generate-otp function
 app.post('/api/server/donor/generate-otp', async (req, res) => {
   const { phoneNumber } = req.body;
   try {
@@ -306,7 +307,28 @@ app.post('/api/server/donor/generate-otp', async (req, res) => {
     if (!rows.length) return res.status(404).json({ success:false, message:'Not a registered donor.' });
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
+
+    // This is your current "alert" system. It will run.
     console.log(`Donor login OTP for ${phoneNumber}: ${otp}`);
+
+    /* --- FOR FINAL RUN: Un-comment this block and comment the line above ---
+    try {
+      if (!FAST2SMS_API_KEY) throw new Error('FAST2SMS_API_KEY not set');
+      await axios.get('https.www.fast2sms.com/dev/bulkV2', {
+        params: {
+          authorization: FAST2SMS_API_KEY,
+          message: `Your LifeLink login OTP is ${otp}.`,
+          language: 'english',
+          route: 'q',
+          numbers: phoneNumber
+        }
+      });
+      console.log('Live Donor Login OTP sent to ' + phoneNumber);
+    } catch (smsError) {
+      console.error("Fast2SMS Error:", smsError.message);
+    }
+    --- END OF Fast2SMS BLOCK --- */
+
     res.json({ success:true, otp, message:'OTP generated.' });
   } catch (e) {
     console.error(e); res.status(500).json({ success:false, message:'Server error.' });
