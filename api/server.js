@@ -134,25 +134,77 @@ app.post('/api/server/patient-login', async (req, res) => {
 
 //  HOSPITAL ki Auth
 
+// NEW: Add this to the top of your file with your other API keys
+const OPENCAGE_API_KEY = process.env.OPENCAGE_API_KEY;
+
+// REPLACE your existing /api/server/hospital-register
 app.post('/api/server/hospital-register', async (req, res) => {
+  // We no longer need latitude/longitude in the body
   const { hospitalName, address, pincode, phoneNumber, password } = req.body;
-  if (!hospitalName || !pincode || !phoneNumber || !password) {
+  
+  if (!hospitalName || !pincode || !phoneNumber || !password || !address) {
     return res.status(400).json({ success: false, message: 'All fields are required.' });
   }
+
+  // --- NEW: Geocoding Step ---
+  let latitude = null;
+  let longitude = null;
+  
+  try {
+    const fullAddress = `${address}, ${pincode}`;
+    const geoResponse = await axios.get('https://api.opencagedata.com/geocode/v1/json', {
+      params: {
+        q: fullAddress,
+        key: OPENCAGE_API_KEY,
+        limit: 1,
+        countrycode: 'in' // Optional: Prioritize results in India
+      }
+    });
+
+    if (geoResponse.data && geoResponse.data.results.length > 0) {
+      const { lat, lng } = geoResponse.data.results[0].geometry;
+      latitude = lat;
+      longitude = lng;
+      console.log(`Geocoded ${hospitalName} to: ${lat}, ${lng}`);
+    } else {
+      throw new Error('Could not find coordinates for this address.');
+    }
+  } catch (geoError) {
+    console.error("Geocoding Error:", geoError.message);
+    // We stop registration if we can't get a location
+    return res.status(400).json({ success: false, message: 'Could not validate address. Please check the address and pincode.' });
+  }
+  // --- End of Geocoding Step ---
+
   try {
     const existing = await pool.query('SELECT 1 FROM hospitals WHERE phone_number = $1', [phoneNumber]);
-    if (existing.rows.length) return res.status(409).json({ success: false, message: 'Phone number already registered.' });
+    if (existing.rows.length) {
+      return res.status(409).json({ success: false, message: 'Phone number already registered.' });
+    }
 
     const last = await pool.query('SELECT hospital_id FROM hospitals ORDER BY hospital_id DESC LIMIT 1');
     const nextNum = last.rows.length ? parseInt(last.rows[0].hospital_id.replace('HOS','')) + 1 : 101;
     const newId = `HOS${nextNum}`;
+
     const ins = `
-      INSERT INTO hospitals (hospital_id, hospital_name, address, pincode, phone_number, password_hash, blood_inventory)
-      VALUES ($1,$2,$3,$4,$5,$6,'{}') RETURNING hospital_id`;
-    const { rows } = await pool.query(ins, [newId, hospitalName, address, pincode, phoneNumber, password]);
+      INSERT INTO hospitals (
+        hospital_id, hospital_name, address, pincode, phone_number, password_hash, 
+        blood_inventory, latitude, longitude
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, '{}', $7, $8) 
+      RETURNING hospital_id`;
+    
+    const { rows } = await pool.query(ins, [
+      newId, hospitalName, address, pincode, phoneNumber, 
+      password, // Using plain password
+      latitude, // The geocoded latitude
+      longitude // The geocoded longitude
+    ]);
+
     res.status(201).json({ success: true, hospitalId: rows[0].hospital_id });
   } catch (e) {
-    console.error(e); res.status(500).json({ success: false, message: 'Server error.' });
+    console.error(e); 
+    res.status(500).json({ success: false, message: 'Server error during registration.' });
   }
 });
 
@@ -750,42 +802,9 @@ app.post('/api/sos/confirm-commitment', async (req, res) => {
 //
 // --- REPLACE your existing /api/donor/active-token/:donorId with this one ---
 //
-// GET /api/donor/active-token/:donorId
-// Fetches the 'donor_token' for a donor's most recent active commitment
-app.get('/api/donor/active-token/:donorId', async (req, res) => {
-  const { donorId } = req.params;
 
-  if (!donorId) {
-    return res.status(400).json({ success: false, message: 'Donor ID is required.' });
-  }
 
-  try {
-    const result = await pool.query(
-      `SELECT dc.donor_token, dc.donor_lat_on_accept, dc.donor_lon_on_accept,
-              h.name AS hospital_name, h.lat AS hospital_lat, h.lon AS hospital_lon
-       FROM donation_commitments dc
-       LEFT JOIN hospitals h ON h.hospital_id = dc.hospital_id
-       WHERE dc.donor_id = $1 
-         AND (dc.status = 'committed' OR dc.status = 'accepted') -- Finds BOTH types of active tokens
-       ORDER BY dc.created_at DESC -- Get the newest one
-       LIMIT 1`,
-      [donorId]
-    );
-
-    if (result.rows.length) {
-      // Found an active token! Return it all.
-      res.json({ success: true, ...result.rows[0] });
-    } else {
-      // No active token found for this donor
-      res.status(404).json({ success: false, message: 'No active commitment found.' });
-    }
-  } catch (e) {
-    console.error('Error fetching active token:', e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-//  PLAYBOOKS & REPORTS 
+//  PLAYBOOKS  
 
 app.get('/api/server/playbooks/:hospitalId', async (req, res) => {
   try {
@@ -915,6 +934,164 @@ app.post('/api/volunteer/verify-login', async (req, res) => {
 //app.get('/api/server/health', (req, res) => {
 //  res.json({ status: 'ok', message: 'Server is running' });
 //});
+
+// --- ADD THIS CODE TO YOUR server.js FILE ---
+
+/**
+ * Endpoint 1: Donor schedules a casual donation
+ * Finds the closest hospital within 10km and creates a 'Scheduled' commitment.
+ */
+app.post('/api/donor/schedule-casual-donation', async (req, res) => {
+    const { donorId, latitude, longitude, pincode, bloodType, date, timeSlot } = req.body;
+
+    if (!donorId || !bloodType || !date || !timeSlot) {
+        return res.status(400).json({ success: false, message: 'Missing required fields.' });
+    }
+
+    // This is a 4-digit token, e.g., "1234"
+    const donorToken = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    try {
+        let findHospitalQuery;
+        let queryParams;
+
+        if (latitude && longitude) {
+            // OPTION 1: Use Geolocation (Haversine formula for distance in km)
+            // This query finds the closest hospital within a 10km radius
+            findHospitalQuery = `
+                SELECT hospital_id, hospital_name, (
+                    6371 * acos(
+                        cos(radians($1)) * cos(radians(latitude)) *
+                        cos(radians(longitude) - radians($2)) +
+                        sin(radians($1)) * sin(radians(latitude))
+                    )
+                ) AS distance
+                FROM hospitals
+                HAVING (
+                    6371 * acos(
+                        cos(radians($1)) * cos(radians(latitude)) *
+                        cos(radians(longitude) - radians($2)) +
+                        sin(radians($1)) * sin(radians(latitude))
+                    )
+                ) < 10
+                ORDER BY distance ASC
+                LIMIT 1;
+            `;
+            queryParams = [latitude, longitude];
+
+        } else if (pincode) {
+            // OPTION 2: Use Pincode (Backup)
+            // This just finds *any* hospital with the same pincode
+            findHospitalQuery = `
+                SELECT hospital_id, hospital_name 
+                FROM hospitals 
+                WHERE pincode = $1 
+                LIMIT 1;
+            `;
+            queryParams = [pincode];
+
+        } else {
+            return res.status(400).json({ success: false, message: 'No location or pincode provided.' });
+        }
+
+        // Find the hospital
+        const hospitalRes = await pool.query(findHospitalQuery, queryParams);
+
+        if (hospitalRes.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'No hospitals found within 10km or matching that pincode.' });
+        }
+
+        const hospital = hospitalRes.rows[0];
+
+        // Create the commitment
+        const commitQuery = `
+            INSERT INTO commitments (
+                donor_id, hospital_id, commitment_type, status, 
+                appointment_date, appointment_time, donor_token
+            )
+            VALUES ($1, $2, 'Casual', 'Scheduled', $3, $4, $5)
+            RETURNING *;
+        `;
+        const commitParams = [donorId, hospital.hospital_id, date, timeSlot, donorToken];
+        await pool.query(commitQuery, commitParams);
+
+        res.status(201).json({ success: true, hospital: hospital });
+
+    } catch (err) {
+        console.error('Scheduling Error:', err);
+        res.status(500).json({ success: false, message: 'Server database error.' });
+    }
+});
+
+
+/**
+ * Endpoint 2: Hospital fetches its scheduled donor appointments
+ */
+app.get('/api/hospital/appointments/:hospitalId', async (req, res) => {
+    const { hospitalId } = req.params;
+
+    try {
+        const query = `
+            SELECT 
+                c.commitment_id, c.status, c.appointment_date, c.appointment_time,
+                u.full_name, u.blood_type
+            FROM commitments c
+            JOIN users u ON c.donor_id = u.user_id
+            WHERE c.hospital_id = $1
+              AND c.commitment_type = 'Casual'
+              AND c.status = 'Scheduled'
+            ORDER BY c.appointment_date, c.appointment_time;
+        `;
+        const { rows } = await pool.query(query, [hospitalId]);
+        res.json({ success: true, data: rows });
+
+    } catch (err) {
+        console.error('Fetch Appointments Error:', err);
+        res.status(500).json({ success: false, message: 'Server database error.' });
+    }
+});
+
+
+/**
+ * MODIFICATION: Your existing /api/donor/active-token endpoint
+ * It must now also return hospital details for the UI.
+ */
+app.get('/api/donor/active-token/:donorId', async (req, res) => {
+    const { donorId } = req.params;
+    try {
+        // Find an active commitment (Scheduled or In-Progress)
+        // AND JOIN with hospitals table
+        const query = `
+            SELECT 
+                c.donor_token, c.appointment_date, c.appointment_time, c.status,
+                h.hospital_name, h.pincode
+            FROM commitments c
+            JOIN hospitals h ON c.hospital_id = h.hospital_id
+            WHERE c.donor_id = $1 
+              AND (c.status = 'Scheduled' OR c.status = 'In-Progress')
+            ORDER BY c.created_at DESC
+            LIMIT 1;
+        `;
+        const { rows } = await pool.query(query, [donorId]);
+
+        if (rows.length > 0) {
+            // Send back the commitment AND the hospital info
+            res.json({ 
+                success: true, 
+                commitment: rows[0],
+                hospital: {
+                    hospital_name: rows[0].hospital_name,
+                    pincode: rows[0].pincode
+                }
+            });
+        } else {
+            res.json({ success: false, message: 'No active commitment found.' });
+        }
+    } catch (e) {
+        console.error('Active Token Error:', e);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+});
 
 
 module.exports=app;

@@ -15,7 +15,6 @@
     .qr-preview { width:120px; height:120px; object-fit:contain; }
     .hint { font-size:12px; color:#555; margin-top:4px; }
     .ok { color:green; } .err { color:#c00; }
-
     /* --- NEW SOS STYLES --- */
     .live-sos-list .no-requests {
       color: #777;
@@ -103,7 +102,6 @@
     .sos-response-message.accepted { color: green; }
     .sos-response-message.rejected { color: #c00; }
     /* --- END NEW SOS STYLES --- */
-
   </style>
 </head>
 <body>
@@ -123,284 +121,98 @@
 
       <div class="dashboard-grid">
 
+        <!-- SOS Broadcast -->
+        <div class="dashboard-card sos-creator-card">
+          <h3>SOS Broadcast</h3>
+          <form id="hospital-sos-form">
+            <div class="form-group">
+              <label for="sos-component">Component</label>
+              <select id="sos-component" required>
+                <option value="Whole Blood">Whole Blood</option>
+                <option value="RBC">RBC</option>
+                <option value="Plasma">Plasma</option>
+                <option value="Platelets">Platelets</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sos-blood-type">Blood Type</label>
+              <select id="sos-blood-type" required>
+                <option value="A+">A+</option><option value="A-">A-</option>
+                <option value="B+">B+</option><option value="B-">B-</option>
+                <option value="O+">O+</option><option value="O-">O-</option>
+                <option value="AB+">AB+</option><option value="AB-">AB-</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sos-units">Units Needed</label>
+              <input type="number" id="sos-units" value="1" min="1" required />
+            </div>
+            <div class="form-group">
+              <label for="sos-urgency">Urgency</label>
+              <select id="sos-urgency" required>
+                <option value="Critical">Critical (Immediate Need)</option>
+                <option value="Urgent">Urgent (Within Hours)</option>
+                <option value="Routine">Routine (Within 24 Hours)</option>
+              </select>
+            </div>
+            <button type="submit" class="btn-danger">Broadcast SOS</button>
+          </form>
+          <p id="hospital-sos-message" class="message-area"></p>
+        </div>
+
+        <!-- Stock Lite -->
+        <div class="dashboard-card inventory-card">
+          <h3>Blood Stock Management</h3>
+          <div id="inventory-container" class="inventory-grid-management"></div>
+          <button id="save-inventory-btn" class="btn-primary">Save Stock Levels</button>
+          <p id="inventory-message" class="message-area"></p>
+        </div>
+
+        <!-- Unified Token Verification -->
+        <div class="dashboard-card verify-card">
+          <h3>Verify Patient/Donor Token</h3>
+          <div class="verify-grid">
+            <input id="verify-token-input" class="verify-input" maxlength="4"
+                   inputmode="numeric" pattern="[0-9]{4}" placeholder="1234" />
+            <button id="verify-btn" class="btn-primary">Verify</button>
+            <span id="verify-hint" class="hint">Enter a 4-digit token from the patient or donor.</span>
+          </div>
+          <p id="verify-message" class="message-area"></p>
+          <div id="verify-results" class="verify-results"></div>
+        </div>
+
+        <!-- Live SOS -->
         <div class="dashboard-card sos-card">
           <h3>SOS Monitor </h3>
           <ul id="live-sos-list" class="live-sos-list">
             <li class="no-requests">No active SOS requests.</li>
           </ul>
         </div>
-        
-        <div class="dashboard-card sos-creator-card">
-          <h3>SOS Broadcast</h3>
-          <form id="hospital-sos-form">
-            </form>
-          <p id="hospital-sos-message" class="message-area"></p>
-        </div>
 
-        <div class="dashboard-card inventory-card">
-          <h3>Blood Stock Management</h3>
-          </div>
-
-        <div class="dashboard-card verify-card">
-          <h3>Verify Patient/Donor Token</h3>
-          </div>
-
+        <!-- Playbooks -->
         <div class="dashboard-card playbooks-card">
           <h3>Playbooks</h3>
-          </div>
+          <div id="playbooks-list"></div>
+          <textarea id="playbook-editor" placeholder="Write a new policy..."></textarea>
+          <input type="text" id="playbook-title" placeholder="Policy Title" />
+          <button id="save-playbook-btn" class="btn-secondary">Save Playbook</button>
+        </div>
 
         <div class="dashboard-card donor-log-card">
-          <h3>Donor Appointment Log</h3>
-          </div>
+    <h3>Donor Appointment Log</h3>
+    <button id="refresh-donor-log-btn" class="btn-secondary">Refresh Log</button>
+    
+    <ul id="donor-log-list" class="appointment-list">
+        <li id="donor-log-placeholder">No appointments found.</li>
+        
+        </ul>
+</div>
 
       </div>
     </section>
   </main>
 
-  <script>
-    const welcomeMessage = document.getElementById('welcome-message');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const sosList = document.getElementById('live-sos-list');
-    let currentUser = null; // Stores hospital info after login
-    let sosTimers = {}; // To store intervals for each timer
-
-    document.addEventListener('DOMContentLoaded', () => {
-      const userData = sessionStorage.getItem('currentHospital'); // Assuming this session key
-      if (!userData) {
-        alert('You are not logged in. Redirecting...');
-        window.location.href = '/hospital-login.html'; // Adjust as needed
-        return;
-      }
-      currentUser = JSON.parse(userData);
-      welcomeMessage.textContent = `Console: ${currentUser.hospital_name}`;
-
-      // --- REAL-TIME LISTENER ---
-      // In a real app, this would be a WebSocket listener
-      // e.g., socket.on('new-sos', renderSosRequest);
-      // e.g., socket.on('request-closed', closeSosRequest);
-      
-      // For demonstration, we'll simulate an alert
-      simulateAlerts();
-    });
-
-    logoutBtn.addEventListener('click', () => {
-      sessionStorage.removeItem('currentHospital');
-      window.location.href = '/hospital-login.html'; // Adjust as needed
-    });
-
-    // --- NEW: Event Delegation for Accept/Reject ---
-    sosList.addEventListener('click', (e) => {
-      const target = e.target;
-      const sosItem = target.closest('.sos-item');
-      if (!sosItem || sosItem.dataset.status === 'closed') return;
-
-      const requestId = sosItem.dataset.requestId;
-
-      if (target.classList.contains('accept-btn')) {
-        handleHospitalResponse(requestId, 'accept', sosItem);
-      } else if (target.classList.contains('reject-btn')) {
-        handleHospitalResponse(requestId, 'reject', sosItem);
-      }
-    });
-
-    /**
-     * NEW: Sends the hospital's response to the server
-     */
-    async function handleHospitalResponse(requestId, response, itemElement) {
-      // Disable buttons
-      itemElement.querySelectorAll('button').forEach(b => b.disabled = true);
-      
-      try {
-        const res = await fetch('/api/server/hospital-response', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            requestId: requestId,
-            hospitalId: currentUser.hospital_id, // From logged-in user
-            response: response
-          })
-        });
-        
-        const result = await res.json();
-        
-        if (result.success) {
-          // Show confirmation message
-          showResponseUI(itemElement, response);
-        } else {
-          // Show error
-          alert(`Error: ${result.message}`);
-          itemElement.querySelectorAll('button').forEach(b => b.disabled = false);
-        }
-
-      } catch (err) {
-        console.error('Response Error:', err);
-        alert('Could not connect to server.');
-        itemElement.querySelectorAll('button').forEach(b => b.disabled = false);
-      }
-    }
-
-    /**
-     * NEW: Updates the UI after a response
-     */
-    function showResponseUI(itemElement, response) {
-      itemElement.dataset.status = 'closed'; // Mark as handled
-      
-      // Stop the timer
-      const requestId = itemElement.dataset.requestId;
-      if (sosTimers[requestId]) {
-        clearInterval(sosTimers[requestId]);
-        delete sosTimers[requestId];
-      }
-      
-      // Clear actions and timer, show message
-      itemElement.querySelector('.sos-actions').style.display = 'none';
-      itemElement.querySelector('.sos-timer-wrap').style.display = 'none';
-      
-      const message = document.createElement('div');
-      message.className = `sos-response-message ${response}`; // 'accepted' or 'rejected'
-      message.textContent = response === 'accept' ? 'REQUEST ACCEPTED' : 'Request Rejected';
-      itemElement.appendChild(message);
-    }
-
-
-    /**
-     * NEW: Renders a new SOS request card
-     */
-    function renderSosRequest(sosData) {
-      // sosData = { requestId, patientName, bloodType, distance, deadline, patientToken }
-      
-      // Remove "no requests" placeholder
-      const placeholder = sosList.querySelector('.no-requests');
-      if (placeholder) placeholder.remove();
-
-      const li = document.createElement('li');
-      li.className = 'sos-item';
-      li.dataset.requestId = sosData.requestId;
-
-      li.innerHTML = `
-        <div class="sos-header">
-          <span class="blood-needed">Need: ${sosData.bloodType}</span>
-          <span class="patient-distance">~ ${sosData.distance.toFixed(1)} km away</span>
-        </div>
-        <div class="sos-details">
-          Patient: ${sosData.patientName} (Token: ${sosData.patientToken})
-        </div>
-        <div class="sos-timer-wrap">
-          <div class="timer-bar" style="width: 100%;"></div>
-          <span class="timer-text">10:00 remaining</span>
-        </div>
-        <div class="sos-actions">
-          <button class="btn-primary accept-btn">Accept</button>
-          <button class="btn-danger reject-btn">Reject</button>
-        </div>
-      `;
-      
-      // Prepend to list
-      sosList.prepend(li);
-
-      // Start the countdown
-      startCountdown(li, new Date(sosData.deadline));
-    }
-
-    /**
-     * NEW: Starts the 10-minute countdown timer for an SOS card
-     */
-    function startCountdown(liElement, deadline) {
-      const timerBar = liElement.querySelector('.timer-bar');
-      const timerText = liElement.querySelector('.timer-text');
-      const requestId = liElement.dataset.requestId;
-
-      const totalDuration = 10 * 60 * 1000; // 10 minutes in ms
-
-      const timerInterval = setInterval(() => {
-        const now = new Date().getTime();
-        const remaining = deadline.getTime() - now;
-
-        if (remaining <= 0) {
-          clearInterval(timerInterval);
-          liElement.dataset.status = 'closed';
-          liElement.innerHTML += `<div classclass="sos-response-message rejected">TIMED OUT</div>`;
-          liElement.querySelector('.sos-actions').style.display = 'none';
-          liElement.querySelector('.sos-timer-wrap').style.display = 'none';
-          delete sosTimers[requestId];
-          return;
-        }
-
-        const minutes = Math.floor((remaining / 1000) / 60);
-        const seconds = Math.floor((remaining / 1000) % 60);
-        timerText.textContent = `${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
-
-        const percentRemaining = (remaining / totalDuration) * 100;
-        timerBar.style.width = `${percentRemaining}%`;
-
-        // Update timer bar color
-        if (percentRemaining < 20) {
-          timerBar.className = 'timer-bar critical'; // Red
-        } else if (percentRemaining < 50) {
-          timerBar.className = 'timer-bar warning'; // Orange
-        }
-
-      }, 1000);
-
-      sosTimers[requestId] = timerInterval; // Store interval to clear it later
-    }
-
-    /**
-     * NEW: Closes an active SOS request (e.g., if another hospital accepted)
-     */
-    function closeSosRequest(requestId) {
-      const li = sosList.querySelector(`.sos-item[data-request-id="${requestId}"]`);
-      if (li && li.dataset.status !== 'closed') {
-        li.dataset.status = 'closed';
-        // Stop timer
-        if (sosTimers[requestId]) {
-          clearInterval(sosTimers[requestId]);
-          delete sosTimers[requestId];
-        }
-        // Show message
-        li.innerHTML += `<div class="sos-response-message">Request handled by another hospital.</div>`;
-        li.querySelector('.sos-actions').style.display = 'none';
-        li.querySelector('.sos-timer-wrap').style.display = 'none';
-      }
-    }
-
-
-    // --- DEMO FUNCTION ---
-    function simulateAlerts() {
-      console.log("Simulating alerts...");
-      
-      // Simulate a new SOS after 5 seconds
-      setTimeout(() => {
-        renderSosRequest({
-          requestId: 'req123',
-          patientName: 'Jane Smith',
-          bloodType: 'A+',
-          distance: 3.2,
-          deadline: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-          patientToken: '9876'
-        });
-      }, 5000);
-
-      // Simulate another new SOS after 10 seconds
-      setTimeout(() => {
-        renderSosRequest({
-          requestId: 'req124',
-          patientName: 'Robert Brown',
-          bloodType: 'O-',
-          distance: 8.1,
-          deadline: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-          patientToken: '4501'
-        });
-      }, 10000);
-
-      // Simulate 'req123' being closed by another hospital after 30s
-      setTimeout(() => {
-        closeSosRequest('req123');
-      }, 30000);
-    }
-    // --- END DEMO ---
-    
-  </script>
+  <script src="hospital-dashboard.js"></script>
 
   <footer>
         <p>© 2025 LifeLink</p>

@@ -1,7 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
   let currentHospital = null;
+  let sosPollInterval; // Timer for polling SOS
+  let sosTimers = {}; // Stores all active countdown intervals
 
-  // Elements
+  // --- Elements ---
   const welcomeMessage = document.getElementById('welcome-message');
   const logoutBtn = document.getElementById('logoutBtn');
 
@@ -20,17 +22,26 @@ document.addEventListener('DOMContentLoaded', () => {
   const verifyBtn = document.getElementById('verify-btn');
   const verifyMsg = document.getElementById('verify-message');
   const verifyResults = document.getElementById('verify-results');
+  
+  // Donor Log
+  const donorLogList = document.getElementById('donor-log-list');
+  const donorLogPlaceholder = document.getElementById('donor-log-placeholder');
+  const refreshDonorLogBtn = document.getElementById('refresh-donor-log-btn');
 
+
+  // --- Initialization ---
   function initializeDashboard() {
     const s = sessionStorage.getItem('currentHospital');
     if (!s) { window.location.href = 'hospital-login.html'; return; }
     currentHospital = JSON.parse(s);
     welcomeMessage.textContent = `Welcome, ${currentHospital.hospital_name}`;
+    
     renderStockLiteControls();
-    startPollingForSOS();
+    startPollingForSOS(); // <-- MODIFIED to start new polling logic
+    fetchDonorAppointments(); // This is your existing function
   }
 
-  // SOS Broadcast
+  // --- SOS Broadcast (Your existing code) ---
   hospitalSosForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const payload = {
@@ -53,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Stock Lite
+  // --- Stock Lite (Your existing code) ---
   function renderStockLiteControls() {
     inventoryContainer.innerHTML = '';
     const bloodGroups = ["A+","A-","B+","B-","AB+","AB-","O+","O-"];
@@ -103,39 +114,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Unified Token Verification
+  // --- Unified Token Verification (Your existing code) ---
   verifyInput.addEventListener('input', () => {
-    // digits only, max 4
     verifyInput.value = (verifyInput.value || '').replace(/\D/g, '').slice(0, 4);
     clearVerifyUI();
   });
-
-  // Support Enter key to verify
   verifyInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      verifyBtn.click();
-    }
+    if (e.key === 'Enter') { e.preventDefault(); verifyBtn.click(); }
   });
-
   verifyBtn.addEventListener('click', async () => {
     const token = (verifyInput.value || '').trim();
     if (!/^\d{4}$/.test(token)) {
-      showVerifyMsg('Please enter a valid 4-digit token.', false);
-      return;
+      showVerifyMsg('Please enter a valid 4-digit token.', false); return;
     }
     try {
       showVerifyMsg('Verifying…', true);
       const res = await fetch('/api/server/verify-token', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
+        method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ token })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
         showVerifyMsg(data.message || 'Token not found.', false);
-        verifyResults.innerHTML = '';
-        return;
+        verifyResults.innerHTML = ''; return;
       }
       renderVerificationResult(data);
       showVerifyMsg('Verified', true);
@@ -145,151 +146,293 @@ document.addEventListener('DOMContentLoaded', () => {
       verifyResults.innerHTML = '';
     }
   });
+  function qrFor(obj) { /* ... (your existing function) ... */ }
+  function renderVerificationResult(data) { /* ... (your existing function) ... */ }
+  function clearVerifyUI() { /* ... (your existing function) ... */ }
+  function showVerifyMsg(msg, ok) { /* ... (your existing function) ... */ }
+  function esc(s) { /* ... (your existing function) ... */ }
 
-  function qrFor(obj) {
-    const payload = encodeURIComponent(JSON.stringify(obj));
-    return `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${payload}`;
-  }
 
-  function renderVerificationResult(data) {
-    if (data.type === 'patient') {
-      const { patient_token, patient, request_id } = data;
-      verifyResults.innerHTML = `
-        <div class="kv" style="margin-top:8px;">
-          <div>Type</div><div>Patient</div>
-          <div>Full Name</div><div>${esc(patient.full_name)}</div>
-          <div>Blood Type Needed</div><div>${esc(patient.blood_type_needed)}</div>
-          <div>Pincode</div><div>${esc(patient.pincode || 'N/A')}</div>
-          <div>Request ID</div><div>${esc(String(request_id))}</div>
-          <div>Patient Token</div><div><span class="pill">${esc(patient_token)}</span></div>
-          <div>Token QR</div><div><img class="qr-preview" src="${qrFor({type:'patient_token', token: patient_token})}" alt="Patient QR"></div>
-        </div>
-        <div class="divider"></div>
-        <div class="muted">Confirm patient identity with token/QR before proceeding.</div>
-      `;
-    } else if (data.type === 'donor') {
-      const { donor_token, donor, matched_patient_token, request_id, commitment_id, commitment_status } = data;
-      verifyResults.innerHTML = `
-        <div class="kv" style="margin-top:8px;">
-          <div>Type</div><div>Donor</div>
-          <div>Full Name</div><div>${esc(donor.full_name)}</div>
-          <div>Blood Type</div><div>${esc(donor.blood_type || 'N/A')}</div>
-          <div>Last Donation</div><div>${donor.last_donation_date ? esc(new Date(donor.last_donation_date).toLocaleDateString()) : 'N/A'}</div>
-          <div>Donor Token</div><div><span class="pill">${esc(donor_token)}</span></div>
-          <div>Token QR</div><div><img class="qr-preview" src="${qrFor({type:'donor_token', token: donor_token})}" alt="Donor QR"></div>
-        </div>
-        <div class="divider"></div>
-        <div class="kv">
-          <div>Matched Patient Token</div><div><span class="pill">${esc(matched_patient_token)}</span></div>
-          <div>Request ID</div><div>${esc(String(request_id))}</div>
-          <div>Commitment</div><div>#${esc(String(commitment_id))} (${esc(commitment_status)})</div>
-        </div>
-        <div class="divider"></div>
-        <div class="muted">Confirm donor identity and cross-check matched patient token.</div>
-      `;
-    } else {
-      verifyResults.innerHTML = '';
+  // ===================================================================
+  // --- NEW: LIVE SOS - MODIFIED POLLING & NEW HANDLERS ---
+  // ===================================================================
+
+  /**
+   * NEW: Event Delegation for Accept/Reject buttons
+   */
+  liveSosList.addEventListener('click', (e) => {
+    const target = e.target;
+    const sosItem = target.closest('.sos-item'); // Changed from .sos-request-item
+
+    if (!sosItem || sosItem.dataset.status === 'closed') return;
+
+    const requestId = sosItem.dataset.requestId;
+
+    if (target.classList.contains('accept-btn')) {
+      handleHospitalResponse(requestId, 'accept', sosItem);
+    } else if (target.classList.contains('reject-btn')) {
+      handleHospitalResponse(requestId, 'reject', sosItem);
+    }
+  });
+
+  /**
+   * NEW: Sends the hospital's response (Accept/Reject) to the server
+   */
+  async function handleHospitalResponse(requestId, response, itemElement) {
+    itemElement.querySelectorAll('button').forEach(b => b.disabled = true);
+
+    try {
+      const res = await fetch('/api/server/hospital-response', { // <-- NEW ENDPOINT
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestId: requestId,
+          hospitalId: currentHospital.hospital_id,
+          response: response // 'accept' or 'reject'
+        })
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        showResponseUI(itemElement, response);
+      } else {
+        alert(`Error: ${result.message}`);
+        itemElement.querySelectorAll('button').forEach(b => b.disabled = false);
+      }
+    } catch (err) {
+      console.error('Response Error:', err);
+      alert('Could not connect to server.');
+      itemElement.querySelectorAll('button').forEach(b => b.disabled = false);
     }
   }
+  
+  /**
+   * NEW: Updates the card UI after a response
+   */
+  function showResponseUI(itemElement, response) {
+    itemElement.dataset.status = 'closed';
+    const requestId = itemElement.dataset.requestId;
+    if (sosTimers[requestId]) {
+      clearInterval(sosTimers[requestId]);
+      delete sosTimers[requestId];
+    }
+    
+    // Clear actions and timer, show message
+    itemElement.querySelector('.sos-actions').style.display = 'none';
+    itemElement.querySelector('.sos-timer-wrap').style.display = 'none';
+    
+    const message = document.createElement('div');
+    message.className = `sos-response-message ${response === 'accept' ? 'accepted' : 'rejected'}`;
+    message.textContent = response === 'accept' ? 'REQUEST ACCEPTED' : 'Request Rejected';
+    itemElement.appendChild(message);
+  }
 
-  function clearVerifyUI() {
-    verifyMsg.textContent = '';
-    verifyMsg.className = 'message-area';
-    verifyResults.innerHTML = '';
-  }
-  function showVerifyMsg(msg, ok) {
-    verifyMsg.textContent = msg;
-    verifyMsg.className = 'message-area ' + (ok ? 'ok' : 'err');
-  }
-  function esc(s) {
-    if (s == null) return '';
-    return String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  // Live SOS polling (fill in your existing logic if applicable)
-  // Live SOS polling
-  let sosPollInterval; // This will store our timer
+  /**
+   * MODIFIED: Starts the polling loop
+   */
   async function startPollingForSOS() {
     if (!currentHospital || !currentHospital.hospital_id) {
-        console.log("No hospital info, can't start monitor.");
-        return;
+      console.log("No hospital info, can't start monitor.");
+      return;
     }
-    
-    // Stop any old timer
     if (sosPollInterval) clearInterval(sosPollInterval);
-
-    // Fetch alerts immediately
-    await fetchSosAlerts();
     
-    // Then, check for new alerts every 15 seconds
-    sosPollInterval = setInterval(fetchSosAlerts, 15000);
+    await fetchSosAlerts(); // Fetch immediately
+    sosPollInterval = setInterval(fetchSosAlerts, 15000); // Then poll
   }
 
-  // This function fetches new alerts from your server
+  /**
+   * MODIFIED: Fetches alerts and *diffs* the list
+   * This now adds new alerts and removes old ones without
+   * destroying active timers.
+   */
   async function fetchSosAlerts() {
     try {
-        const response = await fetch(`/api/server/sos-alerts/${currentHospital.hospital_id}`);
-        const requests = await response.json();
+      const response = await fetch(`/api/server/sos-alerts/${currentHospital.hospital_id}`);
+      const requests = await response.json(); // Expects an array of alert objects
 
-        liveSosList.innerHTML = ''; // Clear the list
+      // Get all request IDs currently displayed
+      const currentIds = new Set([...liveSosList.querySelectorAll('.sos-item')].map(li => li.dataset.requestId));
+      const serverIds = new Set();
 
-        if (!requests || requests.length === 0) {
-            liveSosList.innerHTML = '<li class="no-requests">No active SOS requests.</li>';
-            return;
+      // Add new alerts
+      requests.forEach(req => {
+        serverIds.add(req.requestId);
+        if (!currentIds.has(req.requestId)) {
+          // This is a new request, render it
+          renderSosRequest(req);
         }
+      });
+      
+      // Remove old alerts
+      currentIds.forEach(id => {
+        if (!serverIds.has(id)) {
+          // This request is no longer active, close it
+          closeSosRequest(id);
+        }
+      });
+      
+      // Handle empty state
+      if (liveSosList.children.length === 0) {
+        liveSosList.innerHTML = '<li class="no-requests">No active SOS requests.</li>';
+      } else {
+        const placeholder = liveSosList.querySelector('.no-requests');
+        if (placeholder) placeholder.remove();
+      }
 
-        // Add each new request to the list
-        requests.forEach(req => {
-            const li = document.createElement('li');
-            li.className = 'sos-request-item'; // Add a class for styling
-            li.innerHTML = `
-                <div class="sos-info">
-                    <strong>Blood: ${req.blood_type_needed}</strong>
-                    <span>Pincode: ${req.pincode}</span>
-                    <span class="muted">Token: ${req.patient_token}</span>
-                </div>
-                <div class="sos-actions">
-                    <button class="btn-primary" onclick="acceptRequest(${req.request_id})">Accept</button>
-                </div>
-            `;
-            liveSosList.appendChild(li);
-        });
     } catch (e) {
-        console.error("Error fetching SOS alerts:", e);
-        liveSosList.innerHTML = '<li>Error loading requests.</li>';
+      console.error("Error fetching SOS alerts:", e);
+      liveSosList.innerHTML = '<li>Error loading requests.</li>';
+    }
+  }
+  
+  /**
+   * NEW: Renders a single new SOS card
+   * This replaces the logic that was inside your old fetchSosAlerts
+   */
+  function renderSosRequest(req) {
+    // req = { requestId, patientName, bloodType, distance, deadline, patientToken }
+    
+    const li = document.createElement('li');
+    li.className = 'sos-item';
+    li.dataset.requestId = req.requestId; // <-- Store request ID
+    
+    // This is the new HTML structure
+    li.innerHTML = `
+      <div class="sos-header">
+        <span class="blood-needed">Need: ${req.bloodType}</span>
+        <span class="patient-distance">~ ${req.distance.toFixed(1)} km away</span>
+      </div>
+      <div class="sos-details">
+        Patient: ${req.patientName} (Token: ${req.patientToken})
+      </div>
+      <div class="sos-timer-wrap">
+        <div class="timer-bar" style="width: 100%;"></div>
+        <span class="timer-text">10:00 remaining</span>
+      </div>
+      <div class="sos-actions">
+        <button class="btn-primary accept-btn">Accept</button>
+        <button class="btn-danger reject-btn">Reject</button>
+      </div>
+    `;
+    
+    liveSosList.prepend(li);
+    startCountdown(li, new Date(req.deadline)); // Start its timer
+  }
+  
+  /**
+   * NEW: Starts the 10-minute countdown for a card
+   */
+  function startCountdown(liElement, deadline) {
+    const timerBar = liElement.querySelector('.timer-bar');
+    const timerText = liElement.querySelector('.timer-text');
+    const requestId = liElement.dataset.requestId;
+    const totalDuration = 10 * 60 * 1000; // 10 minutes
+
+    const timerInterval = setInterval(() => {
+      const now = new Date().getTime();
+      const remaining = deadline.getTime() - now;
+
+      if (remaining <= 0) {
+        clearInterval(timerInterval);
+        liElement.dataset.status = 'closed';
+        if(liElement.querySelector('.sos-actions')) liElement.querySelector('.sos-actions').style.display = 'none';
+        if(liElement.querySelector('.sos-timer-wrap')) liElement.querySelector('.sos-timer-wrap').style.display = 'none';
+        
+        const message = document.createElement('div');
+        message.className = 'sos-response-message rejected';
+        message.textContent = 'TIMED OUT';
+        liElement.appendChild(message);
+        
+        delete sosTimers[requestId];
+        return;
+      }
+
+      const minutes = Math.floor((remaining / 1000) / 60);
+      const seconds = Math.floor((remaining / 1000) % 60);
+      timerText.textContent = `${minutes}:${seconds.toString().padStart(2, '0')} remaining`;
+
+      const percentRemaining = (remaining / totalDuration) * 100;
+      timerBar.style.width = `${percentRemaining}%`;
+
+      if (percentRemaining < 20) timerBar.className = 'timer-bar critical';
+      else if (percentRemaining < 50) timerBar.className = 'timer-bar warning';
+
+    }, 1000);
+
+    sosTimers[requestId] = timerInterval;
+  }
+  
+  /**
+   * NEW: Closes a card (e.g., if another hospital accepted)
+   */
+  function closeSosRequest(requestId) {
+    const li = liveSosList.querySelector(`.sos-item[data-request-id="${requestId}"]`);
+    if (li && li.dataset.status !== 'closed') {
+      li.dataset.status = 'closed';
+      if (sosTimers[requestId]) {
+        clearInterval(sosTimers[requestId]);
+        delete sosTimers[requestId];
+      }
+      if(li.querySelector('.sos-actions')) li.querySelector('.sos-actions').style.display = 'none';
+      if(li.querySelector('.sos-timer-wrap')) li.querySelector('.sos-timer-wrap').style.display = 'none';
+      
+      const message = document.createElement('div');
+      message.className = 'sos-response-message'; // Neutral
+      message.textContent = 'Request handled by another hospital.';
+      li.appendChild(message);
     }
   }
 
-  // This runs when the hospital clicks the "Accept" button
-  // We must make it global so the "onclick" in the HTML can find it
-  window.acceptRequest = async (requestId) => {
+  // NOTE: Your `window.acceptRequest` function is no longer needed
+  // as it's been replaced by `handleHospitalResponse` and event delegation.
+
+  // ===================================================================
+  // --- END OF NEW SOS SECTION ---
+  // ===================================================================
+
+
+  // --- Donor Appointment Log (Your existing code) ---
+  
+  /**
+  * Fetches scheduled donor appointments from the server
+  */
+  async function fetchDonorAppointments() {
+    if (!currentHospital) return;
+    donorLogList.innerHTML = '';
+    donorLogPlaceholder.textContent = 'Loading appointments...';
+    donorLogPlaceholder.style.display = 'block';
+
     try {
-        const response = await fetch('/api/server/accept-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                requestId: requestId,
-                hospitalId: currentHospital.hospital_id
-            })
-        });
-        
-        const result = await response.json();
+      const res = await fetch(`/api/hospital/appointments/${currentHospital.hospital_id}`);
+      const appointments = await res.json();
 
-        if (result.success) {
-            alert('Request accepted! The patient is being notified.');
-        } else {
-            alert(`Error: ${result.message}`);
-        }
-        
-        // Refresh the list immediately
-        fetchSosAlerts();
-    } catch (e) {
-        alert('An error occurred. Please try again.');
+      if (appointments.success && appointments.data.length > 0) {
+        donorLogPlaceholder.style.display = 'none';
+        appointments.data.forEach(appt => {
+          const li = document.createElement('li');
+          const apptDate = new Date(appt.appointment_date).toLocaleDateString();
+          li.innerHTML = `
+            <strong>${appt.full_name} (${appt.blood_type})</strong> - ${apptDate}, ${appt.appointment_time}
+            <span>Status: ${appt.status}</span>
+          `;
+          donorLogList.appendChild(li);
+        });
+      } else if (appointments.success) {
+        donorLogPlaceholder.textContent = 'No appointments found.';
+      } else {
+        donorLogPlaceholder.textContent = 'Error loading appointments.';
+      }
+    } catch (err) {
+      console.error('Fetch Appointments Error:', err);
+      donorLogPlaceholder.textContent = 'Could not connect to server.';
     }
   }
 
+  refreshDonorLogBtn.addEventListener('click', fetchDonorAppointments);
+
+
+  // --- Utilities (Your existing code) ---
   function displayMessage(el, msg, ok) {
     el.textContent = msg;
     el.style.color = ok ? 'green' : 'red';
@@ -301,68 +444,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = 'hospital-login.html';
   });
 
+  // Start the application
   initializeDashboard();
 });
-
-// Add these at the top with your other element selectors
-const donorLogList = document.getElementById('donor-log-list');
-const donorLogPlaceholder = document.getElementById('donor-log-placeholder');
-const refreshDonorLogBtn = document.getElementById('refresh-donor-log-btn');
-
-// Add this function somewhere in your file
-/**
- * NEW: Fetches scheduled donor appointments from the server
- */
-async function fetchDonorAppointments() {
-    if (!currentHospital) return;
-
-    // Show loading state
-    donorLogList.innerHTML = ''; // Clear old list
-    donorLogPlaceholder.textContent = 'Loading appointments...';
-    donorLogPlaceholder.style.display = 'block';
-
-    try {
-        const res = await fetch(`/api/hospital/appointments/${currentHospital.hospital_id}`);
-        const appointments = await res.json();
-
-        if (appointments.success && appointments.data.length > 0) {
-            donorLogPlaceholder.style.display = 'none'; // Hide placeholder
-            
-            appointments.data.forEach(appt => {
-                const li = document.createElement('li');
-                // Format date to be more readable
-                const apptDate = new Date(appt.appointment_date).toLocaleDateString();
-                
-                li.innerHTML = `
-                    <strong>${appt.full_name} (${appt.blood_type})</strong> - ${apptDate}, ${appt.appointment_time}
-                    <span>Status: ${appt.status}</span>
-                `;
-                donorLogList.appendChild(li);
-            });
-        } else if (appointments.success) {
-            donorLogPlaceholder.textContent = 'No appointments found.';
-        } else {
-            donorLogPlaceholder.textContent = 'Error loading appointments.';
-        }
-    } catch (err) {
-        console.error('Fetch Appointments Error:', err);
-        donorLogPlaceholder.textContent = 'Could not connect to server.';
-    }
-}
-
-// Add this listener for the new "Refresh" button
-refreshDonorLogBtn.addEventListener('click', fetchDonorAppointments);
-
-// Add this call inside your existing initializeDashboard() function
-// This will load appointments when the page starts
-function initializeDashboard() {
-    const s = sessionStorage.getItem('currentHospital');
-    if (!s) { window.location.href = 'hospital-login.html'; return; }
-    currentHospital = JSON.parse(s);
-    welcomeMessage.textContent = `Welcome, ${currentHospital.hospital_name}`;
-    renderStockLiteControls();
-    startPollingForSOS();
-    fetchDonorAppointments(); // <-- ADD THIS LINE
-}
-
-// Make sure the rest of your initializeDashboard() and other functions are still there
