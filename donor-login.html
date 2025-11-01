@@ -31,11 +31,11 @@
             <input type="tel" id="loginPhone" placeholder="Enter 10-digit number">
           </div>
           <button type="button" class="btn-primary" onclick="generateLoginOtp()">Generate OTP</button>
-          <div class="form-group" id="loginOtpGroup" style="display:none;">
-            <label for="loginOtp">OTP</label>
-            <input type="text" id="loginOtp" placeholder="Enter 6-digit OTP">
-            <button type="submit" class="btn-primary">Login</button>
-          </div>
+          <div class="otp-group" id="loginOtpGroup" style="display:none;">
+            <label for="loginOtp">Enter 6-digit OTP</label>
+            <input type="text" id="loginOtp" placeholder="123456" maxlength="6" inputmode="numeric">
+          </div>
+          <button type="submit" class="btn-primary" id="loginSubmitBtn" style="display:none;">Login</button>
         </form>
       </div>
 
@@ -51,11 +51,11 @@
           <div class="form-group"><label for="regPincode">Pincode</label><input type="text" id="regPincode"></div>
           <button type="button" class="btn-primary" onclick="generateRegisterOtp()">Register</button>
           
-          <div class="form-group" id="registerOtpGroup" style="display:none;">
-            <label for="registerOtp">OTP</label>
-            <input type="text" id="registerOtp" placeholder="Enter 6-digit OTP">
-            <button type="submit" class="btn-primary">Confirm Registration</button>
-          </div>
+          <div class="otp-group" id="registerOtpGroup" style="display:none;">
+            <label for="registerOtp">Enter 6-digit OTP</label>
+            <input type="text" id="registerOtp" placeholder="123456" maxlength="6" inputmode="numeric">
+          </div>
+          <button type="submit" class="btn-primary" id="registerSubmitBtn" style="display:none;">Confirm Registration</button>
         </form>
       </div>
       <p id="message" class="message-area"></p>

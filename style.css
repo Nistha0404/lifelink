@@ -153,6 +153,25 @@ main {
   font-size: 1em;
 }
 
+/* NEW: Styles for Centered OTP Inputs */
+.otp-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* This centers the content */
+  gap: 10px;
+  margin: 20px 0; /* This adds spacing */
+}
+.otp-group label {
+  font-weight: bold;
+  text-align: center; /* Center the label text */
+}
+.otp-group input {
+  width: 200px; /* Give a nice fixed width */
+  text-align: center;
+  font-size: 1.25rem;
+  letter-spacing: 3px; /* Spreads out the numbers */
+}
+
 /* --- 5. Button System (Unchanged) --- */
 button, .btn-primary, .btn-success, .btn-danger, .btn-secondary, .btn-gradient, .btn-light, .btn-primary-outline {
   border: none;
