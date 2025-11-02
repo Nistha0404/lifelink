@@ -11,8 +11,9 @@
             <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40">
             <span>LifeLink</span>
         </div>
-        <nav><a href="../index.html">Home</a></nav>
+        <nav><a href="index.html">Home</a></nav>
     </header>
+    
     <main>
         <section class="main-card">
             <h2>Patient Portal</h2>
@@ -25,97 +26,141 @@
                     <label for="phone">Phone Number</label>
                     <input type="tel" id="phone" placeholder="Enter 10-digit number" maxlength="10" required>
                 </div>
-                 <div class="form-group">
+                <div class="form-group">
                     <label for="pincode">Pincode (for location backup)</label>
                     <input type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
                 </div>
-                <button type="button" id="getOtpBtn">Get OTP</button>
+                <button type="button" id="getOtpBtn" class="btn-primary">Get OTP</button>
                 
-                <div id="otpSection" class="hidden">
+                <div id="otpSection" style="display:none; margin-top:20px;">
                     <div class="form-group">
                         <label for="otp">Enter OTP</label>
-                        <input type="text" id="otp" placeholder="Enter 4-digit OTP" maxlength="4">
+                        <input type="text" id="otp" placeholder="Enter 4-digit OTP" maxlength="4" inputmode="numeric">
                     </div>
-                    <button type="button" id="verifyBtn">Verify & Proceed</button>
+                    <button type="button" id="verifyBtn" class="btn-primary">Verify & Proceed</button>
                 </div>
             </form>
             <p id="message" class="message-area"></p>
         </section>
     </main>
+    
     <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const sendOtpBtn = document.getElementById('send-otp-btn');
-  const verifyOtpBtn = document.getElementById('verify-otp-btn');
-  const phoneInput = document.getElementById('phone');
-  const otpInput = document.getElementById('otp');
-  const msgBox = document.getElementById('message');
+    document.addEventListener('DOMContentLoaded', () => {
+        const getOtpBtn = document.getElementById('getOtpBtn');
+        const verifyBtn = document.getElementById('verifyBtn');
+        const otpSection = document.getElementById('otpSection');
+        const messageEl = document.getElementById('message');
 
-  sendOtpBtn.addEventListener('click', async () => {
-    const phone = phoneInput.value.trim();
-    if (!phone) {
-      msgBox.textContent = 'Please enter your phone number.';
-      msgBox.style.color = 'red';
-      return;
-    }
-    msgBox.textContent = 'Sending OTP...';
-    try {
-      const res = await fetch('/api/server/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone_number: phone })
-      });
-      const data = await res.json();
-      if (data.success) {
-        msgBox.textContent = 'OTP sent successfully!';
-        msgBox.style.color = 'green';
-      } else {
-        msgBox.textContent = data.message || 'Failed to send OTP.';
-        msgBox.style.color = 'red';
-      }
-    } catch (err) {
-      msgBox.textContent = 'Error contacting server.';
-      msgBox.style.color = 'red';
-    }
-  });
+        // STEP 1: Generate OTP
+        getOtpBtn.addEventListener('click', async () => {
+            const name = document.getElementById('name').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const pincode = document.getElementById('pincode').value.trim();
 
-  verifyOtpBtn.addEventListener('click', async () => {
-    const phone = phoneInput.value.trim();
-    const otp = otpInput.value.trim();
-    if (!phone || !otp) {
-      msgBox.textContent = 'Please enter phone number and OTP.';
-      msgBox.style.color = 'red';
-      return;
-    }
+            // Validation
+            if (!name) {
+                messageEl.textContent = 'Please enter your full name.';
+                messageEl.className = 'message-area message-error';
+                return;
+            }
+            if (!phone || phone.length !== 10) {
+                messageEl.textContent = 'Please enter a valid 10-digit phone number.';
+                messageEl.className = 'message-area message-error';
+                return;
+            }
+            if (!pincode || pincode.length !== 6) {
+                messageEl.textContent = 'Please enter a valid 6-digit pincode.';
+                messageEl.className = 'message-area message-error';
+                return;
+            }
 
-    msgBox.textContent = 'Verifying OTP...';
-    try {
-      const res = await fetch('/api/server/patient-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone_number: phone, otp })
-      });
-      const data = await res.json();
+            messageEl.textContent = 'Generating OTP...';
+            messageEl.className = 'message-area';
 
-      if (data.success) {
-        msgBox.textContent = 'Login successful! Redirecting...';
-        msgBox.style.color = 'green';
-        sessionStorage.setItem('currentUser', JSON.stringify(data.user));
-        window.location.href = 'patient-dashboard.html';
-      } else {
-        msgBox.textContent = data.message || 'Invalid OTP.';
-        msgBox.style.color = 'red';
-      }
-    } catch (err) {
-      msgBox.textContent = 'Error verifying OTP.';
-      msgBox.style.color = 'red';
-    }
-  });
-});
-</script>
+            try {
+                const response = await fetch('/api/server/send-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber: phone })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    messageEl.textContent = result.message || 'OTP sent successfully!';
+                    messageEl.className = 'message-area message-success';
+                    
+                    // Show the OTP in an alert (for demo purposes)
+                    alert(`Your OTP is: ${result.otp}`);
+                    
+                    // Show OTP input section
+                    otpSection.style.display = 'block';
+                    getOtpBtn.style.display = 'none';
+                } else {
+                    messageEl.textContent = result.message || 'Failed to generate OTP.';
+                    messageEl.className = 'message-area message-error';
+                }
+            } catch (error) {
+                console.error('OTP Error:', error);
+                messageEl.textContent = 'Could not connect to server. Please try again.';
+                messageEl.className = 'message-area message-error';
+            }
+        });
+
+        // STEP 2: Verify OTP and Login
+        verifyBtn.addEventListener('click', async () => {
+            const name = document.getElementById('name').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const pincode = document.getElementById('pincode').value.trim();
+            const otp = document.getElementById('otp').value.trim();
+
+            if (!otp || otp.length !== 4) {
+                messageEl.textContent = 'Please enter the 4-digit OTP.';
+                messageEl.className = 'message-area message-error';
+                return;
+            }
+
+            messageEl.textContent = 'Verifying OTP...';
+            messageEl.className = 'message-area';
+
+            try {
+                const response = await fetch('/api/server/patient-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phoneNumber: phone,
+                        fullName: name,
+                        pincode: pincode,
+                        otp: otp
+                    })
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    messageEl.textContent = result.message || 'Login successful! Redirecting...';
+                    messageEl.className = 'message-area message-success';
+                    
+                    // Store user info in sessionStorage
+                    sessionStorage.setItem('currentUser', JSON.stringify(result.user));
+                    
+                    // Redirect to dashboard
+                    setTimeout(() => {
+                        window.location.href = 'patient-dashboard.html';
+                    }, 1500);
+                } else {
+                    messageEl.textContent = result.message || 'Invalid OTP or login failed.';
+                    messageEl.className = 'message-area message-error';
+                }
+            } catch (error) {
+                console.error('Login Error:', error);
+                messageEl.textContent = 'Could not connect to server. Please try again.';
+                messageEl.className = 'message-area message-error';
+            }
+        });
+    });
+    </script>
 
     <footer>
         <p>© 2025 LifeLink</p>
     </footer>
-
 </body>
 </html>
