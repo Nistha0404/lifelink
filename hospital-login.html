@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -24,56 +25,55 @@
         <button id="register-tab-btn" onclick="showTab('register')">Register</button>
       </div>
 
-      <div id="login-tab">
-        <form id="hospitalLoginForm">
-          <div class="form-group">
-            <label for="hospitalId">Hospital ID</label>
-            <input type="text" id="hospitalId" placeholder="e.g., HOS101" required>
-          </div>
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" placeholder="Enter your password" required>
-          </div>
-          <button type="submit" class="btn-primary">Login</button>
-        </form>
+```
+  <!-- LOGIN TAB -->
+  <div id="login-tab">
+    <form id="hospitalLoginForm">
+      <div class="form-group">
+        <label for="loginPhone">Registered Phone Number</label>
+        <input type="tel" id="loginPhone" placeholder="Enter 10-digit phone number" maxlength="10" required>
       </div>
+      <button type="button" id="sendOtpBtn">Get OTP</button>
 
-      <div id="register-tab" style="display:none;">
-        <form id="hospitalRegisterForm">
-          <div class="form-group">
-            <label for="hospitalName">Hospital Name</label>
-            <input type="text" id="hospitalName" required>
-          </div>
-          <div class="form-group">
-            <label for="address">Full Address</label>
-            <input type="text" id="address" required>
-          </div>
-          <div class="form-group">
-            <label for="pincode">Pincode</label>
-            <input type="text" id="pincode" maxlength="6" required>
-          </div>
-          <div class="form-group">
-            <label for="registerPhone">Contact Phone</label>
-            <input type="tel" id="registerPhone" maxlength="10" required>
-          </div>
-          <div class="form-group">
-            <label for="registerPassword">Create Password</label>
-            <input type="password" id="registerPassword" required>
-          </div>
-          <div class="form-group">
-            <label for="verifyPassword">Verify Password</label>
-            <input type="password" id="verifyPassword" placeholder="Re-enter your password" required>
-          </div>
-          <button type="submit" class="btn-primary">Register</button>
-        </form>
+      <div id="otpSection" class="hidden" style="margin-top:10px;">
+        <div class="form-group">
+          <label for="otp">Enter OTP</label>
+          <input type="text" id="otp" placeholder="4-digit OTP" maxlength="4" required>
+        </div>
+        <button type="button" id="verifyBtn">Verify & Login</button>
       </div>
-      <p id="message" style="margin-top: 15px; font-weight: bold;"></p>
-    </section>
+    </form>
+  </div>
+
+  <!-- REGISTER TAB -->
+  <div id="register-tab" style="display:none;">
+    <form id="hospitalRegisterForm">
+      <div class="form-group">
+        <label for="hospitalName">Hospital Name</label>
+        <input type="text" id="hospitalName" required>
+      </div>
+      <div class="form-group">
+        <label for="address">Full Address</label>
+        <input type="text" id="address" required>
+      </div>
+      <div class="form-group">
+        <label for="pincode">Pincode</label>
+        <input type="text" id="pincode" maxlength="6" required>
+      </div>
+      <div class="form-group">
+        <label for="registerPhone">Contact Phone</label>
+        <input type="tel" id="registerPhone" maxlength="10" required>
+      </div>
+      <button type="submit" class="btn-primary">Register Hospital</button>
+    </form>
+  </div>
+  <p id="message" style="margin-top: 15px; font-weight: bold;"></p>
+</section>
+```
+
   </main>
-  
+
   <script>
-    const loginForm = document.getElementById("hospitalLoginForm");
-    const registerForm = document.getElementById("hospitalRegisterForm");
     const messageEl = document.getElementById("message");
 
     function showTab(tabName) {
@@ -84,84 +84,102 @@
       messageEl.textContent = '';
     }
 
-    // --- Registration Logic (MODIFIED) ---
-    registerForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const password = document.getElementById("registerPassword").value;
-        const verifyPassword = document.getElementById("verifyPassword").value;
-
-        // Check if passwords match
-        if (password !== verifyPassword) {
-            messageEl.style.color = 'red'; // Consistent with other error styles
-            messageEl.textContent = 'Passwords do not match.';
-            return;
+    // --- OTP Sending ---
+    document.getElementById('sendOtpBtn').addEventListener('click', async () => {
+      const phone = document.getElementById('loginPhone').value.trim();
+      if (!phone) {
+        messageEl.textContent = 'Enter your phone number.';
+        messageEl.style.color = 'red';
+        return;
+      }
+      messageEl.textContent = 'Sending OTP...';
+      try {
+        const res = await fetch('/api/server/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone_number: phone, role: 'hospital' })
+        });
+        const data = await res.json();
+        if (data.success) {
+          messageEl.textContent = 'OTP sent successfully!';
+          messageEl.style.color = 'green';
+          document.getElementById('otpSection').classList.remove('hidden');
+        } else {
+          messageEl.textContent = data.message || 'Failed to send OTP.';
+          messageEl.style.color = 'red';
         }
-
-        const hospitalData = {
-            hospitalName: document.getElementById("hospitalName").value,
-            address: document.getElementById("address").value,
-            pincode: document.getElementById("pincode").value,
-            phoneNumber: document.getElementById("registerPhone").value,
-            password: password
-        };
-        
-        try {
-            // --- CHANGED THIS LINE ---
-            const response = await fetch('/api/server/hospital-register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(hospitalData)
-            });
-            const result = await response.json();
-
-            if (result.success) {
-                alert(`Registration successful! Your new Hospital ID is: ${result.hospitalId}`);
-                messageEl.style.color = 'green';
-                messageEl.textContent = `Registration complete! Your ID is ${result.hospitalId}. Please switch to the login tab.`;
-                showTab('login');
-            } else {
-                messageEl.style.color = 'red';
-                messageEl.textContent = `Registration failed: ${result.message}`;
-            }
-        } catch (error) {
-            console.error('Registration error:', error);
-            messageEl.style.color = 'red';
-            messageEl.textContent = 'Could not connect to the server. Please try again.';
-        }
+      } catch (err) {
+        messageEl.textContent = 'Server error. Try again.';
+        messageEl.style.color = 'red';
+      }
     });
 
-    // --- Login Logic (MODIFIED) ---
-    loginForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const hospitalId = document.getElementById("hospitalId").value;
-        const password = document.getElementById("password").value;
-
-        try {
-            // --- CHANGED THIS LINE ---
-            const response = await fetch('/api/server/hospital-login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ hospitalId, password })
-            });
-            const result = await response.json();
-
-            if (result.success) {
-                sessionStorage.setItem('currentHospital', JSON.stringify(result.hospital));
-                messageEl.style.color = 'green';
-                messageEl.textContent = 'Login successful! Redirecting...';
-                setTimeout(() => {
-                    window.location.href = "hospital-dashboard.html";
-                }, 1500);
-            } else {
-                messageEl.style.color = 'red';
-                messageEl.textContent = `Login failed: ${result.message}`;
-            }
-        } catch (error) {
-            console.error('Login error:', error);
-            messageEl.style.color = 'red';
-            messageEl.textContent = 'Could not connect to the server. Please try again.';
+    // --- OTP Verification & Login ---
+    document.getElementById('verifyBtn').addEventListener('click', async () => {
+      const phone = document.getElementById('loginPhone').value.trim();
+      const otp = document.getElementById('otp').value.trim();
+      if (!phone || !otp) {
+        messageEl.textContent = 'Enter both phone and OTP.';
+        messageEl.style.color = 'red';
+        return;
+      }
+      messageEl.textContent = 'Verifying OTP...';
+      try {
+        const res = await fetch('/api/server/hospital-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone_number: phone, otp })
+        });
+        const data = await res.json();
+        if (data.success) {
+          messageEl.textContent = 'Login successful! Redirecting...';
+          messageEl.style.color = 'green';
+          sessionStorage.setItem('currentHospital', JSON.stringify(data.hospital));
+          setTimeout(() => window.location.href = 'hospital-dashboard.html', 1200);
+        } else {
+          messageEl.textContent = data.message || 'Invalid OTP.';
+          messageEl.style.color = 'red';
         }
+      } catch (err) {
+        messageEl.textContent = 'Error verifying OTP.';
+        messageEl.style.color = 'red';
+      }
+    });
+
+    // --- Registration Logic ---
+    document.getElementById('hospitalRegisterForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const hospitalData = {
+        name: document.getElementById("hospitalName").value.trim(),
+        address: document.getElementById("address").value.trim(),
+        pincode: document.getElementById("pincode").value.trim(),
+        phone_number: document.getElementById("registerPhone").value.trim()
+      };
+      messageEl.textContent = 'Registering hospital...';
+      try {
+        const res = await fetch('/api/server/hospital-register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(hospitalData)
+        });
+        const data = await res.json();
+        if (data.success) {
+          messageEl.textContent = `Registered successfully! Hospital ID: ${data.hospital_id}`;
+          messageEl.style.color = 'green';
+          showTab('login');
+        } else {
+          messageEl.textContent = data.message || 'Registration failed.';
+          messageEl.style.color = 'red';
+        }
+      } catch (err) {
+        messageEl.textContent = 'Server error during registration.';
+        messageEl.style.color = 'red';
+      }
     });
   </script>
+
+  <footer>
+    <p>© 2025 LifeLink</p>
+  </footer>
 </body>
 </html>

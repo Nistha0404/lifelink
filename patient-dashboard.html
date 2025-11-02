@@ -1,309 +1,273 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Patient Dashboard - LifeLink</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    .hidden { display:none; }
-    .token-card { margin-top:16px; padding:12px; border:1px solid #e3e3e3; border-radius:8px; background:#fafafa; display:flex; gap:16px; align-items:center; }
-    .token-pill { font-size:20px; font-weight:700; letter-spacing:2px; padding:8px 12px; border-radius:6px; background:#1a73e8; color:#fff; min-width:64px; text-align:center; }
-    .qr-wrap img { width:128px; height:128px; }
-    .qr-caption { font-size:12px; color:#555; margin-top:4px; }
-    .main-card { max-width:880px;  }
-    table { width:100%; border-collapse:collapse; }
-    th, td { padding:8px 10px; border-bottom:1px solid #eee; }
+    .hidden { display: none; }
+    .token-card {
+      margin-top: 16px;
+      padding: 12px;
+      border: 1px solid #e3e3e3;
+      border-radius: 8px;
+      background: #fafafa;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .token-pill {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #1a73e8;
+      color: #fff;
+      min-width: 64px;
+      text-align: center;
+    }
+    .qr-wrap img { width: 128px; height: 128px; }
+    .qr-caption { font-size: 12px; color: #555; margin-top: 4px; }
+    .main-card { max-width: 880px; margin: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
   </style>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
 </head>
 <body>
 <header>
   <div class="logo">
-    <img src="lifeLinklogoD.png" alt="LifeLink Logo" class="new-logo-style">
+    <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40">
     <span>LifeLink</span>
   </div>
-  
   <nav><a href="#" id="logoutBtn">Logout</a></nav>
 </header>
 
 <main>
   <section class="main-card">
-    <h2 id="welcome-message">Welcome!</h2>
+    <h2 id="welcomeMessage">Welcome!</h2>
 
-    <div id="sos-section">
-      <h3>Request Emergency Blood</h3>
-      <p>Your precise location is primary. The pincode will be used as a backup.</p>
-      <form id="sosForm">
-        <div class="form-group">
-          <label for="bloodType">Blood Type Needed:</label>
-          <select id="bloodType" required>
-            <option value="" disabled selected>-- Select --</option>
-            <option value="A+">A+</option><option value="A-">A-</option>
-            <option value="B+">B+</option><option value="B-">B-</option>
-            <option value="O+">O+</option><option value="O-">O-</option>
-            <option value="AB+">AB+</option><option value="AB-">AB-</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="pincode">Pincode (Required Backup):</label>
-          <input type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
-        </div>
-        <button type="submit" id="sosBtn">Send SOS Alert</button>
-      </form>
-      <p id="sosMessage" class="message-area"></p>
-
-      <!-- Patient Token + QR -->
-      <div id="patientTokenCard" class="token-card hidden">
-        <div>
-          <div>Patient Verification Token</div>
-          <div id="patientTokenText" class="token-pill">----</div>
-          <div class="qr-caption">Show this token or QR at hospital for verification.</div>
-        </div>
-        <div class="qr-wrap">
-          <img id="patientQrImg" alt="Patient Token QR" />
-        </div>
-      </div>
+```
+<div id="sosSection">
+  <h3>Request Emergency Blood</h3>
+  <p>Your precise location is primary. The pincode will be used as a backup.</p>
+  <form id="sosForm">
+    <div class="form-group">
+      <label for="bloodType">Blood Type Needed:</label>
+      <select id="bloodType" required>
+        <option value="" disabled selected>-- Select --</option>
+        <option value="A+">A+</option><option value="A-">A-</option>
+        <option value="B+">B+</option><option value="B-">B-</option>
+        <option value="O+">O+</option><option value="O-">O-</option>
+        <option value="AB+">AB+</option><option value="AB-">AB-</option>
+      </select>
     </div>
-
-    <div class="action-buttons" style="margin-top:16px;">
-      <button id="historyBtn">View Request History</button>
-      <button id="statusBtn">Refresh Status</button>
+    <div class="form-group">
+      <label for="pincode">Pincode (Required Backup):</label>
+      <input type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
     </div>
+    <button type="submit" id="sosBtn">Send SOS Alert</button>
+  </form>
+  <p id="sosMessage" class="message-area"></p>
 
-    <div id="history-section" class="hidden">
-      <h3>Your Request History</h3>
-      <table id="history-table">
-        <thead>
-          <tr>
-            <th>Date & Time</th>
-            <th>Blood Type</th>
-            <th>Pincode</th>
-            <th>Status</th>
-            <th>Token</th>
-          </tr>
-        </thead>
-        <tbody id="history-body"></tbody>
-      </table>
+  <!-- Patient Token + QR -->
+  <div id="patientTokenCard" class="token-card hidden">
+    <div>
+      <div>Patient Verification Token</div>
+      <div id="patientTokenText" class="token-pill">----</div>
+      <div class="qr-caption">Show this token or QR at hospital for verification.</div>
     </div>
+    <div class="qr-wrap">
+      <div id="patientQrImg"></div>
+    </div>
+  </div>
+</div>
+
+<div class="action-buttons" style="margin-top:16px;">
+  <button id="historyBtn">View Request History</button>
+  <button id="statusBtn">Refresh Status</button>
+</div>
+
+<div id="historySection" class="hidden">
+  <h3>Your Request History</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Date & Time</th>
+        <th>Blood Type</th>
+        <th>Pincode</th>
+        <th>Status</th>
+        <th>Token</th>
+      </tr>
+    </thead>
+    <tbody id="historyBody"></tbody>
+  </table>
+</div>
+```
+
   </section>
 </main>
 
 <script>
-  const welcomeMessage = document.getElementById('welcome-message');
+document.addEventListener('DOMContentLoaded', () => {
+  const user = JSON.parse(sessionStorage.getItem('currentUser'));
+  if (!user) {
+    window.location.href = 'patient-login.html';
+    return;
+  }
+
+  document.getElementById('welcomeMessage').textContent = `Welcome, ${user.full_name || 'Patient'}!`;
+
   const sosForm = document.getElementById('sosForm');
   const sosMessage = document.getElementById('sosMessage');
-  const historySection = document.getElementById('history-section');
-  const historyBody = document.getElementById('history-body');
-  const historyBtn = document.getElementById('historyBtn');
-  const statusBtn = document.getElementById('statusBtn');
-  const logoutBtn = document.getElementById('logoutBtn');
-  const pincodeInput = document.getElementById('pincode');
-
   const patientTokenCard = document.getElementById('patientTokenCard');
   const patientTokenText = document.getElementById('patientTokenText');
-  const patientQrImg = document.getElementById('patientQrImg');
+  const historyBody = document.getElementById('historyBody');
+  const historySection = document.getElementById('historySection');
+  const historyBtn = document.getElementById('historyBtn');
+  const statusBtn = document.getElementById('statusBtn');
 
-  let currentUser = null;
-  let requestPollInterval; // This will store our polling timer
+  let currentRequestId = null;
+  let patientLocation = { lat: null, lon: null };
 
-  document.addEventListener('DOMContentLoaded', () => {
-    const userData = sessionStorage.getItem('currentUser');
-    if (!userData) {
-      alert('You are not logged in. Redirecting...');
-      window.location.href = '/patient-login.html';
-      return;
-    }
-    currentUser = JSON.parse(userData);
-    welcomeMessage.textContent = `Welcome, ${currentUser.full_name}!`;
-    if (currentUser.pincode) pincodeInput.value = currentUser.pincode;
-  });
-
-  logoutBtn.addEventListener('click', () => {
-    sessionStorage.removeItem('currentUser');
-    window.location.href = '/patient-login.html';
-  });
-
-  sosForm.addEventListener('submit', handleSosRequest);
-  historyBtn.addEventListener('click', () => {
-    historySection.classList.toggle('hidden');
-    if (!historySection.classList.contains('hidden')) fetchRequestHistory();
-  });
-  statusBtn.addEventListener('click', () => {
-    historySection.classList.remove('hidden');
-    fetchRequestHistory();
-  });
-
-  function getGeolocation() {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) return reject({ code: -1, message: "Geolocation not supported." });
-      navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 15000 });
+  // Capture geolocation
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      patientLocation.lat = pos.coords.latitude;
+      patientLocation.lon = pos.coords.longitude;
+    }, () => {
+      console.warn('Geolocation not allowed, using backup pincode.');
     });
   }
 
-  // This REPLACES your old setQrForToken function
-function setQrForToken(imgEl, token, patientName, patientPhone, pincode, timeOfRequest) {
-    // 1. Create the human-readable string you wanted
-    const qrDataString = `Patient Name: ${patientName}
-Phone: ${patientPhone}
-Token: ${token}
-Pincode: ${pincode}
-Time: ${timeOfRequest}`;
-
-    // 2. URL-encode the entire string for the API
-    const data = encodeURIComponent(qrDataString);
-    
-    // 3. Set the image source to the API URL
-    imgEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${data}`;
-}
-
-  async function handleSosRequest(event) {
-    event.preventDefault();
+  // Send SOS request
+  sosForm.addEventListener('submit', async e => {
+    e.preventDefault();
     const bloodType = document.getElementById('bloodType').value;
-    const pincode = pincodeInput.value.trim();
+    const pincode = document.getElementById('pincode').value;
 
-    if (!bloodType || !/^\d{6}$/.test(pincode)) {
-      sosMessage.textContent = 'Please select a blood type and enter a valid 6-digit pincode.';
+    if (!bloodType || !pincode) {
+      sosMessage.textContent = 'Please fill all fields.';
       sosMessage.style.color = 'red';
       return;
     }
 
-    sosMessage.textContent = 'Attempting to get your precise location...';
-    sosMessage.style.color = 'inherit';
-
-    let loc = { latitude: null, longitude: null };
-    try {
-      const pos = await getGeolocation();
-      loc.latitude = pos.coords.latitude;
-      loc.longitude = pos.coords.longitude;
-      sosMessage.textContent = 'Precise location found! Sending SOS...';
-    } catch (e) {
-      console.warn('Geolocation failed:', e.message);
-      sosMessage.textContent = 'Could not get precise location. Sending with pincode as backup.';
-    }
+    sosMessage.textContent = 'Sending SOS...';
+    sosMessage.style.color = 'black';
 
     try {
-      const response = await fetch('/api/server/request-blood', {
+      const res = await fetch('/api/server/request-blood', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          patientId: currentUser.user_id,
-          bloodType,
-          pincode,
-          latitude: loc.latitude,
-          longitude: loc.longitude
+          patient_id: user.patient_id,
+          full_name: user.full_name,
+          blood_type: bloodType,
+          latitude: patientLocation.lat,
+          longitude: patientLocation.lon,
+          pincode: pincode
         })
       });
-      const result = await response.json();
-      if (result.success) {
+
+      const data = await res.json();
+      if (data.success) {
+        sosMessage.textContent = 'SOS sent successfully!';
         sosMessage.style.color = 'green';
-        sosMessage.textContent = result.message;
+        currentRequestId = data.request_id;
 
-        // Show patient token + QR immediately
-        // Show patient token + QR immediately
-        if (result.patient_token) {
-          const token = result.patient_token;
-          const timeOfRequest = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        // Display token + QR
+        patientTokenText.textContent = data.patient_token || '----';
+        patientTokenCard.classList.remove('hidden');
 
-          // 1. Display the token number in the blue box
-          patientTokenText.textContent = token;
+        // Generate QR
+        const qrContainer = document.getElementById('patientQrImg');
+        qrContainer.innerHTML = '';
+        new QRCode(qrContainer, {
+          text: data.patient_token,
+          width: 128,
+          height: 128
+        });
 
-          // 2. Call your updated QR function with all the info
-          // It gets the name and phone from your 'currentUser' object
-          setQrForToken(
-              patientQrImg,        // The <img> element
-              token,               // The new token
-              currentUser.full_name, // From your session
-              currentUser.phone_number, // From your session
-              pincode,             // From the form
-              timeOfRequest        // The time we just created
-          );
-          
-          // 3. Show the QR code card
-          // 3. Show the QR code card
-          patientTokenCard.classList.remove('hidden');
-        }
-
-        // --- NEW LINE: START POLLING FOR A RESPONSE ---
-        startRequestPolling(result.requestId); 
-        // ------------------------------------------
-
-        historySection.classList.remove('hidden');
-        fetchRequestHistory();
+        // Poll for updates
+        pollForStatus(data.request_id);
       } else {
+        sosMessage.textContent = data.message || 'Failed to send SOS.';
         sosMessage.style.color = 'red';
-        sosMessage.textContent = `Error: ${result.message}`;
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      sosMessage.textContent = 'Error contacting server.';
       sosMessage.style.color = 'red';
-      sosMessage.textContent = 'Could not send SOS. Server may be down.';
     }
-  }
+  });
 
-  async function fetchRequestHistory() {
-    historyBody.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
-    try {
-      const response = await fetch(`/api/server/requests/history/${currentUser.user_id}`);
-      const requests = await response.json();
-      historyBody.innerHTML = '';
-      if (!Array.isArray(requests) || !requests.length) {
-        historyBody.innerHTML = '<tr><td colspan="5">No requests found.</td></tr>';
-        return;
+  // Poll for hospital assignment
+  async function pollForStatus(requestId) {
+    const interval = setInterval(async () => {
+      const res = await fetch(`/api/server/request-status/${requestId}`);
+      const data = await res.json();
+
+      if (data.status === 'accepted') {
+        clearInterval(interval);
+        sosMessage.textContent = `Hospital assigned: ${data.hospital_name}, ${data.hospital_pincode}`;
+        sosMessage.style.color = 'green';
+        loadHistory();
+      } else if (data.status === 'rejected') {
+        clearInterval(interval);
+        sosMessage.textContent = 'All hospitals rejected. Donor broadcast triggered.';
+        sosMessage.style.color = 'orange';
       }
-      requests.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${new Date(r.created_at).toLocaleString()}</td>
-          <td>${r.blood_type_needed}</td>
-          <td>${r.pincode || 'N/A'}</td>
-          <td>${r.status}</td>
-          <td>${r.patient_token || '-'}</td>
-        `;
-        historyBody.appendChild(tr);
-      });
-    } catch (e) {
-      historyBody.innerHTML = '<tr><td colspan="5">Could not load history.</td></tr>';
-    }
+    }, 15000);
   }
 
-  // --- NEW FUNCTION: Add this to your patient dashboard script ---
-function startRequestPolling(requestId) {
-    // Clear any old timer
-    if (requestPollInterval) clearInterval(requestPollInterval);
+  // Load request history
+  async function loadHistory() {
+    const res = await fetch(`/api/server/requests/history/${user.patient_id}`);
+    const data = await res.json();
+    historyBody.innerHTML = '';
 
-    // Check the server every 10 seconds
-    requestPollInterval = setInterval(async () => {
-        try {
-            const response = await fetch(`/api/server/request-status/${requestId}`);
-            const result = await response.json();
+    if (!data.length) {
+      historyBody.innerHTML = '<tr><td colspan="5">No previous SOS requests.</td></tr>';
+      return;
+    }
 
-            // Check if a hospital has accepted
-            if (result.status === 'pending' && result.hospital) {
-                // SUCCESS!
-                clearInterval(requestPollInterval); // Stop checking
-                
-                // Use your existing 'sosMessage' element to show the update
-                sosMessage.style.color = 'green';
-                
-                // Display the hospital's name and pincode
-                sosMessage.innerHTML = `
-                    <strong>REQUEST ACCEPTED!</strong><br>
-                    Please go to: <strong>${result.hospital.hospital_name}</strong><br>
-                    Pincode: ${result.hospital.pincode}
-                `;
-            }
-            // If status is 'active', it will just loop and check again in 10s
-        } catch (e) {
-            // If the server errors, just keep polling
-            console.error("Polling error:", e);
-        }
-    }, 10000); // 10000ms = 10 seconds
-}
+    data.forEach(req => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${new Date(req.created_at).toLocaleString()}</td>
+        <td>${req.blood_type}</td>
+        <td>${req.pincode}</td>
+        <td>${req.status}</td>
+        <td>${req.patient_token || '—'}</td>
+      `;
+      historyBody.appendChild(row);
+    });
+  }
+
+  historyBtn.addEventListener('click', () => {
+    historySection.classList.toggle('hidden');
+    loadHistory();
+  });
+
+  statusBtn.addEventListener('click', () => {
+    if (currentRequestId) pollForStatus(currentRequestId);
+    else sosMessage.textContent = 'No active request to track.';
+  });
+
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.clear();
+    window.location.href = 'patient-login.html';
+  });
+
+  loadHistory();
+});
 </script>
-<footer>
-        <p>© 2025 LifeLink</p>
-    </footer>
 
+<footer>
+  <p>© 2025 LifeLink</p>
+</footer>
 </body>
 </html>
