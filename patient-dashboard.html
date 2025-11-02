@@ -4,73 +4,113 @@
   <meta charset="UTF-8">
   <title>Patient Dashboard - LifeLink</title>
   <link rel="stylesheet" href="style.css">
-  <style>
-    .hidden { display:none; }
-    .token-card { margin-top:16px; padding:12px; border:1px solid #e3e3e3; border-radius:8px; background:#fafafa; display:flex; gap:16px; align-items:center; }
-    .token-pill { font-size:20px; font-weight:700; letter-spacing:2px; padding:8px 12px; border-radius:6px; background:#1a73e8; color:#fff; min-width:64px; text-align:center; }
-    .qr-wrap img { width:128px; height:128px; }
-    .qr-caption { font-size:12px; color:#555; margin-top:4px; }
-    .main-card { max-width:880px;  }
-    table { width:100%; border-collapse:collapse; }
-    th, td { padding:8px 10px; border-bottom:1px solid #eee; }
-  </style>
-
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <style>
+    .hidden { display: none; }
+    .token-card { 
+      margin-top: 20px; 
+      padding: 20px; 
+      border: 2px solid #2a5c60; 
+      border-radius: 12px; 
+      background: #f0f8ff; 
+      display: flex; 
+      gap: 20px; 
+      align-items: center; 
+      justify-content: space-between;
+    }
+    .token-pill { 
+      font-size: 28px; 
+      font-weight: 700; 
+      letter-spacing: 4px; 
+      padding: 12px 20px; 
+      border-radius: 8px; 
+      background: #1a73e8; 
+      color: #fff; 
+      text-align: center; 
+    }
+    .qr-wrap { text-align: center; }
+    .qr-wrap img { width: 150px; height: 150px; }
+    .qr-caption { font-size: 12px; color: #555; margin-top: 8px; }
+    .status-box {
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+      font-weight: bold;
+    }
+    .status-pending { background: #fff3cd; color: #856404; }
+    .status-accepted { background: #d4edda; color: #155724; }
+    .status-escalated { background: #f8d7da; color: #721c24; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
+    th { background: #2a5c60; color: white; }
+    .action-buttons { display: flex; gap: 10px; margin-top: 20px; }
+    .action-buttons button { flex: 1; }
+  </style>
 </head>
 <body>
 <header>
   <div class="logo">
-    <img src="lifeLinklogoD.png" alt="LifeLink Logo" class="new-logo-style">
+    <img src="lifeLinklogoD.png" alt="LifeLink Logo">
     <span>LifeLink</span>
   </div>
-  
   <nav><a href="#" id="logoutBtn">Logout</a></nav>
 </header>
 
 <main>
   <section class="main-card">
-    <h2 id="welcome-message">Welcome!</h2>
+    <h2 id="welcome-message">Welcome, Patient!</h2>
 
+    <!-- SOS REQUEST SECTION -->
     <div id="sos-section">
-      <h3>Request Emergency Blood</h3>
-      <p>Your precise location is primary. The pincode will be used as a backup.</p>
+      <h3>🚨 Request Emergency Blood</h3>
+      <p>Your precise location is required. Pincode is used as backup.</p>
       <form id="sosForm">
         <div class="form-group">
           <label for="bloodType">Blood Type Needed:</label>
           <select id="bloodType" required>
             <option value="" disabled selected>-- Select --</option>
-            <option value="A+">A+</option><option value="A-">A-</option>
-            <option value="B+">B+</option><option value="B-">B-</option>
-            <option value="O+">O+</option><option value="O-">O-</option>
-            <option value="AB+">AB+</option><option value="AB-">AB-</option>
+            <option value="A+">A+</option>
+            <option value="A-">A-</option>
+            <option value="B+">B+</option>
+            <option value="B-">B-</option>
+            <option value="O+">O+</option>
+            <option value="O-">O-</option>
+            <option value="AB+">AB+</option>
+            <option value="AB-">AB-</option>
           </select>
         </div>
         <div class="form-group">
-          <label for="pincode">Pincode (Required Backup):</label>
+          <label for="pincode">Pincode (Backup):</label>
           <input type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
         </div>
-        <button type="submit" id="sosBtn">Send SOS Alert</button>
+        <button type="submit" class="btn-danger">Send SOS Alert</button>
       </form>
       <p id="sosMessage" class="message-area"></p>
 
-      <!-- Patient Token + QR -->
+      <!-- PATIENT TOKEN DISPLAY -->
       <div id="patientTokenCard" class="token-card hidden">
         <div>
-          <div>Patient Verification Token</div>
+          <h4 style="margin: 0 0 10px 0;">Your Verification Token</h4>
           <div id="patientTokenText" class="token-pill">----</div>
-          <div class="qr-caption">Show this token or QR at hospital for verification.</div>
+          <p class="qr-caption">Show this token or QR code at the hospital for verification.</p>
         </div>
         <div class="qr-wrap">
-          <img id="patientQrImg" alt="Patient Token QR" />
+          <div id="qrCodeContainer"></div>
+          <p class="qr-caption">Scan at Hospital</p>
         </div>
       </div>
+
+      <!-- STATUS BOX -->
+      <div id="statusBox" class="hidden"></div>
     </div>
 
-    <div class="action-buttons" style="margin-top:16px;">
-      <button id="historyBtn">View Request History</button>
-      <button id="statusBtn">Refresh Status</button>
+    <!-- ACTION BUTTONS -->
+    <div class="action-buttons">
+      <button id="historyBtn" class="btn-secondary">View Request History</button>
+      <button id="statusBtn" class="btn-primary">Check Status</button>
     </div>
 
+    <!-- REQUEST HISTORY TABLE -->
     <div id="history-section" class="hidden">
       <h3>Your Request History</h3>
       <table id="history-table">
@@ -78,8 +118,8 @@
           <tr>
             <th>Date & Time</th>
             <th>Blood Type</th>
-            <th>Pincode</th>
             <th>Status</th>
+            <th>Hospital</th>
             <th>Token</th>
           </tr>
         </thead>
@@ -90,6 +130,9 @@
 </main>
 
 <script>
+let currentRequestId = null;
+let statusPollInterval = null;
+
 document.addEventListener('DOMContentLoaded', () => {
   const user = JSON.parse(sessionStorage.getItem('currentUser'));
   if (!user) {
@@ -97,92 +140,253 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  document.getElementById('welcome-msg').textContent = `Welcome, ${user.full_name || 'Patient'}!`;
+  document.getElementById('welcome-message').textContent = `Welcome, ${user.full_name || 'Patient'}!`;
+  document.getElementById('pincode').value = user.pincode || '';
 
-  const sosBtn = document.getElementById('sos-btn');
-  const statusBox = document.getElementById('status-message');
-  const historyContainer = document.getElementById('history-container');
+  // Logout handler
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.clear();
+    window.location.href = 'patient-login.html';
+  });
 
-  // Fetch past SOS requests
-  async function loadHistory() {
-    const res = await fetch(`/api/server/requests/history/${user.patient_id}`);
-    const data = await res.json();
-    historyContainer.innerHTML = '';
-    if (!data.length) {
-      historyContainer.innerHTML = '<p>No previous SOS requests.</p>';
-      return;
-    }
-    data.forEach(req => {
-      const item = document.createElement('div');
-      item.classList.add('history-item');
-      item.innerHTML = `
-        <p><strong>Request ID:</strong> ${req.request_id}</p>
-        <p>Status: ${req.status}</p>
-        <p>Hospital: ${req.hospital_name || '—'}</p>
-        <p>Date: ${new Date(req.created_at).toLocaleString()}</p>
-      `;
-      historyContainer.appendChild(item);
-    });
-  }
+  // Load history on page load
+  loadHistory();
 
-  sosBtn.addEventListener('click', async () => {
-    if (!confirm('Do you want to send an SOS blood request?')) return;
-
-    statusBox.textContent = 'Sending request...';
-    try {
-      const res = await fetch('/api/server/request-blood', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patient_id: user.patient_id,
-          latitude: user.latitude,
-          longitude: user.longitude,
-          pincode: user.pincode,
-          blood_type: user.blood_type || 'O+'
-        })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        statusBox.textContent = `Request sent successfully! Token: ${data.patient_token}`;
-        statusBox.style.color = 'green';
-        pollForStatus(data.requestId);
-      } else {
-        statusBox.textContent = data.message || 'Request failed.';
-        statusBox.style.color = 'red';
-      }
-    } catch (err) {
-      statusBox.textContent = 'Error contacting server.';
-      statusBox.style.color = 'red';
+  // History button
+  document.getElementById('historyBtn').addEventListener('click', () => {
+    const historySection = document.getElementById('history-section');
+    historySection.classList.toggle('hidden');
+    if (!historySection.classList.contains('hidden')) {
+      loadHistory();
     }
   });
 
-  // Poll for hospital assignment
-  async function pollForStatus(requestId) {
-    const interval = setInterval(async () => {
-      const res = await fetch(`/api/server/request-status/${requestId}`);
-      const data = await res.json();
+  // Manual status check button
+  document.getElementById('statusBtn').addEventListener('click', () => {
+    if (currentRequestId) {
+      checkRequestStatus(currentRequestId);
+    } else {
+      showMessage('No active request to check.', 'error');
+    }
+  });
+});
 
-      if (data.status === 'accepted') {
-        clearInterval(interval);
-        statusBox.textContent = `Hospital assigned: ${data.hospital.name}, ${data.hospital.pincode}`;
-        statusBox.style.color = 'green';
-        loadHistory();
-      } else if (data.status === 'rejected') {
-        clearInterval(interval);
-        statusBox.textContent = 'All hospitals rejected. Donor broadcast triggered.';
-        statusBox.style.color = 'orange';
-      }
-    }, 15000);
+// ============================================================================
+// SOS FORM SUBMISSION
+// ============================================================================
+document.getElementById('sosForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const user = JSON.parse(sessionStorage.getItem('currentUser'));
+  const bloodType = document.getElementById('bloodType').value;
+  const pincode = document.getElementById('pincode').value;
+  const messageEl = document.getElementById('sosMessage');
+
+  if (!bloodType || !pincode) {
+    messageEl.textContent = 'Please select blood type and enter pincode.';
+    messageEl.className = 'message-area message-error';
+    return;
   }
 
-  loadHistory();
+  messageEl.textContent = 'Getting your location...';
+  messageEl.className = 'message-area message-pending';
+
+  // Get precise location
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+
+      messageEl.textContent = 'Sending SOS...';
+
+      try {
+        const response = await fetch('/api/server/request-blood', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            patientId: user.user_id,
+            bloodType: bloodType,
+            pincode: pincode,
+            latitude: latitude,
+            longitude: longitude
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          currentRequestId = data.requestId;
+          messageEl.textContent = data.message;
+          messageEl.className = 'message-area message-success';
+          
+          // Display token
+          displayPatientToken(data.patient_token);
+          
+          // Start polling for status
+          startStatusPolling(data.requestId);
+        } else {
+          messageEl.textContent = data.message || 'Failed to send SOS.';
+          messageEl.className = 'message-area message-error';
+        }
+      } catch (error) {
+        console.error('SOS Error:', error);
+        messageEl.textContent = 'Could not connect to server.';
+        messageEl.className = 'message-area message-error';
+      }
+    },
+    (error) => {
+      console.error('Location Error:', error);
+      messageEl.textContent = 'Location access denied. Using pincode as fallback.';
+      messageEl.className = 'message-area message-error';
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 });
+
+// ============================================================================
+// DISPLAY PATIENT TOKEN + QR CODE
+// ============================================================================
+function displayPatientToken(token) {
+  const tokenCard = document.getElementById('patientTokenCard');
+  const tokenText = document.getElementById('patientTokenText');
+  const qrContainer = document.getElementById('qrCodeContainer');
+
+  tokenText.textContent = token;
+  qrContainer.innerHTML = ''; // Clear previous QR
+
+  // Generate QR Code
+  new QRCode(qrContainer, {
+    text: `/verify-token/${token}`,
+    width: 150,
+    height: 150
+  });
+
+  tokenCard.classList.remove('hidden');
+}
+
+// ============================================================================
+// STATUS POLLING - Check if hospital accepted
+// ============================================================================
+function startStatusPolling(requestId) {
+  if (statusPollInterval) {
+    clearInterval(statusPollInterval);
+  }
+
+  // Check immediately
+  checkRequestStatus(requestId);
+
+  // Then poll every 15 seconds
+  statusPollInterval = setInterval(() => {
+    checkRequestStatus(requestId);
+  }, 15000);
+}
+
+async function checkRequestStatus(requestId) {
+  try {
+    const response = await fetch(`/api/server/request-status/${requestId}`);
+    const data = await response.json();
+
+    const statusBox = document.getElementById('statusBox');
+    statusBox.classList.remove('hidden');
+
+    if (data.status === 'accepted') {
+      statusBox.className = 'status-box status-accepted';
+      statusBox.innerHTML = `
+        <h4>✅ Hospital Accepted!</h4>
+        <p><strong>Hospital:</strong> ${data.hospital.name}</p>
+        <p><strong>Address:</strong> ${data.hospital.address}</p>
+        <p><strong>Pincode:</strong> ${data.hospital.pincode}</p>
+        <p><strong>Your Token:</strong> <span style="font-size: 20px; letter-spacing: 2px;">${data.patient_token}</span></p>
+        <p>Please proceed to the hospital with your token.</p>
+      `;
+      
+      // Stop polling
+      if (statusPollInterval) {
+        clearInterval(statusPollInterval);
+      }
+      
+    } else if (data.status === 'escalated') {
+      statusBox.className = 'status-box status-escalated';
+      statusBox.innerHTML = `
+        <h4>⏳ Request Escalated to Donors</h4>
+        <p>No hospitals accepted within 10 minutes.</p>
+        <p>Nearby donors have been notified.</p>
+        <p><strong>Your Token:</strong> <span style="font-size: 20px; letter-spacing: 2px;">${data.patient_token}</span></p>
+        <p>You will be notified when a donor accepts.</p>
+      `;
+      
+    } else {
+      statusBox.className = 'status-box status-pending';
+      statusBox.innerHTML = `
+        <h4>⏰ Waiting for Hospital Response...</h4>
+        <p>Your request has been sent to nearby hospitals.</p>
+        <p><strong>Your Token:</strong> <span style="font-size: 20px; letter-spacing: 2px;">${data.patient_token}</span></p>
+        <p>Please wait for confirmation (10-minute window).</p>
+      `;
+    }
+
+  } catch (error) {
+    console.error('Status Check Error:', error);
+  }
+}
+
+// ============================================================================
+// LOAD REQUEST HISTORY
+// ============================================================================
+async function loadHistory() {
+  const user = JSON.parse(sessionStorage.getItem('currentUser'));
+  const tbody = document.getElementById('history-body');
+
+  try {
+    const response = await fetch(`/api/server/requests/history/${user.user_id}`);
+    const data = await response.json();
+
+    tbody.innerHTML = '';
+
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No previous requests.</td></tr>';
+      return;
+    }
+
+    data.forEach(req => {
+      const row = document.createElement('tr');
+      const statusBadge = getStatusBadge(req.status);
+      
+      row.innerHTML = `
+        <td>${new Date(req.created_at).toLocaleString()}</td>
+        <td>${req.blood_type_needed}</td>
+        <td>${statusBadge}</td>
+        <td>${req.hospital_name || '—'}</td>
+        <td>${req.patient_token || '—'}</td>
+      `;
+      tbody.appendChild(row);
+    });
+
+  } catch (error) {
+    console.error('History Error:', error);
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Error loading history.</td></tr>';
+  }
+}
+
+function getStatusBadge(status) {
+  const badges = {
+    'pending': '<span style="background:#ffc107; color:#000; padding:4px 8px; border-radius:4px;">Pending</span>',
+    'accepted': '<span style="background:#28a745; color:#fff; padding:4px 8px; border-radius:4px;">Accepted</span>',
+    'escalated': '<span style="background:#dc3545; color:#fff; padding:4px 8px; border-radius:4px;">Escalated</span>',
+    'completed': '<span style="background:#6c757d; color:#fff; padding:4px 8px; border-radius:4px;">Completed</span>'
+  };
+  return badges[status] || status;
+}
+
+function showMessage(text, type) {
+  const messageEl = document.getElementById('sosMessage');
+  messageEl.textContent = text;
+  messageEl.className = `message-area message-${type}`;
+}
 </script>
 
 <footer>
-        <p>© 2025 LifeLink</p>
-    </footer>
-
+  <p>© 2025 LifeLink</p>
+</footer>
 </body>
 </html>
