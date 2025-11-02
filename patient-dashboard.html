@@ -1,114 +1,91 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Patient Dashboard - LifeLink</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    .hidden { display: none; }
-    .token-card {
-      margin-top: 16px;
-      padding: 12px;
-      border: 1px solid #e3e3e3;
-      border-radius: 8px;
-      background: #fafafa;
-      display: flex;
-      gap: 16px;
-      align-items: center;
-    }
-    .token-pill {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      padding: 8px 12px;
-      border-radius: 6px;
-      background: #1a73e8;
-      color: #fff;
-      min-width: 64px;
-      text-align: center;
-    }
-    .qr-wrap img { width: 128px; height: 128px; }
-    .qr-caption { font-size: 12px; color: #555; margin-top: 4px; }
-    .main-card { max-width: 880px; margin: auto; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 8px 10px; border-bottom: 1px solid #eee; text-align: left; }
+    .hidden { display:none; }
+    .token-card { margin-top:16px; padding:12px; border:1px solid #e3e3e3; border-radius:8px; background:#fafafa; display:flex; gap:16px; align-items:center; }
+    .token-pill { font-size:20px; font-weight:700; letter-spacing:2px; padding:8px 12px; border-radius:6px; background:#1a73e8; color:#fff; min-width:64px; text-align:center; }
+    .qr-wrap img { width:128px; height:128px; }
+    .qr-caption { font-size:12px; color:#555; margin-top:4px; }
+    .main-card { max-width:880px;  }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:8px 10px; border-bottom:1px solid #eee; }
   </style>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-
 </head>
 <body>
 <header>
   <div class="logo">
-    <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40">
+    <img src="lifeLinklogoD.png" alt="LifeLink Logo" class="new-logo-style">
     <span>LifeLink</span>
   </div>
+  
   <nav><a href="#" id="logoutBtn">Logout</a></nav>
 </header>
 
 <main>
   <section class="main-card">
-    <h2 id="welcomeMessage">Welcome!</h2>
+    <h2 id="welcome-message">Welcome!</h2>
 
-```
-<div id="sosSection">
-  <h3>Request Emergency Blood</h3>
-  <p>Your precise location is primary. The pincode will be used as a backup.</p>
-  <form id="sosForm">
-    <div class="form-group">
-      <label for="bloodType">Blood Type Needed:</label>
-      <select id="bloodType" required>
-        <option value="" disabled selected>-- Select --</option>
-        <option value="A+">A+</option><option value="A-">A-</option>
-        <option value="B+">B+</option><option value="B-">B-</option>
-        <option value="O+">O+</option><option value="O-">O-</option>
-        <option value="AB+">AB+</option><option value="AB-">AB-</option>
-      </select>
+    <div id="sos-section">
+      <h3>Request Emergency Blood</h3>
+      <p>Your precise location is primary. The pincode will be used as a backup.</p>
+      <form id="sosForm">
+        <div class="form-group">
+          <label for="bloodType">Blood Type Needed:</label>
+          <select id="bloodType" required>
+            <option value="" disabled selected>-- Select --</option>
+            <option value="A+">A+</option><option value="A-">A-</option>
+            <option value="B+">B+</option><option value="B-">B-</option>
+            <option value="O+">O+</option><option value="O-">O-</option>
+            <option value="AB+">AB+</option><option value="AB-">AB-</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="pincode">Pincode (Required Backup):</label>
+          <input type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
+        </div>
+        <button type="submit" id="sosBtn">Send SOS Alert</button>
+      </form>
+      <p id="sosMessage" class="message-area"></p>
+
+      <!-- Patient Token + QR -->
+      <div id="patientTokenCard" class="token-card hidden">
+        <div>
+          <div>Patient Verification Token</div>
+          <div id="patientTokenText" class="token-pill">----</div>
+          <div class="qr-caption">Show this token or QR at hospital for verification.</div>
+        </div>
+        <div class="qr-wrap">
+          <img id="patientQrImg" alt="Patient Token QR" />
+        </div>
+      </div>
     </div>
-    <div class="form-group">
-      <label for="pincode">Pincode (Required Backup):</label>
-      <input type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
+
+    <div class="action-buttons" style="margin-top:16px;">
+      <button id="historyBtn">View Request History</button>
+      <button id="statusBtn">Refresh Status</button>
     </div>
-    <button type="submit" id="sosBtn">Send SOS Alert</button>
-  </form>
-  <p id="sosMessage" class="message-area"></p>
 
-  <!-- Patient Token + QR -->
-  <div id="patientTokenCard" class="token-card hidden">
-    <div>
-      <div>Patient Verification Token</div>
-      <div id="patientTokenText" class="token-pill">----</div>
-      <div class="qr-caption">Show this token or QR at hospital for verification.</div>
+    <div id="history-section" class="hidden">
+      <h3>Your Request History</h3>
+      <table id="history-table">
+        <thead>
+          <tr>
+            <th>Date & Time</th>
+            <th>Blood Type</th>
+            <th>Pincode</th>
+            <th>Status</th>
+            <th>Token</th>
+          </tr>
+        </thead>
+        <tbody id="history-body"></tbody>
+      </table>
     </div>
-    <div class="qr-wrap">
-      <div id="patientQrImg"></div>
-    </div>
-  </div>
-</div>
-
-<div class="action-buttons" style="margin-top:16px;">
-  <button id="historyBtn">View Request History</button>
-  <button id="statusBtn">Refresh Status</button>
-</div>
-
-<div id="historySection" class="hidden">
-  <h3>Your Request History</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Date & Time</th>
-        <th>Blood Type</th>
-        <th>Pincode</th>
-        <th>Status</th>
-        <th>Token</th>
-      </tr>
-    </thead>
-    <tbody id="historyBody"></tbody>
-  </table>
-</div>
-```
-
   </section>
 </main>
 
@@ -120,87 +97,63 @@ document.addEventListener('DOMContentLoaded', () => {
     return;
   }
 
-  document.getElementById('welcomeMessage').textContent = `Welcome, ${user.full_name || 'Patient'}!`;
+  document.getElementById('welcome-msg').textContent = `Welcome, ${user.full_name || 'Patient'}!`;
 
-  const sosForm = document.getElementById('sosForm');
-  const sosMessage = document.getElementById('sosMessage');
-  const patientTokenCard = document.getElementById('patientTokenCard');
-  const patientTokenText = document.getElementById('patientTokenText');
-  const historyBody = document.getElementById('historyBody');
-  const historySection = document.getElementById('historySection');
-  const historyBtn = document.getElementById('historyBtn');
-  const statusBtn = document.getElementById('statusBtn');
+  const sosBtn = document.getElementById('sos-btn');
+  const statusBox = document.getElementById('status-message');
+  const historyContainer = document.getElementById('history-container');
 
-  let currentRequestId = null;
-  let patientLocation = { lat: null, lon: null };
-
-  // Capture geolocation
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      patientLocation.lat = pos.coords.latitude;
-      patientLocation.lon = pos.coords.longitude;
-    }, () => {
-      console.warn('Geolocation not allowed, using backup pincode.');
+  // Fetch past SOS requests
+  async function loadHistory() {
+    const res = await fetch(`/api/server/requests/history/${user.patient_id}`);
+    const data = await res.json();
+    historyContainer.innerHTML = '';
+    if (!data.length) {
+      historyContainer.innerHTML = '<p>No previous SOS requests.</p>';
+      return;
+    }
+    data.forEach(req => {
+      const item = document.createElement('div');
+      item.classList.add('history-item');
+      item.innerHTML = `
+        <p><strong>Request ID:</strong> ${req.request_id}</p>
+        <p>Status: ${req.status}</p>
+        <p>Hospital: ${req.hospital_name || '—'}</p>
+        <p>Date: ${new Date(req.created_at).toLocaleString()}</p>
+      `;
+      historyContainer.appendChild(item);
     });
   }
 
-  // Send SOS request
-  sosForm.addEventListener('submit', async e => {
-    e.preventDefault();
-    const bloodType = document.getElementById('bloodType').value;
-    const pincode = document.getElementById('pincode').value;
+  sosBtn.addEventListener('click', async () => {
+    if (!confirm('Do you want to send an SOS blood request?')) return;
 
-    if (!bloodType || !pincode) {
-      sosMessage.textContent = 'Please fill all fields.';
-      sosMessage.style.color = 'red';
-      return;
-    }
-
-    sosMessage.textContent = 'Sending SOS...';
-    sosMessage.style.color = 'black';
-
+    statusBox.textContent = 'Sending request...';
     try {
       const res = await fetch('/api/server/request-blood', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patient_id: user.patient_id,
-          full_name: user.full_name,
-          blood_type: bloodType,
-          latitude: patientLocation.lat,
-          longitude: patientLocation.lon,
-          pincode: pincode
+          latitude: user.latitude,
+          longitude: user.longitude,
+          pincode: user.pincode,
+          blood_type: user.blood_type || 'O+'
         })
       });
 
       const data = await res.json();
       if (data.success) {
-        sosMessage.textContent = 'SOS sent successfully!';
-        sosMessage.style.color = 'green';
-        currentRequestId = data.request_id;
-
-        // Display token + QR
-        patientTokenText.textContent = data.patient_token || '----';
-        patientTokenCard.classList.remove('hidden');
-
-        // Generate QR
-        const qrContainer = document.getElementById('patientQrImg');
-        qrContainer.innerHTML = '';
-        new QRCode(qrContainer, {
-          text: data.patient_token,
-          width: 128,
-          height: 128
-        });
-
-        // Poll for updates
-        pollForStatus(data.request_id);
+        statusBox.textContent = `Request sent successfully! Token: ${data.patient_token}`;
+        statusBox.style.color = 'green';
+        pollForStatus(data.requestId);
       } else {
-        sosMessage.textContent = data.message || 'Failed to send SOS.';
-        sosMessage.style.color = 'red';
+        statusBox.textContent = data.message || 'Request failed.';
+        statusBox.style.color = 'red';
       }
     } catch (err) {
-      sosMessage.textContent = 'Error contacting server.';
-      sosMessage.style.color = 'red';
+      statusBox.textContent = 'Error contacting server.';
+      statusBox.style.color = 'red';
     }
   });
 
@@ -212,62 +165,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (data.status === 'accepted') {
         clearInterval(interval);
-        sosMessage.textContent = `Hospital assigned: ${data.hospital_name}, ${data.hospital_pincode}`;
-        sosMessage.style.color = 'green';
+        statusBox.textContent = `Hospital assigned: ${data.hospital.name}, ${data.hospital.pincode}`;
+        statusBox.style.color = 'green';
         loadHistory();
       } else if (data.status === 'rejected') {
         clearInterval(interval);
-        sosMessage.textContent = 'All hospitals rejected. Donor broadcast triggered.';
-        sosMessage.style.color = 'orange';
+        statusBox.textContent = 'All hospitals rejected. Donor broadcast triggered.';
+        statusBox.style.color = 'orange';
       }
     }, 15000);
   }
-
-  // Load request history
-  async function loadHistory() {
-    const res = await fetch(`/api/server/requests/history/${user.patient_id}`);
-    const data = await res.json();
-    historyBody.innerHTML = '';
-
-    if (!data.length) {
-      historyBody.innerHTML = '<tr><td colspan="5">No previous SOS requests.</td></tr>';
-      return;
-    }
-
-    data.forEach(req => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${new Date(req.created_at).toLocaleString()}</td>
-        <td>${req.blood_type}</td>
-        <td>${req.pincode}</td>
-        <td>${req.status}</td>
-        <td>${req.patient_token || '—'}</td>
-      `;
-      historyBody.appendChild(row);
-    });
-  }
-
-  historyBtn.addEventListener('click', () => {
-    historySection.classList.toggle('hidden');
-    loadHistory();
-  });
-
-  statusBtn.addEventListener('click', () => {
-    if (currentRequestId) pollForStatus(currentRequestId);
-    else sosMessage.textContent = 'No active request to track.';
-  });
-
-  document.getElementById('logoutBtn').addEventListener('click', () => {
-    sessionStorage.clear();
-    window.location.href = 'patient-login.html';
-  });
 
   loadHistory();
 });
 </script>
 
 <footer>
-  <p>© 2025 LifeLink</p>
-</footer>
+        <p>© 2025 LifeLink</p>
+    </footer>
+
 </body>
 </html>

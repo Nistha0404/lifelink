@@ -157,22 +157,8 @@ app.post('/api/server/send-otp', async (req, res) => {
   }
 });
 
-// Patient login/registration with OTP verification
 app.post('/api/server/patient-login', async (req, res) => {
-  const { phoneNumber, fullName, pincode, latitude, longitude, otp } = req.body;
-
-  if (!phoneNumber || !otp) {
-    return res.status(400).json({ success: false, message: 'Phone number and OTP are required.' });
-  }
-
-  const record = otpStore[phoneNumber];
-  if (!record || record.otp !== otp || Date.now() >= record.expiry) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
-  }
-
-  // OTP valid — remove it (single use)
-  delete otpStore[phoneNumber];
-
+  const { phoneNumber, fullName, pincode, latitude, longitude } = req.body;
   try {
     const existing = await pool.query("SELECT * FROM users WHERE phone_number = $1 AND role = 'patient'", [phoneNumber]);
     if (existing.rows.length) {
@@ -180,25 +166,21 @@ app.post('/api/server/patient-login', async (req, res) => {
         UPDATE users SET full_name = $1, pincode = $2, latitude = $3, longitude = $4, last_login = NOW()
         WHERE phone_number = $5 AND role = 'patient'
         RETURNING *`;
-      const { rows } = await pool.query(q, [fullName || existing.rows[0].full_name, pincode || existing.rows[0].pincode, latitude || existing.rows[0].latitude, longitude || existing.rows[0].longitude, phoneNumber]);
+      const { rows } = await pool.query(q, [fullName, pincode, latitude, longitude, phoneNumber]);
       return res.json({ success: true, message: 'Login successful!', user: rows[0] });
     }
-
-    // New patient registration
-    if (!fullName || !pincode) return res.status(400).json({ success:false, message:'Full name and pincode required for registration.' });
-
+    if (!fullName || !pincode) {
+      return res.status(400).json({ success: false, message: 'Full name and pincode are required for registration.' });
+    }
     const ins = `
       INSERT INTO users (full_name, phone_number, role, pincode, latitude, longitude)
       VALUES ($1,$2,'patient',$3,$4,$5) RETURNING *`;
     const { rows } = await pool.query(ins, [fullName, phoneNumber, pincode, latitude, longitude]);
     res.status(201).json({ success: true, message: 'Registration successful!', user: rows[0] });
-
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'DB error.' });
+    console.error(e); res.status(500).json({ success: false, message: 'DB error.' });
   }
 });
-
 
 
 //  HOSPITAL ki Auth
@@ -340,33 +322,57 @@ app.post('/api/server/donor-checkin', async (req, res) => {
 // --- NEW: HOSPITAL ACCEPTS AN SOS REQUEST ---
 // ADD THIS NEW ENDPOINT. You can DELETE your old /api/server/accept-request
 app.post('/api/server/hospital-response', async (req, res) => {
-  const { requestId, hospitalId, response } = req.body;
+  const { requestId, hospitalId, response } = req.body; // response = 'accept' or 'reject'
+  
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Lock the request row
-    const reqRes = await client.query("SELECT status FROM blood_requests WHERE request_id = $1 FOR UPDATE", [requestId]);
+    // 1. Check if the main request is still 'pending'
+    const reqRes = await client.query(
+      "SELECT status FROM blood_requests WHERE request_id = $1 FOR UPDATE", 
+      [requestId]
+    );
+    
     if (!reqRes.rows.length || reqRes.rows[0].status !== 'pending') {
       await client.query('ROLLBACK');
       return res.status(409).json({ success: false, message: 'This request is no longer active.' });
     }
 
     if (response === 'accept') {
-      await client.query("UPDATE alert_status SET status = 'accepted', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2", [requestId, hospitalId]);
-      await client.query("UPDATE alert_status SET status = 'closed', response_at = NOW() WHERE request_id = $1 AND hospital_id != $2 AND status = 'sent'", [requestId, hospitalId]);
-      await client.query("UPDATE blood_requests SET status = 'accepted', accepted_by_hospital_id = $1 WHERE request_id = $2", [hospitalId, requestId]);
-    } else {
-      await client.query("UPDATE alert_status SET status = 'rejected', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2", [requestId, hospitalId]);
+      // 2a. Mark this hospital's alert as 'accepted'
+      await client.query(
+        "UPDATE alert_status SET status = 'accepted', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2",
+        [requestId, hospitalId]
+      );
+      
+      // 2b. Mark all other alerts for this request as 'closed'
+      await client.query(
+        "UPDATE alert_status SET status = 'closed', response_at = NOW() WHERE request_id = $1 AND hospital_id != $2 AND status = 'sent'",
+        [requestId, hospitalId]
+      );
+      
+      // 2c. Update the main blood request
+      await client.query(
+        "UPDATE blood_requests SET status = 'accepted', accepted_by_hospital_id = $1 WHERE request_id = $2",
+        [hospitalId, requestId]
+      );
+
+    } else { // response === 'reject'
+      // 3. Mark this hospital's alert as 'rejected'
+      await client.query(
+        "UPDATE alert_status SET status = 'rejected', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2",
+        [requestId, hospitalId]
+      );
     }
-
+    
     await client.query('COMMIT');
-
+    
+    // 4. If rejected, immediately check if escalation is needed
     if (response === 'reject') {
-      // Prefer calling a worker or enqueue a job; but for single-instance dev you can call the function
       checkAndEscalate(requestId);
     }
-
+    
     res.json({ success: true });
 
   } catch (e) {

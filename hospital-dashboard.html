@@ -1,72 +1,193 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hospital Dashboard - LifeLink</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="style.css" />
   <style>
-    body {
-      background-color: #f9fafc;
-      font-family: "Poppins", sans-serif;
+    .verify-grid { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .verify-input { width:120px; font-size:18px; text-align:center; letter-spacing:3px; }
+    .verify-results { margin-top:12px; }
+    .kv { display:grid; grid-template-columns: 180px 1fr; gap:6px 12px; }
+    .pill { display:inline-block; padding:4px 8px; border-radius:6px; background:#eef2ff; font-weight:700; letter-spacing:2px; }
+    .muted { color:#666; font-size:12px; }
+    .divider { height:1px; background:#eee; margin:10px 0; }
+    .qr-preview { width:120px; height:120px; object-fit:contain; }
+    .hint { font-size:12px; color:#555; margin-top:4px; }
+    .ok { color:green; } .err { color:#c00; }
+    .live-sos-list .no-requests {
+      color: #777; text-align: center; padding: 20px;
     }
-    .dashboard-container {
-      max-width: 1200px;
-      margin: 40px auto;
-      padding: 20px;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-    }
-    .sos-alert {
-      border-left: 6px solid #dc3545;
-      padding: 12px 16px;
-      background-color: #fff4f4;
-      margin-bottom: 10px;
+    .sos-item {
+      border: 2px solid #c00;
+      background: #fff5f5;
       border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
-    .btn-response {
-      margin-right: 8px;
+    .sos-item[data-status="closed"] {
+      opacity: 0.5;
+      background: #f5f5f5;
+      border-color: #ccc;
     }
-    #alertsList {
-      max-height: 400px;
-      overflow-y: auto;
+    .sos-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
     }
+    .sos-header .blood-needed { color: #c00; }
+    .sos-details { font-size: 0.9rem; margin-bottom: 12px; color: #444; }
+    .sos-timer-wrap {
+      position: relative;
+      height: 24px;
+      background: #e0e0e0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .timer-bar {
+      position: absolute;
+      top: 0; left: 0; height: 100%;
+      background: #4CAF50;
+      transition: width 1s linear, background-color 0.5s ease;
+    }
+    .timer-bar.warning { background: #ff9800; }
+    .timer-bar.critical { background: #f44336; }
+    .timer-text {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      line-height: 24px;
+      color: #111;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .sos-actions { display: flex; gap: 10px; }
+    .sos-actions .btn-primary, .sos-actions .btn-danger { flex: 1; }
+    .sos-item[data-status="closed"] .sos-actions,
+    .sos-item[data-status="closed"] .sos-timer-wrap { display: none; }
+    .sos-response-message {
+      font-weight: bold;
+      text-align: center;
+      padding: 10px;
+    }
+    .sos-response-message.accepted { color: green; }
+    .sos-response-message.rejected { color: #c00; }
   </style>
 </head>
+
 <body>
-  <div class="dashboard-container">
-    <h2 class="text-center mb-4">🏥 Hospital Dashboard</h2>
+  <header>
+    <div class="logo">
+      <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40" />
+      <span>LifeLink</span>
+    </div>
+    <nav><a href="#" id="logoutBtn">Logout</a></nav>
+  </header>
 
-```
-<div class="mb-4">
-  <label for="hospitalId" class="form-label">Hospital ID</label>
-  <input type="text" id="hospitalId" class="form-control" placeholder="Enter your Hospital ID" />
-  <button id="loadAlertsBtn" class="btn btn-primary mt-3">Load SOS Alerts</button>
-</div>
+  <main>
+    <section class="dashboard-container">
+      <div class="dashboard-header">
+        <h2 id="welcome-message">Hospital Console</h2>
+      </div>
 
-<h4 class="mb-3">🔴 Live SOS Alerts</h4>
-<div id="alertsList"></div>
+      <div class="dashboard-grid">
 
-<hr class="my-4" />
-<h4>✅ Verify Patient/Donor Token</h4>
-<div class="input-group mb-3">
-  <input type="text" id="tokenInput" class="form-control" placeholder="Enter 4-digit token" maxlength="4" />
-  <button id="verifyTokenBtn" class="btn btn-success">Verify Token</button>
-</div>
-<pre id="tokenResult" class="bg-light p-3 rounded"></pre>
+        <!-- SOS Broadcast -->
+        <div class="dashboard-card sos-creator-card">
+          <h3>SOS Broadcast</h3>
+          <form id="hospital-sos-form">
+            <div class="form-group">
+              <label for="sos-component">Component</label>
+              <select id="sos-component" required>
+                <option value="Whole Blood">Whole Blood</option>
+                <option value="RBC">RBC</option>
+                <option value="Plasma">Plasma</option>
+                <option value="Platelets">Platelets</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sos-blood-type">Blood Type</label>
+              <select id="sos-blood-type" required>
+                <option value="A+">A+</option><option value="A-">A-</option>
+                <option value="B+">B+</option><option value="B-">B-</option>
+                <option value="O+">O+</option><option value="O-">O-</option>
+                <option value="AB+">AB+</option><option value="AB-">AB-</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="sos-units">Units Needed</label>
+              <input type="number" id="sos-units" value="1" min="1" required />
+            </div>
+            <div class="form-group">
+              <label for="sos-urgency">Urgency</label>
+              <select id="sos-urgency" required>
+                <option value="Critical">Critical (Immediate Need)</option>
+                <option value="Urgent">Urgent (Within Hours)</option>
+                <option value="Routine">Routine (Within 24 Hours)</option>
+              </select>
+            </div>
+            <button type="submit" class="btn-danger">Broadcast SOS</button>
+          </form>
+          <p id="hospital-sos-message" class="message-area"></p>
+        </div>
 
-<hr class="my-4" />
-<h4>🩸 Update Inventory</h4>
-<textarea id="inventoryData" class="form-control" rows="4" placeholder='Example: {"O+":5,"A+":3}'></textarea>
-<button id="updateInventoryBtn" class="btn btn-warning mt-3">Update Inventory</button>
-<pre id="updateResult" class="bg-light p-3 rounded mt-3"></pre>
-```
+        <!-- Blood Stock -->
+        <div class="dashboard-card inventory-card">
+          <h3>Blood Stock Management</h3>
+          <div id="inventory-container" class="inventory-grid-management"></div>
+          <button id="save-inventory-btn" class="btn-primary">Save Stock Levels</button>
+          <p id="inventory-message" class="message-area"></p>
+        </div>
 
-  </div>
+        <!-- Token Verification -->
+        <div class="dashboard-card verify-card">
+          <h3>Verify Patient/Donor Token</h3>
+          <div class="verify-grid">
+            <input id="verify-token-input" class="verify-input" maxlength="4"
+              inputmode="numeric" pattern="[0-9]{4}" placeholder="1234" />
+            <button id="verify-btn" class="btn-primary">Verify</button>
+            <span class="hint">Enter a 4-digit token from the patient or donor.</span>
+          </div>
+          <p id="verify-message" class="message-area"></p>
+          <div id="verify-results" class="verify-results"></div>
+        </div>
+
+        <!-- Live SOS Monitor -->
+        <div class="dashboard-card sos-card">
+          <h3>SOS Monitor</h3>
+          <ul id="live-sos-list" class="live-sos-list">
+            <li class="no-requests">No active SOS requests.</li>
+          </ul>
+        </div>
+
+        <!-- Playbooks -->
+        <div class="dashboard-card playbooks-card">
+          <h3>Playbooks</h3>
+          <div id="playbooks-list"></div>
+          <textarea id="playbook-editor" placeholder="Write a new policy..."></textarea>
+          <input type="text" id="playbook-title" placeholder="Policy Title" />
+          <button id="save-playbook-btn" class="btn-secondary">Save Playbook</button>
+        </div>
+
+        <!-- Donor Appointment Log -->
+        <div class="dashboard-card donor-log-card">
+          <h3>Donor Appointment Log</h3>
+          <button id="refresh-donor-log-btn" class="btn-secondary">Refresh Log</button>
+          <ul id="donor-log-list" class="appointment-list">
+            <li id="donor-log-placeholder">No appointments found.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+  </main>
 
   <script src="hospital-dashboard.js"></script>
-
+  <footer><p>© 2025 LifeLink</p></footer>
 </body>
 </html>
