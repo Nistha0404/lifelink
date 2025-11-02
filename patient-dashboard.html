@@ -133,6 +133,34 @@
 let currentRequestId = null;
 let statusPollInterval = null;
 
+// Pincode to approximate coordinates mapping (Patiala area)
+const PINCODE_COORDINATES = {
+  '147001': { lat: 30.3398, lon: 76.3869 }, // Central Patiala
+  '147002': { lat: 30.3520, lon: 76.4095 }, // Urban Estate
+  '147003': { lat: 30.3216, lon: 76.4250 }, // Rajpura Colony
+  '147004': { lat: 30.3601, lon: 76.3540 }, // Sirhind Road
+  // Add more as needed
+};
+
+// Function to get approximate coordinates for a pincode
+function getCoordinatesFromPincode(pincode) {
+  // If we have exact mapping, use it
+  if (PINCODE_COORDINATES[pincode]) {
+    return PINCODE_COORDINATES[pincode];
+  }
+  
+  // Otherwise, use a random offset from central Patiala
+  const baseLat = 30.3398;
+  const baseLon = 76.3869;
+  const randomOffsetLat = (Math.random() - 0.5) * 0.05; // ~2.5km radius
+  const randomOffsetLon = (Math.random() - 0.5) * 0.05;
+  
+  return {
+    lat: baseLat + randomOffsetLat,
+    lon: baseLon + randomOffsetLon
+  };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const user = JSON.parse(sessionStorage.getItem('currentUser'));
   if (!user) {
@@ -172,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ============================================================================
-// SOS FORM SUBMISSION
+// SOS FORM SUBMISSION WITH PINCODE FALLBACK
 // ============================================================================
 document.getElementById('sosForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -191,57 +219,85 @@ document.getElementById('sosForm').addEventListener('submit', async (e) => {
   messageEl.textContent = 'Getting your location...';
   messageEl.className = 'message-area message-pending';
 
-  // Get precise location
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      const latitude = position.coords.latitude;
-      const longitude = position.coords.longitude;
-
-      messageEl.textContent = 'Sending SOS...';
-
-      try {
-        const response = await fetch('/api/server/request-blood', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            patientId: user.user_id,
-            bloodType: bloodType,
-            pincode: pincode,
-            latitude: latitude,
-            longitude: longitude
-          })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-          currentRequestId = data.requestId;
-          messageEl.textContent = data.message;
-          messageEl.className = 'message-area message-success';
-          
-          // Display token
-          displayPatientToken(data.patient_token);
-          
-          // Start polling for status
-          startStatusPolling(data.requestId);
-        } else {
-          messageEl.textContent = data.message || 'Failed to send SOS.';
-          messageEl.className = 'message-area message-error';
-        }
-      } catch (error) {
-        console.error('SOS Error:', error);
-        messageEl.textContent = 'Could not connect to server.';
-        messageEl.className = 'message-area message-error';
+  // Try to get precise location first
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      // SUCCESS: Got precise location
+      async (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        
+        messageEl.textContent = 'Precise location obtained! Sending SOS...';
+        await sendSOSRequest(user, bloodType, pincode, latitude, longitude, messageEl);
+      },
+      
+      // ERROR: Location denied or unavailable - USE PINCODE FALLBACK
+      async (error) => {
+        console.log('Location error:', error.message);
+        messageEl.textContent = 'Location access denied. Using pincode as fallback...';
+        messageEl.className = 'message-area message-pending';
+        
+        // Get approximate coordinates from pincode
+        const coords = getCoordinatesFromPincode(pincode);
+        console.log(`Using pincode ${pincode} coordinates:`, coords);
+        
+        await sendSOSRequest(user, bloodType, pincode, coords.lat, coords.lon, messageEl);
+      },
+      
+      // Options
+      { 
+        enableHighAccuracy: true, 
+        timeout: 8000,
+        maximumAge: 0 
       }
-    },
-    (error) => {
-      console.error('Location Error:', error);
-      messageEl.textContent = 'Location access denied. Using pincode as fallback.';
-      messageEl.className = 'message-area message-error';
-    },
-    { enableHighAccuracy: true, timeout: 10000 }
-  );
+    );
+  } else {
+    // Browser doesn't support geolocation - USE PINCODE FALLBACK
+    messageEl.textContent = 'Geolocation not supported. Using pincode...';
+    const coords = getCoordinatesFromPincode(pincode);
+    await sendSOSRequest(user, bloodType, pincode, coords.lat, coords.lon, messageEl);
+  }
 });
+
+// ============================================================================
+// SEND SOS REQUEST TO SERVER
+// ============================================================================
+async function sendSOSRequest(user, bloodType, pincode, latitude, longitude, messageEl) {
+  try {
+    const response = await fetch('/api/server/request-blood', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patientId: user.user_id,
+        bloodType: bloodType,
+        pincode: pincode,
+        latitude: latitude,
+        longitude: longitude
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      currentRequestId = data.requestId;
+      messageEl.textContent = `✅ ${data.message}`;
+      messageEl.className = 'message-area message-success';
+      
+      // Display token
+      displayPatientToken(data.patient_token);
+      
+      // Start polling for status
+      startStatusPolling(data.requestId);
+    } else {
+      messageEl.textContent = `❌ ${data.message || 'Failed to send SOS.'}`;
+      messageEl.className = 'message-area message-error';
+    }
+  } catch (error) {
+    console.error('SOS Error:', error);
+    messageEl.textContent = '❌ Could not connect to server.';
+    messageEl.className = 'message-area message-error';
+  }
+}
 
 // ============================================================================
 // DISPLAY PATIENT TOKEN + QR CODE
