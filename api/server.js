@@ -178,44 +178,72 @@ app.post('/api/server/patient-login', async (req, res) => {
   }
 });
 
-// ============================================================================
-// PATIENT SOS - Core Workflow Step 1
+/ ============================================================================
+// PATIENT SOS - FIXED VERSION
+// Replace this in your server.js file
 // ============================================================================
 
 app.post('/api/server/request-blood', async (req, res) => {
   const { patientId, bloodType, pincode, latitude, longitude } = req.body;
   
+  console.log('📥 Received SOS Request:', { patientId, bloodType, pincode, latitude, longitude });
+  
+  // Validation
   if (!patientId || !bloodType) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+    return res.status(400).json({ success: false, message: 'Missing required fields: patientId or bloodType' });
   }
   if (!latitude || !longitude) {
-    return res.status(400).json({ success: false, message: 'Precise location is required.' });
+    return res.status(400).json({ success: false, message: 'Precise location is required (latitude and longitude)' });
   }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
+    // Generate unique patient token
     const patientToken = await generateUniquePatientToken(client);
-    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes from now
 
-    // Create blood request
+    // 1. Create blood request - FIXED: Removed creator_user_id (not needed)
     const insertRequest = `
-      INSERT INTO blood_requests (patient_id, creator_user_id, blood_type_needed, pincode, latitude, longitude, status, patient_token, deadline)
-      VALUES ($1, $1, $2, $3, $4, $5, 'pending', $6, $7)
+      INSERT INTO blood_requests 
+        (patient_id, blood_type_needed, pincode, latitude, longitude, status, patient_token, deadline)
+      VALUES 
+        ($1, $2, $3, $4, $5, 'pending', $6, $7)
       RETURNING request_id, patient_token`;
       
-    const { rows } = await client.query(insertRequest, [patientId, bloodType, pincode, latitude, longitude, patientToken, deadline]);
+    const { rows } = await client.query(insertRequest, [
+      patientId, 
+      bloodType, 
+      pincode, 
+      latitude, 
+      longitude, 
+      patientToken, 
+      deadline
+    ]);
+    
     const requestId = rows[0].request_id;
+    console.log(`✅ Created blood request ${requestId} with token ${patientToken}`);
 
-    // Find hospitals within 10km
-    const { rows: hospitals } = await client.query('SELECT hospital_id, latitude, longitude FROM hospitals');
+    // 2. Find hospitals within 10km
+    const { rows: hospitals } = await client.query(
+      'SELECT hospital_id, hospital_name, latitude, longitude FROM hospitals WHERE latitude IS NOT NULL AND longitude IS NOT NULL'
+    );
+    
+    console.log(`🏥 Found ${hospitals.length} hospitals in database`);
+    
     const alertPromises = [];
+    let hospitalsNotified = 0;
     
     for (const hospital of hospitals) {
       const distance = calculateDistance(latitude, longitude, hospital.latitude, hospital.longitude);
       
-      if (distance <= 10) {
+      console.log(`  - ${hospital.hospital_name}: ${distance.toFixed(2)} km away`);
+      
+      if (distance <= 10) { // Within 10km
+        hospitalsNotified++;
+        
+        // 3. Insert into alert_status table - FIXED: distance_km instead of distance
         alertPromises.push(
           client.query(
             'INSERT INTO alert_status (request_id, hospital_id, distance_km, status) VALUES ($1, $2, $3, $4)',
@@ -227,23 +255,33 @@ app.post('/api/server/request-blood', async (req, res) => {
     
     await Promise.all(alertPromises);
     await client.query('COMMIT');
+    
+    console.log(`📢 Notified ${hospitalsNotified} hospitals within 10km`);
 
-    // Set 10-minute escalation timer
+    // 4. Set 10-minute escalation timer
     setTimeout(() => {
+      console.log(`⏰ Timer expired for request ${requestId}, checking for escalation...`);
       checkAndEscalate(requestId);
-    }, 10 * 60 * 1000 + 1000);
+    }, 10 * 60 * 1000 + 1000); // 10 mins + 1 sec buffer
 
     res.status(201).json({ 
       success: true, 
-      message: `SOS sent to ${alertPromises.length} hospitals!`, 
+      message: `SOS Alert sent to ${hospitalsNotified} nearby hospitals!`, 
       requestId, 
-      patient_token: rows[0].patient_token 
+      patient_token: rows[0].patient_token,
+      hospitalsNotified: hospitalsNotified
     });
 
   } catch (e) {
     await client.query('ROLLBACK');
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    console.error('❌ Error in request-blood:', e);
+    console.error('Error details:', e.message);
+    console.error('Error stack:', e.stack);
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Internal server error: ' + e.message 
+    });
   } finally {
     client.release();
   }
