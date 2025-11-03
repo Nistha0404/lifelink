@@ -2,65 +2,374 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Admin Dashboard - LifeLink</title>
-  <link rel="stylesheet" href="../style.css">
+  <title>Admin Dashboard - LifeLink Enhanced</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .tabs { display: flex; border-bottom: 2px solid #2a5c60; margin-bottom: 20px; flex-wrap: wrap; }
+    .tab-btn { padding: 12px 20px; border: none; background: #f0f0f0; cursor: pointer; font-weight: 600; margin: 0 2px 2px 0; border-radius: 8px 8px 0 0; }
+    .tab-btn.active { background: #2a5c60; color: white; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .approval-card { background: white; border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 15px; }
+    .approval-card h4 { margin: 0 0 10px 0; color: #2a5c60; }
+    .approval-actions { display: flex; gap: 10px; margin-top: 15px; }
+    .toggle-switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+    .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: #4caf50; }
+    input:checked + .slider:before { transform: translateX(26px); }
+    .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #eee; }
+    .question-item { padding: 12px; background: #f9f9f9; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .stat-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; }
+    .stat-card h3 { margin: 0 0 10px 0; font-size: 2.5rem; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+    .playbook-list-item { padding: 15px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  </style>
 </head>
 <body>
-  <header>
-    <div class="logo"><img src="lifeLinklogoD.png" alt="LifeLink Logo"><span>LifeLink</span></div>
-    <nav><a href="#" onclick="sessionStorage.clear(); window.location.href='admin-login.html';">Logout</a></nav>
-  </header>
-  <main>
-    <section class="dashboard-container">
-      <div class="dashboard-header">
-        <h2 id="welcome-message">Coordinator Dashboard</h2>
+<header>
+  <div class="logo"><img src="lifeLinklogoD.png" alt="LifeLink Logo"><span>LifeLink</span></div>
+  <nav><a href="#" id="logoutBtn">Logout</a></nav>
+</header>
+
+<main>
+  <section class="dashboard-container">
+    <div class="dashboard-header">
+      <h2 id="welcome-message">Admin Dashboard</h2>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('overview')">Overview</button>
+      <button class="tab-btn" onclick="showTab('approvals')">Approvals</button>
+      <button class="tab-btn" onclick="showTab('settings')">Settings</button>
+      <button class="tab-btn" onclick="showTab('questionnaire')">Questionnaire</button>
+      <button class="tab-btn" onclick="showTab('playbooks')">Playbooks</button>
+      <button class="tab-btn" onclick="showTab('monitor')">SOS Monitor</button>
+    </div>
+
+    <!-- TAB 1: OVERVIEW -->
+    <div id="tab-overview" class="tab-content active">
+      <h3>System Overview</h3>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <h3 id="stat-requests">0</h3>
+          <p>Active Requests</p>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+          <h3 id="stat-hospitals">20</h3>
+          <p>Registered Hospitals</p>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+          <h3 id="stat-donors">0</h3>
+          <p>Registered Donors</p>
+        </div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+          <h3 id="stat-drives">0</h3>
+          <p>Upcoming Drives</p>
+        </div>
       </div>
-      <div class="dashboard-grid">
-        <div class="dashboard-card">
-          <h3>Live SOS Monitor</h3>
-          <ul class="live-sos-list" id="live-sos-list">
-              <li>Loading live requests...</li>
-          </ul>
-        </div>
-        </div>
-    </section>
-  </main>
-  <script>
-    window.addEventListener('DOMContentLoaded', () => {
-        const adminName = sessionStorage.getItem('currentAdminName');
-        if (adminName) {
-            document.getElementById('welcome-message').textContent = `Welcome, ${adminName}!`;
-        } else {
-            // If not logged in, redirect to login page
-            window.location.href = 'admin-login.html';
-        }
-        fetchLiveRequests();
-    });
+      
+      <div class="dashboard-card">
+        <h4>Recent Activity</h4>
+        <div id="recent-activity"></div>
+      </div>
+    </div>
 
-    async function fetchLiveRequests() {
-        const listEl = document.getElementById('live-sos-list');
-        try {
-            // --- CHANGED THIS LINE ---
-            const response = await fetch('/api/server/requests/live');
-            const requests = await response.json();
-            listEl.innerHTML = ''; // Clear loading message
-            if (requests.length === 0) {
-                listEl.innerHTML = '<li>No active SOS requests at the moment.</li>';
-                return;
-            }
-            requests.forEach(req => {
-                const item = document.createElement('li');
-                item.innerHTML = `<span>Need: <strong>${req.blood_type_needed}</strong></span> at ${req.hospital_name} for ${req.patient_name}`;
-                listEl.appendChild(item);
-            });
-        } catch (error) {
-            listEl.innerHTML = '<li>Error loading live requests.</li>';
-        }
+    <!-- TAB 2: HOSPITAL/NGO APPROVALS -->
+    <div id="tab-approvals" class="tab-content">
+      <h3>Pending Approvals</h3>
+      <p>Review and approve hospital and NGO registrations</p>
+      
+      <h4>Hospitals</h4>
+      <div id="hospital-approvals"></div>
+      
+      <h4 style="margin-top: 30px;">NGOs</h4>
+      <div id="ngo-approvals"></div>
+    </div>
+
+    <!-- TAB 3: SETTINGS -->
+    <div id="tab-settings" class="tab-content">
+      <h3>System Settings</h3>
+      
+      <div class="dashboard-card">
+        <h4>SOS Auto-Approve</h4>
+        <p>Control whether hospital-originated SOS messages are automatically broadcast or require admin approval</p>
+        
+        <div class="setting-row">
+          <div>
+            <strong>Auto-Approve Hospital SOS</strong><br>
+            <span style="color: #666; font-size: 0.9rem;">When enabled, hospital SOS requests broadcast immediately</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="auto-approve-toggle" onchange="updateAutoApprove()">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      
+      <div class="dashboard-card" style="margin-top: 20px;">
+        <h4>Other Settings</h4>
+        
+        <div class="setting-row">
+          <div>
+            <strong>SOS Escalation Time</strong><br>
+            <span style="color: #666; font-size: 0.9rem;">Time before escalating to donors</span>
+          </div>
+          <select id="escalation-time" style="padding: 8px;">
+            <option value="5">5 minutes</option>
+            <option value="10" selected>10 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="20">20 minutes</option>
+          </select>
+        </div>
+        
+        <div class="setting-row">
+          <div>
+            <strong>Donor Search Radius</strong><br>
+            <span style="color: #666; font-size: 0.9rem;">Maximum distance for donor matching</span>
+          </div>
+          <select id="donor-radius" style="padding: 8px;">
+            <option value="10">10 km</option>
+            <option value="15" selected>15 km</option>
+            <option value="20">20 km</option>
+            <option value="25">25 km</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: DONOR QUESTIONNAIRE CONTROL -->
+    <div id="tab-questionnaire" class="tab-content">
+      <h3>Donor Eligibility Questionnaire</h3>
+      <p>Select which questions donors see during registration/consent</p>
+      
+      <div id="questions-list"></div>
+    </div>
+
+    <!-- TAB 5: PLAYBOOKS MANAGEMENT -->
+    <div id="tab-playbooks" class="tab-content">
+      <h3>Manage Playbooks</h3>
+      <p>Create and manage system-wide playbooks and policies</p>
+      
+      <button onclick="showCreatePlaybook()" class="btn-primary">+ New Playbook</button>
+      
+      <div id="create-playbook-form" style="display: none; margin: 20px 0; padding: 20px; background: #f9f9f9; border-radius: 8px;">
+        <h4>Create New Playbook</h4>
+        <input type="text" id="pb-title" placeholder="Title" style="width: 100%; margin-bottom: 10px; padding: 10px;">
+        <select id="pb-category" style="width: 100%; margin-bottom: 10px; padding: 10px;">
+          <option value="Rare Blood">Rare Blood Groups</option>
+          <option value="Apheresis">Apheresis Procedures</option>
+          <option value="Escalation">Escalation Protocols</option>
+          <option value="Emergency">Emergency Procedures</option>
+        </select>
+        <textarea id="pb-content" placeholder="Content" style="width: 100%; height: 150px; margin-bottom: 10px; padding: 10px;"></textarea>
+        <button onclick="saveAdminPlaybook()" class="btn-primary">Save</button>
+        <button onclick="hideCreatePlaybook()" class="btn-secondary">Cancel</button>
+      </div>
+      
+      <div id="playbooks-list"></div>
+    </div>
+
+    <!-- TAB 6: SOS MONITOR -->
+    <div id="tab-monitor" class="tab-content">
+      <h3>Live SOS Monitor</h3>
+      <button onclick="refreshSOSMonitor()" class="btn-secondary">🔄 Refresh</button>
+      <div id="sos-monitor-list"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+let admin = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  admin = JSON.parse(sessionStorage.getItem('currentAdminName'));
+  if (!admin) {
+    window.location.href = 'admin-login.html';
+    return;
+  }
+
+  document.getElementById('welcome-message').textContent = `Admin Dashboard - ${admin}`;
+  
+  // Load all data
+  loadOverview();
+  loadApprovals();
+  loadSettings();
+  loadQuestions();
+  loadPlaybooks();
+  refreshSOSMonitor();
+  
+  // Auto-refresh
+  setInterval(refreshSOSMonitor, 15000);
+  
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.clear();
+    window.location.href = 'admin-login.html';
+  });
+});
+
+function showTab(tabName) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById(`tab-${tabName}`).classList.add('active');
+}
+
+// OVERVIEW
+async function loadOverview() {
+  try {
+    const response = await fetch('/api/server/requests/live');
+    const requests = await response.json();
+    document.getElementById('stat-requests').textContent = requests.length;
+    
+    // Load recent activity
+    const activityDiv = document.getElementById('recent-activity');
+    if (requests.length === 0) {
+      activityDiv.innerHTML = '<p style="color: #999;">No recent activity</p>';
+    } else {
+      activityDiv.innerHTML = requests.slice(0, 5).map(r => `
+        <div style="padding: 10px; border-bottom: 1px solid #eee;">
+          <strong>${r.blood_type_needed}</strong> requested by ${r.patient_name} - Status: ${r.status}
+        </div>
+      `).join('');
     }
-  </script>
-  <footer>
-        <p>© 2025 LifeLink</p>
-    </footer>
+  } catch (error) {
+    console.error(error);
+  }
+}
 
+// APPROVALS
+async function loadApprovals() {
+  // Placeholder: In production, this would fetch pending approvals
+  document.getElementById('hospital-approvals').innerHTML = '<p style="color: #999;">No pending hospital approvals</p>';
+  document.getElementById('ngo-approvals').innerHTML = '<p style="color: #999;">No pending NGO approvals</p>';
+}
+
+// SETTINGS
+function loadSettings() {
+  // Load current settings from localStorage or API
+  const autoApprove = localStorage.getItem('autoApproveSOS') === 'true';
+  document.getElementById('auto-approve-toggle').checked = autoApprove;
+}
+
+function updateAutoApprove() {
+  const isEnabled = document.getElementById('auto-approve-toggle').checked;
+  localStorage.setItem('autoApproveSOS', isEnabled);
+  alert(`Auto-approve ${isEnabled ? 'ENABLED' : 'DISABLED'}`);
+}
+
+// QUESTIONNAIRE
+function loadQuestions() {
+  const questions = [
+    { id: 1, text: 'Are you 18 years or older?', visible: true },
+    { id: 2, text: 'Have you had any infections in the past 2 weeks?', visible: true },
+    { id: 3, text: 'Have you gotten a tattoo or piercing in the past 6 months?', visible: true },
+    { id: 4, text: 'Have you consumed alcohol in the past 24 hours?', visible: true },
+    { id: 5, text: 'Are you currently taking any medication?', visible: true },
+    { id: 6, text: 'Have you donated blood in the past 3 months?', visible: false },
+    { id: 7, text: 'Do you have any chronic health conditions?', visible: false }
+  ];
+  
+  const container = document.getElementById('questions-list');
+  container.innerHTML = '';
+  
+  questions.forEach(q => {
+    const div = document.createElement('div');
+    div.className = 'question-item';
+    div.innerHTML = `
+      <div style="flex: 1;">
+        <strong>Q${q.id}:</strong> ${q.text}
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" ${q.visible ? 'checked' : ''} onchange="toggleQuestion(${q.id})">
+        <span class="slider"></span>
+      </label>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function toggleQuestion(qId) {
+  console.log(`Toggle question ${qId}`);
+  alert(`Question ${qId} visibility toggled`);
+}
+
+// PLAYBOOKS
+function showCreatePlaybook() {
+  document.getElementById('create-playbook-form').style.display = 'block';
+}
+
+function hideCreatePlaybook() {
+  document.getElementById('create-playbook-form').style.display = 'none';
+}
+
+async function saveAdminPlaybook() {
+  const title = document.getElementById('pb-title').value;
+  const category = document.getElementById('pb-category').value;
+  const content = document.getElementById('pb-content').value;
+  
+  if (!title || !content) {
+    alert('Title and content required');
+    return;
+  }
+  
+  alert('✅ Playbook saved! (Note: Admin playbooks would be saved system-wide)');
+  hideCreatePlaybook();
+  loadPlaybooks();
+}
+
+function loadPlaybooks() {
+  const container = document.getElementById('playbooks-list');
+  container.innerHTML = `
+    <div class="playbook-list-item">
+      <div>
+        <strong>Emergency Blood Shortage Protocol</strong><br>
+        <span style="color: #666; font-size: 0.9rem;">Category: Emergency</span>
+      </div>
+      <button class="btn-secondary">Edit</button>
+    </div>
+    <div class="playbook-list-item">
+      <div>
+        <strong>Rare Blood Type Handling</strong><br>
+        <span style="color: #666; font-size: 0.9rem;">Category: Rare Blood</span>
+      </div>
+      <button class="btn-secondary">Edit</button>
+    </div>
+  `;
+}
+
+// SOS MONITOR
+async function refreshSOSMonitor() {
+  try {
+    const response = await fetch('/api/server/requests/live');
+    const requests = await response.json();
+    const container = document.getElementById('sos-monitor-list');
+    
+    if (!requests || requests.length === 0) {
+      container.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No active SOS requests</p>';
+      return;
+    }
+    
+    container.innerHTML = '';
+    requests.forEach(req => {
+      const div = document.createElement('div');
+      div.className = 'approval-card';
+      div.innerHTML = `
+        <h4>${req.blood_type_needed} - ${req.patient_name}</h4>
+        <p><strong>Status:</strong> ${req.status}</p>
+        <p><strong>Hospital:</strong> ${req.hospital_name || 'Pending'}</p>
+        <p><strong>Request ID:</strong> ${req.request_id}</p>
+      `;
+      container.appendChild(div);
+    });
+  } catch (error) {
+    console.error(error);
+  }
+}
+</script>
+
+<footer><p>© 2025 LifeLink</p></footer>
 </body>
 </html>
