@@ -2,557 +2,541 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Hospital Dashboard - LifeLink</title>
+  <title>Hospital Console - LifeLink Enhanced</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
-    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
-    .dashboard-card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    .dashboard-card h3 { border-bottom: 2px solid #2a5c60; padding-bottom: 10px; margin-bottom: 15px; }
-    
-    /* SOS ALERT STYLES */
-    .sos-item {
-      border: 3px solid #dc3545;
-      background: #fff5f5;
-      border-radius: 10px;
-      padding: 15px;
-      margin-bottom: 15px;
-      position: relative;
-      box-shadow: 0 4px 8px rgba(220, 53, 69, 0.2);
-    }
-    .sos-item.closed {
-      opacity: 0.5;
-      border-color: #ccc;
-      background: #f5f5f5;
-    }
-    .sos-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    .blood-needed {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #dc3545;
-    }
-    .patient-distance {
-      font-size: 0.9rem;
-      color: #666;
-      font-weight: 600;
-    }
-    .sos-details {
-      font-size: 0.95rem;
-      color: #444;
-      margin-bottom: 12px;
-    }
-    .sos-details div {
-      margin: 5px 0;
-    }
-    
-    /* TIMER BAR */
-    .timer-container {
-      position: relative;
-      height: 30px;
-      background: #e0e0e0;
-      border-radius: 6px;
-      overflow: hidden;
-      margin-bottom: 12px;
-    }
-    .timer-bar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      height: 100%;
-      background: linear-gradient(90deg, #28a745, #28a745);
-      transition: width 1s linear, background 0.5s ease;
-    }
-    .timer-bar.warning {
-      background: linear-gradient(90deg, #ffc107, #ff9800);
-    }
-    .timer-bar.critical {
-      background: linear-gradient(90deg, #dc3545, #c82333);
-    }
-    .timer-text {
-      position: relative;
-      z-index: 2;
-      text-align: center;
-      line-height: 30px;
-      font-weight: 700;
-      color: #000;
-      font-size: 1.1rem;
-    }
-    
-    /* BUTTONS */
-    .sos-actions {
-      display: flex;
-      gap: 10px;
-    }
-    .sos-actions button {
-      flex: 1;
-      padding: 12px;
-      border: none;
-      border-radius: 6px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.3s;
-    }
-    .accept-btn {
-      background: #28a745;
-      color: white;
-    }
-    .accept-btn:hover {
-      background: #218838;
-      transform: translateY(-2px);
-    }
-    .reject-btn {
-      background: #dc3545;
-      color: white;
-    }
-    .reject-btn:hover {
-      background: #c82333;
-      transform: translateY(-2px);
-    }
-    .sos-item.closed .sos-actions,
-    .sos-item.closed .timer-container {
-      display: none;
-    }
-    .response-message {
-      text-align: center;
-      padding: 10px;
-      border-radius: 6px;
-      font-weight: 700;
-      margin-top: 10px;
-    }
-    .response-message.accepted {
-      background: #d4edda;
-      color: #155724;
-    }
-    .response-message.rejected {
-      background: #f8d7da;
-      color: #721c24;
-    }
-    
-    /* INVENTORY */
-    .inventory-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-      gap: 12px;
-    }
-    .inventory-item {
-      text-align: center;
-      padding: 12px;
-      background: #f9f9f9;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-    }
-    .inventory-item label {
-      font-weight: 700;
-      display: block;
-      margin-bottom: 8px;
-      color: #2a5c60;
-    }
-    .inventory-item input {
-      width: 100%;
-      padding: 8px;
-      text-align: center;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 1rem;
-    }
-    
-    /* TOKEN VERIFICATION */
-    .verify-container {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      margin-bottom: 15px;
-    }
-    .verify-input {
-      flex: 1;
-      padding: 12px;
-      font-size: 1.2rem;
-      text-align: center;
-      letter-spacing: 4px;
-      border: 2px solid #2a5c60;
-      border-radius: 6px;
-    }
-    .verify-result {
-      padding: 15px;
-      border-radius: 8px;
-      margin-top: 10px;
-    }
-    .verify-result.success {
-      background: #d4edda;
-      border: 1px solid #c3e6cb;
-      color: #155724;
-    }
-    .verify-result.error {
-      background: #f8d7da;
-      border: 1px solid #f5c6cb;
-      color: #721c24;
-    }
-    
-    .no-requests {
-      text-align: center;
-      padding: 30px;
-      color: #999;
-      font-style: italic;
-    }
+    .tabs { display: flex; border-bottom: 2px solid #2a5c60; margin-bottom: 20px; }
+    .tab-btn { flex: 1; padding: 12px; border: none; background: #f0f0f0; cursor: pointer; font-weight: 600; }
+    .tab-btn.active { background: #2a5c60; color: white; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .component-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0; }
+    .component-card { padding: 15px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; text-align: center; transition: all 0.3s; }
+    .component-card:hover, .component-card.selected { border-color: #2a5c60; background: #e8f5e9; }
+    .stock-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+    .confidence-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 600; }
+    .confidence-high { background: #4caf50; color: white; }
+    .confidence-medium { background: #ff9800; color: white; }
+    .confidence-low { background: #f44336; color: white; }
+    .scanner-input { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; letter-spacing: 5px; border: 3px solid #2a5c60; border-radius: 8px; }
+    .scan-result { margin-top: 20px; padding: 15px; border-radius: 8px; }
+    .scan-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .scan-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .playbook-item { padding: 15px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; background: white; }
+    .playbook-item h4 { margin: 0 0 10px 0; color: #2a5c60; }
+    .appointment-item { padding: 12px; border-left: 4px solid #2a5c60; background: #f9f9f9; margin-bottom: 10px; border-radius: 4px; }
+    .flash-animation { animation: flash 0.5s ease-in-out 3; }
+    @keyframes flash { 0%, 100% { background: #f9f9f9; } 50% { background: #ffe58f; } }
   </style>
 </head>
 <body>
 <header>
-  <div class="logo">
-    <img src="lifeLinklogoD.png" alt="LifeLink Logo">
-    <span>LifeLink</span>
-  </div>
+  <div class="logo"><img src="lifeLinklogoD.png" alt="LifeLink Logo"><span>LifeLink</span></div>
   <nav><a href="#" id="logoutBtn">Logout</a></nav>
 </header>
 
 <main>
   <section class="dashboard-container">
     <div class="dashboard-header">
-      <h2 id="welcome-message">Hospital Dashboard</h2>
+      <h2 id="welcome-message">Hospital Console</h2>
     </div>
 
-    <div class="dashboard-grid">
-      
-      <!-- SOS MONITOR -->
-      <div class="dashboard-card" style="grid-column: span 2;">
-        <h3>🚨 SOS Monitor</h3>
-        <div id="live-sos-list"></div>
-      </div>
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="showTab('sos')">SOS Alerts</button>
+      <button class="tab-btn" onclick="showTab('create-sos')">Create SOS</button>
+      <button class="tab-btn" onclick="showTab('stock')">Stock Management</button>
+      <button class="tab-btn" onclick="showTab('scanner')">Check-In Scanner</button>
+      <button class="tab-btn" onclick="showTab('appointments')">Appointments</button>
+      <button class="tab-btn" onclick="showTab('playbooks')">Playbooks</button>
+      <button class="tab-btn" onclick="showTab('reports')">Reports</button>
+    </div>
 
-      <!-- TOKEN VERIFICATION -->
-      <div class="dashboard-card">
-        <h3>🔍 Verify Token</h3>
-        <div class="verify-container">
-          <input type="text" id="verifyTokenInput" class="verify-input" maxlength="4" placeholder="1234" inputmode="numeric">
-          <button id="verifyBtn" class="btn-primary">Verify</button>
+    <!-- TAB 1: SOS MONITOR -->
+    <div id="tab-sos" class="tab-content active">
+      <h3>Live SOS Monitor</h3>
+      <div id="live-sos-list"></div>
+    </div>
+
+    <!-- TAB 2: CREATE COMPONENT-SPECIFIC SOS -->
+    <div id="tab-create-sos" class="tab-content">
+      <h3>Create Hospital SOS</h3>
+      <form id="component-sos-form">
+        <h4>Select Component</h4>
+        <div class="component-grid">
+          <div class="component-card" data-component="Whole Blood">
+            <div style="font-size: 2rem;">🩸</div>
+            <div>Whole Blood</div>
+          </div>
+          <div class="component-card" data-component="RBC">
+            <div style="font-size: 2rem;">🔴</div>
+            <div>RBC</div>
+          </div>
+          <div class="component-card" data-component="Plasma">
+            <div style="font-size: 2rem;">💛</div>
+            <div>Plasma</div>
+          </div>
+          <div class="component-card" data-component="Platelets">
+            <div style="font-size: 2rem;">🧬</div>
+            <div>Platelets</div>
+          </div>
         </div>
-        <p style="font-size: 0.85rem; color: #666;">Enter the 4-digit token from patient or donor.</p>
-        <div id="verifyResult"></div>
-      </div>
+        <input type="hidden" id="selected-component" required>
+        
+        <div class="form-group">
+          <label>Blood Type (Optional)</label>
+          <select id="sos-blood-type">
+            <option value="">Any</option>
+            <option value="A+">A+</option>
+            <option value="A-">A-</option>
+            <option value="B+">B+</option>
+            <option value="B-">B-</option>
+            <option value="O+">O+</option>
+            <option value="O-">O-</option>
+            <option value="AB+">AB+</option>
+            <option value="AB-">AB-</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Units Needed</label>
+          <input type="number" id="sos-units" value="1" min="1" required>
+        </div>
+        <div class="form-group">
+          <label>Urgency</label>
+          <select id="sos-urgency" required>
+            <option value="Critical">Critical (Immediate)</option>
+            <option value="Urgent">Urgent (Within Hours)</option>
+            <option value="Routine">Routine (Within 24h)</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-danger" style="width: 100%;">Broadcast SOS</button>
+      </form>
+      <p id="sos-create-message" class="message-area"></p>
+    </div>
 
-      <!-- BLOOD INVENTORY -->
-      <div class="dashboard-card">
-        <h3>🩸 Blood Inventory</h3>
-        <div id="inventoryGrid" class="inventory-grid"></div>
-        <button id="saveInventoryBtn" class="btn-success" style="width: 100%; margin-top: 15px;">Save Stock Levels</button>
-        <p id="inventoryMessage" class="message-area"></p>
-      </div>
+    <!-- TAB 3: STOCK MANAGEMENT -->
+    <div id="tab-stock" class="tab-content">
+      <h3>Blood Stock Management</h3>
+      <form id="stock-update-form">
+        <div class="form-group">
+          <label>Blood Type</label>
+          <select id="stock-blood-type" required>
+            <option value="A+">A+</option>
+            <option value="A-">A-</option>
+            <option value="B+">B+</option>
+            <option value="B-">B-</option>
+            <option value="O+">O+</option>
+            <option value="O-">O-</option>
+            <option value="AB+">AB+</option>
+            <option value="AB-">AB-</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Component</label>
+          <select id="stock-component" required>
+            <option value="Whole Blood">Whole Blood</option>
+            <option value="RBC">RBC</option>
+            <option value="Plasma">Plasma</option>
+            <option value="Platelets">Platelets</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Change (+/-)</label>
+          <input type="number" id="stock-change" placeholder="e.g., +5 or -2" required>
+        </div>
+        <div class="form-group">
+          <label>Confidence Level</label>
+          <select id="stock-confidence">
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <input type="text" id="stock-notes" placeholder="Optional">
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%;">Update Stock</button>
+      </form>
+      <p id="stock-message" class="message-area"></p>
+      
+      <h4 style="margin-top: 30px;">Recent Stock Changes</h4>
+      <div id="stock-log-list"></div>
+    </div>
 
+    <!-- TAB 4: CHECK-IN SCANNER -->
+    <div id="tab-scanner" class="tab-content">
+      <h3>Donor Check-In Scanner</h3>
+      <p>Enter the donor's QR token or 4-digit code:</p>
+      <input type="text" id="scanner-input" class="scanner-input" placeholder="Scan or type token" maxlength="12" autofocus>
+      <button onclick="scanToken()" class="btn-primary" style="width: 100%; margin-top: 15px;">Verify Token</button>
+      <div id="scan-result"></div>
+    </div>
+
+    <!-- TAB 5: DONOR APPOINTMENTS -->
+    <div id="tab-appointments" class="tab-content">
+      <h3>Upcoming Donor Appointments</h3>
+      <button onclick="refreshAppointments()" class="btn-secondary">🔄 Refresh</button>
+      <div id="appointments-list"></div>
+    </div>
+
+    <!-- TAB 6: PLAYBOOKS -->
+    <div id="tab-playbooks" class="tab-content">
+      <h3>Hospital Playbooks & Policies</h3>
+      <button onclick="showPlaybookForm()" class="btn-primary">+ New Playbook</button>
+      
+      <div id="playbook-form" style="display: none; margin: 20px 0; padding: 20px; background: #f9f9f9; border-radius: 8px;">
+        <h4>Create New Playbook</h4>
+        <input type="text" id="playbook-title" placeholder="Title" style="width: 100%; margin-bottom: 10px; padding: 10px;">
+        <select id="playbook-category" style="width: 100%; margin-bottom: 10px; padding: 10px;">
+          <option value="Rare Blood">Rare Blood Groups</option>
+          <option value="Apheresis">Apheresis Procedures</option>
+          <option value="Escalation">Escalation Protocols</option>
+          <option value="General">General Policy</option>
+        </select>
+        <textarea id="playbook-content" placeholder="Content (supports markdown)" style="width: 100%; height: 150px; margin-bottom: 10px; padding: 10px;"></textarea>
+        <button onclick="savePlaybook()" class="btn-primary">Save Playbook</button>
+        <button onclick="hidePlaybookForm()" class="btn-secondary">Cancel</button>
+      </div>
+      
+      <div id="playbooks-list"></div>
+    </div>
+
+    <!-- TAB 7: REPORTS -->
+    <div id="tab-reports" class="tab-content">
+      <h3>Audit & Reports</h3>
+      <div id="reports-container"></div>
     </div>
   </section>
 </main>
 
 <script>
 let hospital = null;
-let activeTimers = {};
 
 document.addEventListener('DOMContentLoaded', () => {
   hospital = JSON.parse(sessionStorage.getItem('currentHospital'));
-  
   if (!hospital) {
     window.location.href = 'hospital-login.html';
     return;
   }
-
-  document.getElementById('welcome-message').textContent = `${hospital.hospital_name} Dashboard`;
-
-  // Initialize inventory
-  loadInventory();
+  document.getElementById('welcome-message').textContent = `${hospital.hospital_name} Console`;
   
-  // Fetch SOS alerts
+  // Component selection
+  document.querySelectorAll('.component-card').forEach(card => {
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      document.getElementById('selected-component').value = card.dataset.component;
+    });
+  });
+  
+  // Forms
+  document.getElementById('component-sos-form').addEventListener('submit', createComponentSOS);
+  document.getElementById('stock-update-form').addEventListener('submit', updateStock);
+  
+  // Initialize
   fetchSOSAlerts();
+  loadStockLog();
+  refreshAppointments();
+  loadPlaybooks();
+  loadReports();
   
-  // Poll for new alerts every 10 seconds
+  // Auto-refresh
   setInterval(fetchSOSAlerts, 10000);
-
-  // Logout
+  setInterval(refreshAppointments, 30000);
+  
   document.getElementById('logoutBtn').addEventListener('click', () => {
     sessionStorage.clear();
     window.location.href = 'hospital-login.html';
   });
-
-  // Token verification
-  document.getElementById('verifyBtn').addEventListener('click', verifyToken);
-
-  // Save inventory
-  document.getElementById('saveInventoryBtn').addEventListener('click', saveInventory);
 });
 
-// ============================================================================
-// FETCH SOS ALERTS FROM SERVER
-// ============================================================================
+function showTab(tabName) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById(`tab-${tabName}`).classList.add('active');
+}
+
+// CREATE COMPONENT SOS
+async function createComponentSOS(e) {
+  e.preventDefault();
+  const component = document.getElementById('selected-component').value;
+  if (!component) {
+    alert('Please select a component');
+    return;
+  }
+  
+  const messageEl = document.getElementById('sos-create-message');
+  messageEl.textContent = 'Creating SOS...';
+  messageEl.className = 'message-area';
+  
+  try {
+    const response = await fetch('/api/hospital/sos-component', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hospitalId: hospital.hospital_id,
+        component,
+        bloodType: document.getElementById('sos-blood-type').value,
+        units: document.getElementById('sos-units').value,
+        urgency: document.getElementById('sos-urgency').value,
+        latitude: hospital.latitude,
+        longitude: hospital.longitude,
+        pincode: hospital.pincode
+      })
+    });
+    const result = await response.json();
+    if (result.success) {
+      messageEl.textContent = `✅ ${result.message}`;
+      messageEl.className = 'message-area message-success';
+      document.getElementById('component-sos-form').reset();
+      document.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
+    } else {
+      messageEl.textContent = `❌ ${result.message}`;
+      messageEl.className = 'message-area message-error';
+    }
+  } catch (error) {
+    console.error(error);
+    messageEl.textContent = '❌ Server error';
+    messageEl.className = 'message-area message-error';
+  }
+}
+
+// UPDATE STOCK
+async function updateStock(e) {
+  e.preventDefault();
+  const messageEl = document.getElementById('stock-message');
+  messageEl.textContent = 'Updating stock...';
+  
+  try {
+    const response = await fetch('/api/hospital/stock-update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hospitalId: hospital.hospital_id,
+        bloodType: document.getElementById('stock-blood-type').value,
+        component: document.getElementById('stock-component').value,
+        unitsChange: parseInt(document.getElementById('stock-change').value),
+        confidence: document.getElementById('stock-confidence').value,
+        notes: document.getElementById('stock-notes').value
+      })
+    });
+    const result = await response.json();
+    if (result.success) {
+      messageEl.textContent = `✅ Stock updated! New total: ${result.newTotal} units`;
+      messageEl.className = 'message-area message-success';
+      document.getElementById('stock-update-form').reset();
+      loadStockLog();
+    } else {
+      messageEl.textContent = `❌ ${result.message}`;
+      messageEl.className = 'message-area message-error';
+    }
+  } catch (error) {
+    console.error(error);
+    messageEl.textContent = '❌ Server error';
+    messageEl.className = 'message-area message-error';
+  }
+}
+
+async function loadStockLog() {
+  // Implementation for stock log display
+}
+
+// CHECK-IN SCANNER
+async function scanToken() {
+  const token = document.getElementById('scanner-input').value.trim();
+  const resultDiv = document.getElementById('scan-result');
+  
+  if (!token) {
+    resultDiv.innerHTML = '<div class="scan-error">Please enter a token</div>';
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/hospital/scan-checkin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qrToken: token, hospitalId: hospital.hospital_id })
+    });
+    const result = await response.json();
+    
+    if (result.success) {
+      resultDiv.innerHTML = `
+        <div class="scan-success">
+          <h4>✅ Check-In Successful!</h4>
+          <p><strong>Donor:</strong> ${result.checkin.donor_id}</p>
+          <p><strong>Status:</strong> ${result.checkin.status}</p>
+          <p>${result.message}</p>
+        </div>
+      `;
+      document.getElementById('scanner-input').value = '';
+      refreshAppointments();
+    } else {
+      resultDiv.innerHTML = `<div class="scan-error">❌ ${result.message}</div>`;
+    }
+  } catch (error) {
+    console.error(error);
+    resultDiv.innerHTML = '<div class="scan-error">❌ Server error</div>';
+  }
+}
+
+// APPOINTMENTS
+async function refreshAppointments() {
+  try {
+    const response = await fetch(`/api/hospital/appointments/${hospital.hospital_id}`);
+    const data = await response.json();
+    const list = document.getElementById('appointments-list');
+    
+    if (!data.success || !data.appointments.length) {
+      list.innerHTML = '<p>No upcoming appointments</p>';
+      return;
+    }
+    
+    list.innerHTML = '';
+    data.appointments.forEach(apt => {
+      const div = document.createElement('div');
+      div.className = 'appointment-item';
+      div.innerHTML = `
+        <strong>${apt.full_name}</strong> | ${apt.blood_type} | ${apt.phone_number}<br>
+        Status: ${apt.status} | QR: ${apt.qr_token || 'N/A'}
+      `;
+      list.appendChild(div);
+    });
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// PLAYBOOKS
+function showPlaybookForm() {
+  document.getElementById('playbook-form').style.display = 'block';
+}
+
+function hidePlaybookForm() {
+  document.getElementById('playbook-form').style.display = 'none';
+}
+
+async function savePlaybook() {
+  const title = document.getElementById('playbook-title').value;
+  const category = document.getElementById('playbook-category').value;
+  const content = document.getElementById('playbook-content').value;
+  
+  if (!title || !content) {
+    alert('Title and content required');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/hospital/playbooks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hospitalId: hospital.hospital_id, title, content, category, priority: 1 })
+    });
+    const result = await response.json();
+    if (result.success) {
+      alert('Playbook saved!');
+      hidePlaybookForm();
+      loadPlaybooks();
+    }
+  } catch (error) {
+    console.error(error);
+    alert('Failed to save playbook');
+  }
+}
+
+async function loadPlaybooks() {
+  try {
+    const response = await fetch(`/api/hospital/playbooks/${hospital.hospital_id}`);
+    const playbooks = await response.json();
+    const list = document.getElementById('playbooks-list');
+    
+    if (!playbooks.length) {
+      list.innerHTML = '<p>No playbooks yet</p>';
+      return;
+    }
+    
+    list.innerHTML = '';
+    playbooks.forEach(pb => {
+      const div = document.createElement('div');
+      div.className = 'playbook-item';
+      div.innerHTML = `
+        <h4>${pb.title}</h4>
+        <span class="confidence-badge confidence-${pb.category}">${pb.category}</span>
+        <p>${pb.content.substring(0, 200)}...</p>
+      `;
+      list.appendChild(div);
+    });
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// REPORTS
+async function loadReports() {
+  try {
+    const response = await fetch(`/api/hospital/reports/${hospital.hospital_id}`);
+    const data = await response.json();
+    const container = document.getElementById('reports-container');
+    
+    container.innerHTML = `
+      <div class="dashboard-card">
+        <h4>Request Summary</h4>
+        ${data.summary.map(s => `<p>${s.status}: ${s.count}</p>`).join('')}
+      </div>
+      <div class="dashboard-card">
+        <h4>Average Response Time</h4>
+        <p>${(data.avgResponseTime || 0).toFixed(1)} seconds</p>
+      </div>
+    `;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// SOS ALERTS (EXISTING LOGIC)
 async function fetchSOSAlerts() {
   try {
     const response = await fetch(`/api/server/sos-alerts/${hospital.hospital_id}`);
     const alerts = await response.json();
-
     const container = document.getElementById('live-sos-list');
+    
+    if (!alerts || alerts.length === 0) {
+      container.innerHTML = '<p style="text-align:center; padding:20px;">No active SOS requests</p>';
+      return;
+    }
+    
     container.innerHTML = '';
-
-    if (alerts.length === 0) {
-      container.innerHTML = '<div class="no-requests">No active SOS requests at the moment.</div>';
-      return;
-    }
-
     alerts.forEach(alert => {
-      const sosItem = createSOSElement(alert);
-      container.appendChild(sosItem);
+      const div = document.createElement('div');
+      div.className = 'sos-item';
+      div.innerHTML = `
+        <strong>${alert.bloodType}</strong> needed | Patient: ${alert.patientName} | ${alert.distance.toFixed(1)} km away<br>
+        <button onclick="respondToSOS(${alert.requestId}, 'accept')" class="btn-primary">Accept</button>
+        <button onclick="respondToSOS(${alert.requestId}, 'reject')" class="btn-danger">Reject</button>
+      `;
+      container.appendChild(div);
     });
-
   } catch (error) {
-    console.error('Failed to fetch SOS alerts:', error);
+    console.error(error);
   }
 }
 
-// ============================================================================
-// CREATE SOS ALERT ELEMENT WITH TIMER
-// ============================================================================
-function createSOSElement(alert) {
-  const div = document.createElement('div');
-  div.className = 'sos-item';
-  div.dataset.requestId = alert.requestId;
-
-  div.innerHTML = `
-    <div class="sos-header">
-      <span class="blood-needed">${alert.bloodType} Required</span>
-      <span class="patient-distance">${alert.distance.toFixed(1)} km away</span>
-    </div>
-    <div class="sos-details">
-      <div><strong>Patient:</strong> ${alert.patientName}</div>
-      <div><strong>Token:</strong> ${alert.patientToken}</div>
-    </div>
-    <div class="timer-container">
-      <div class="timer-bar" id="bar-${alert.requestId}"></div>
-      <div class="timer-text" id="timer-${alert.requestId}">10:00</div>
-    </div>
-    <div class="sos-actions">
-      <button class="accept-btn" onclick="respondToSOS(${alert.requestId}, 'accept')">✓ Accept</button>
-      <button class="reject-btn" onclick="respondToSOS(${alert.requestId}, 'reject')">✗ Reject</button>
-    </div>
-    <div id="response-${alert.requestId}" class="response-message" style="display:none;"></div>
-  `;
-
-  // Start timer
-  startTimer(alert.requestId, alert.deadline);
-
-  return div;
-}
-
-// ============================================================================
-// TIMER LOGIC
-// ============================================================================
-function startTimer(requestId, deadline) {
-  const deadlineTime = new Date(deadline).getTime();
-  const totalDuration = 10 * 60; // 10 minutes in seconds
-
-  const timerBar = document.getElementById(`bar-${requestId}`);
-  const timerText = document.getElementById(`timer-${requestId}`);
-
-  if (!timerBar || !timerText) return;
-
-  if (activeTimers[requestId]) {
-    clearInterval(activeTimers[requestId]);
-  }
-
-  activeTimers[requestId] = setInterval(() => {
-    const now = Date.now();
-    const timeLeft = Math.floor((deadlineTime - now) / 1000);
-
-    if (timeLeft <= 0) {
-      clearInterval(activeTimers[requestId]);
-      timerText.textContent = 'EXPIRED';
-      timerBar.style.width = '0%';
-      autoReject(requestId);
-      return;
-    }
-
-    const percent = (timeLeft / totalDuration) * 100;
-    timerBar.style.width = percent + '%';
-
-    // Color changes
-    if (timeLeft < 120) {
-      timerBar.className = 'timer-bar critical';
-    } else if (timeLeft < 300) {
-      timerBar.className = 'timer-bar warning';
-    } else {
-      timerBar.className = 'timer-bar';
-    }
-
-    const minutes = Math.floor(timeLeft / 60);
-    const seconds = timeLeft % 60;
-    timerText.textContent = `${minutes}:${String(seconds).padStart(2, '0')}`;
-
-  }, 1000);
-}
-
-// ============================================================================
-// HOSPITAL RESPONDS TO SOS
-// ============================================================================
 async function respondToSOS(requestId, response) {
   try {
-    const apiResponse = await fetch('/api/server/hospital-response', {
+    await fetch('/api/server/hospital-response', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requestId: requestId,
-        hospitalId: hospital.hospital_id,
-        response: response
-      })
+      body: JSON.stringify({ requestId, hospitalId: hospital.hospital_id, response })
     });
-
-    const result = await apiResponse.json();
-
-    if (result.success) {
-      // Clear timer
-      if (activeTimers[requestId]) {
-        clearInterval(activeTimers[requestId]);
-      }
-
-      // Update UI
-      const sosItem = document.querySelector(`.sos-item[data-request-id="${requestId}"]`);
-      const responseMsg = document.getElementById(`response-${requestId}`);
-      
-      if (response === 'accept') {
-        responseMsg.textContent = '✅ You accepted this request!';
-        responseMsg.className = 'response-message accepted';
-      } else {
-        responseMsg.textContent = '❌ You rejected this request.';
-        responseMsg.className = 'response-message rejected';
-      }
-      
-      responseMsg.style.display = 'block';
-      sosItem.classList.add('closed');
-    }
-
+    fetchSOSAlerts();
   } catch (error) {
-    console.error('Response Error:', error);
-    alert('Failed to respond. Please try again.');
-  }
-}
-
-async function autoReject(requestId) {
-  await respondToSOS(requestId, 'reject');
-}
-
-// ============================================================================
-// INVENTORY MANAGEMENT
-// ============================================================================
-function loadInventory() {
-  const grid = document.getElementById('inventoryGrid');
-  const inventory = hospital.blood_inventory || {};
-  
-  const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
-  
-  grid.innerHTML = '';
-  bloodTypes.forEach(type => {
-    const item = document.createElement('div');
-    item.className = 'inventory-item';
-    item.innerHTML = `
-      <label>${type}</label>
-      <input type="number" id="stock-${type}" value="${inventory[type] || 0}" min="0">
-    `;
-    grid.appendChild(item);
-  });
-}
-
-async function saveInventory() {
-  const bloodTypes = ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'];
-  const inventory = {};
-  
-  bloodTypes.forEach(type => {
-    const input = document.getElementById(`stock-${type}`);
-    inventory[type] = parseInt(input.value) || 0;
-  });
-
-  try {
-    const response = await fetch('/api/server/update-inventory', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        hospitalId: hospital.hospital_id,
-        inventory: inventory
-      })
-    });
-
-    const result = await response.json();
-    const messageEl = document.getElementById('inventoryMessage');
-    
-    if (result.success) {
-      messageEl.textContent = '✅ Stock levels updated successfully!';
-      messageEl.className = 'message-area message-success';
-    } else {
-      messageEl.textContent = '❌ Failed to update stock.';
-      messageEl.className = 'message-area message-error';
-    }
-
-    setTimeout(() => {
-      messageEl.textContent = '';
-    }, 3000);
-
-  } catch (error) {
-    console.error('Inventory Error:', error);
-  }
-}
-
-// ============================================================================
-// TOKEN VERIFICATION
-// ============================================================================
-async function verifyToken() {
-  const token = document.getElementById('verifyTokenInput').value.trim();
-  const resultDiv = document.getElementById('verifyResult');
-
-  if (token.length !== 4) {
-    resultDiv.className = 'verify-result error';
-    resultDiv.textContent = '❌ Please enter a 4-digit token.';
-    return;
-  }
-
-  try {
-    const response = await fetch('/api/server/verify-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: token })
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-      resultDiv.className = 'verify-result success';
-      
-      if (result.type === 'patient') {
-        resultDiv.innerHTML = `
-          <h4>✅ Patient Token Valid</h4>
-          <p><strong>Name:</strong> ${result.patient.full_name}</p>
-          <p><strong>Blood Needed:</strong> ${result.patient.blood_type_needed}</p>
-          <p><strong>Pincode:</strong> ${result.patient.pincode}</p>
-        `;
-      } else {
-        resultDiv.innerHTML = `
-          <h4>✅ Donor Token Valid</h4>
-          <p><strong>Name:</strong> ${result.donor.full_name}</p>
-          <p><strong>Blood Type:</strong> ${result.donor.blood_type}</p>
-          <p><strong>Matched with Patient Token:</strong> ${result.matched_patient_token}</p>
-        `;
-      }
-    } else {
-      resultDiv.className = 'verify-result error';
-      resultDiv.textContent = '❌ Token not found or invalid.';
-    }
-
-  } catch (error) {
-    console.error('Verification Error:', error);
-    resultDiv.className = 'verify-result error';
-    resultDiv.textContent = '❌ Could not verify token. Server error.';
+    console.error(error);
   }
 }
 </script>
 
-<footer>
-  <p>© 2025 LifeLink</p>
-</footer>
+<footer><p>© 2025 LifeLink</p></footer>
 </body>
 </html>
