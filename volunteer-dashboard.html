@@ -2,32 +2,361 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Volunteer Dashboard - LifeLink Enhanced</title>
-  <link rel="stylesheet" href="style.css">
   <style>
-    .tabs { display: flex; border-bottom: 2px solid #2a5c60; margin-bottom: 20px; }
-    .tab-btn { flex: 1; padding: 12px; border: none; background: #f0f0f0; cursor: pointer; font-weight: 600; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    header {
+      background: white;
+      padding: 1rem 2rem;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #2a5c60;
+    }
+    
+    .logo img { height: 40px; }
+    
+    nav a {
+      text-decoration: none;
+      color: #2a5c60;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 6px;
+      transition: background 0.3s;
+    }
+    
+    nav a:hover { background: #f0f0f0; }
+    
+    main {
+      padding: 2rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    .dashboard-container {
+      background: white;
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .dashboard-header {
+      margin-bottom: 2rem;
+      border-bottom: 2px solid #f0f0f0;
+      padding-bottom: 1rem;
+    }
+    
+    .dashboard-header h2 {
+      color: #2a5c60;
+      font-size: 2rem;
+    }
+    
+    .tabs {
+      display: flex;
+      border-bottom: 2px solid #2a5c60;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    
+    .tab-btn {
+      flex: 1;
+      min-width: 120px;
+      padding: 12px;
+      border: none;
+      background: #f0f0f0;
+      cursor: pointer;
+      font-weight: 600;
+      border-radius: 8px 8px 0 0;
+      transition: all 0.3s;
+    }
+    
+    .tab-btn:hover { background: #e0e0e0; }
     .tab-btn.active { background: #2a5c60; color: white; }
+    
     .tab-content { display: none; }
     .tab-content.active { display: block; }
-    .drive-card { background: white; border: 1px solid #ddd; border-radius: 12px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    .drive-card h4 { margin: 0 0 10px 0; color: #2a5c60; }
-    .drive-card .date-badge { display: inline-block; padding: 5px 12px; background: #2196f3; color: white; border-radius: 20px; font-size: 0.9rem; }
-    .role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0; }
-    .role-card { padding: 15px; border: 2px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; transition: all 0.3s; }
-    .role-card:hover { border-color: #2a5c60; background: #e8f5e9; transform: translateY(-2px); }
-    .role-card.selected { border-color: #4caf50; background: #c8e6c9; }
-    .shift-selector { display: flex; gap: 10px; margin: 15px 0; }
-    .shift-btn { padding: 10px 20px; border: 2px solid #ddd; background: white; border-radius: 8px; cursor: pointer; }
-    .shift-btn.selected { border-color: #2a5c60; background: #2a5c60; color: white; }
-    .assignment-item { background: #f9f9f9; border-left: 4px solid #2a5c60; padding: 12px; margin-bottom: 10px; border-radius: 4px; }
-    .material-card { background: white; border: 1px solid #ddd; padding: 20px; border-radius: 8px; text-align: center; }
-    .material-preview { width: 100%; max-width: 400px; height: 300px; border: 2px dashed #ccc; margin: 20px auto; display: flex; align-items: center; justify-content: center; background: #f9f9f9; }
+    
+    .drive-card {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      transition: transform 0.3s;
+    }
+    
+    .drive-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .drive-card h4 {
+      margin: 0 0 10px 0;
+      color: #2a5c60;
+    }
+    
+    .date-badge {
+      display: inline-block;
+      padding: 5px 12px;
+      background: #2196f3;
+      color: white;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      margin: 5px 0;
+    }
+    
+    .role-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin: 15px 0;
+    }
+    
+    .role-card {
+      padding: 15px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .role-card:hover {
+      border-color: #2a5c60;
+      background: #e8f5e9;
+      transform: translateY(-2px);
+    }
+    
+    .role-card.selected {
+      border-color: #4caf50;
+      background: #c8e6c9;
+    }
+    
+    .shift-selector {
+      display: flex;
+      gap: 10px;
+      margin: 15px 0;
+      flex-wrap: wrap;
+    }
+    
+    .shift-btn {
+      flex: 1;
+      min-width: 150px;
+      padding: 10px 20px;
+      border: 2px solid #ddd;
+      background: white;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .shift-btn:hover {
+      border-color: #2a5c60;
+      background: #f0f0f0;
+    }
+    
+    .shift-btn.selected {
+      border-color: #2a5c60;
+      background: #2a5c60;
+      color: white;
+    }
+    
+    .assignment-item {
+      background: #f9f9f9;
+      border-left: 4px solid #2a5c60;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+    }
+    
+    .material-card {
+      background: white;
+      border: 1px solid #ddd;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .material-preview {
+      width: 100%;
+      max-width: 400px;
+      height: 300px;
+      border: 2px dashed #ccc;
+      margin: 20px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+    
+    .btn-primary, .btn-secondary, .btn-success {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+      font-size: 1rem;
+    }
+    
+    .btn-primary {
+      background: #2a5c60;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: #1f4447;
+      transform: translateY(-2px);
+    }
+    
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+    
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+    
+    .btn-success {
+      background: #4caf50;
+      color: white;
+    }
+    
+    .btn-success:hover {
+      background: #45a049;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    
+    .role-input {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    
+    .role-input input {
+      flex: 1;
+    }
+    
+    .message-area {
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 10px;
+    }
+    
+    .message-success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    
+    .message-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: white;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      overflow-y: auto;
+    }
+    
+    .modal-content {
+      background: white;
+      margin: 5% auto;
+      padding: 30px;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #999;
+    }
+    
+    @media (max-width: 768px) {
+      .tabs {
+        flex-direction: column;
+      }
+      
+      .tab-btn {
+        border-radius: 6px;
+        margin-bottom: 4px;
+      }
+      
+      .role-input {
+        flex-direction: column;
+      }
+    }
   </style>
 </head>
 <body>
 <header>
-  <div class="logo"><img src="lifeLinklogoD.png" alt="LifeLink Logo"><span>LifeLink</span></div>
+  <div class="logo">
+    <span>🩸</span>
+    <span>LifeLink</span>
+  </div>
   <nav><a href="#" id="logoutBtn">Logout</a></nav>
 </header>
 
@@ -41,21 +370,21 @@
     <div class="tabs">
       <button class="tab-btn active" onclick="showTab('drives')">Blood Drives</button>
       <button class="tab-btn" onclick="showTab('my-shifts')">My Shifts</button>
-      <button class="tab-btn" onclick="showTab('create-drive')">Create Drive</button>
+      <button class="tab-btn" id="create-drive-tab" onclick="showTab('create-drive')">Create Drive</button>
       <button class="tab-btn" onclick="showTab('awareness')">Awareness Kit</button>
     </div>
 
     <!-- TAB 1: UPCOMING DRIVES -->
     <div id="tab-drives" class="tab-content active">
       <h3>Upcoming Blood Donation Drives</h3>
-      <button onclick="refreshDrives()" class="btn-secondary">🔄 Refresh</button>
-      <div id="drives-list"></div>
+      <button onclick="refreshDrives()" class="btn-secondary" style="margin-bottom: 15px;">🔄 Refresh</button>
+      <div id="drives-list" class="loading">Loading...</div>
     </div>
 
     <!-- TAB 2: MY ASSIGNMENTS -->
     <div id="tab-my-shifts" class="tab-content">
       <h3>My Shift Assignments</h3>
-      <div id="assignments-list"></div>
+      <div id="assignments-list" class="loading">Loading...</div>
     </div>
 
     <!-- TAB 3: CREATE DRIVE (NGO Only) -->
@@ -63,15 +392,15 @@
       <h3>Create New Blood Drive</h3>
       <form id="create-drive-form">
         <div class="form-group">
-          <label>Drive Name</label>
+          <label>Drive Name *</label>
           <input type="text" id="drive-name" required placeholder="e.g., Community Blood Drive 2025">
         </div>
         <div class="form-group">
-          <label>Location</label>
+          <label>Location *</label>
           <input type="text" id="drive-location" required placeholder="Full address">
         </div>
         <div class="form-group">
-          <label>Start Date</label>
+          <label>Start Date *</label>
           <input type="date" id="drive-start-date" required>
         </div>
         <div class="form-group">
@@ -79,15 +408,15 @@
           <input type="date" id="drive-end-date">
         </div>
         <div class="form-group">
-          <label>Start Time</label>
+          <label>Start Time *</label>
           <input type="time" id="drive-start-time" required>
         </div>
         <div class="form-group">
-          <label>End Time</label>
+          <label>End Time *</label>
           <input type="time" id="drive-end-time" required>
         </div>
         <div class="form-group">
-          <label>Target Donors</label>
+          <label>Target Donors *</label>
           <input type="number" id="drive-target" min="1" value="50" required>
         </div>
         
@@ -95,14 +424,14 @@
         <div id="roles-container">
           <div class="role-input">
             <input type="text" placeholder="Role name (e.g., Registration Desk)" class="role-name">
-            <input type="number" placeholder="# needed" min="1" class="role-count">
+            <input type="number" placeholder="# needed" min="1" value="1" class="role-count">
           </div>
         </div>
-        <button type="button" onclick="addRoleInput()" class="btn-secondary">+ Add Role</button>
+        <button type="button" onclick="addRoleInput()" class="btn-secondary" style="margin-bottom: 20px;">+ Add Role</button>
         
-        <button type="submit" class="btn-primary" style="width: 100%; margin-top: 20px;">Create Drive</button>
+        <button type="submit" class="btn-primary" style="width: 100%;">Create Drive</button>
       </form>
-      <p id="drive-create-message" class="message-area"></p>
+      <div id="drive-create-message"></div>
     </div>
 
     <!-- TAB 4: AWARENESS KIT -->
@@ -125,7 +454,7 @@
           </div>
           <button type="submit" class="btn-primary" style="width: 100%;">Generate Material</button>
         </form>
-        <p id="awareness-message" class="message-area"></p>
+        <div id="awareness-message"></div>
         
         <div id="material-preview" class="material-preview" style="display: none;">
           <p>Preview will appear here</p>
@@ -141,8 +470,8 @@
 </main>
 
 <!-- DRIVE SIGNUP MODAL -->
-<div id="signup-modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
-  <div style="background: white; margin: 10% auto; padding: 30px; border-radius: 12px; width: 90%; max-width: 600px;">
+<div id="signup-modal" class="modal">
+  <div class="modal-content">
     <h3 id="modal-drive-name">Sign Up for Drive</h3>
     <h4>Select Your Role</h4>
     <div id="modal-roles" class="role-grid"></div>
@@ -168,9 +497,19 @@ let selectedRole = null;
 let selectedShift = null;
 let generatedMaterial = null;
 
+// Initialize
 document.addEventListener('DOMContentLoaded', () => {
-  volunteer = JSON.parse(sessionStorage.getItem('currentUserInfo'));
-  if (!volunteer) {
+  // Check authentication
+  const userInfo = sessionStorage.getItem('currentUserInfo');
+  if (!userInfo) {
+    window.location.href = 'volunteer-login.html';
+    return;
+  }
+
+  try {
+    volunteer = JSON.parse(userInfo);
+  } catch (e) {
+    console.error('Error parsing user info:', e);
     window.location.href = 'volunteer-login.html';
     return;
   }
@@ -179,19 +518,21 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Show/hide create drive tab based on role
   if (volunteer.role !== 'ngo') {
-    document.querySelector('[onclick="showTab(\'create-drive\')"]').style.display = 'none';
+    document.getElementById('create-drive-tab').style.display = 'none';
   }
   
-  // Set min date
+  // Set min date for drive creation
   const today = new Date().toISOString().split('T')[0];
-  document.getElementById('drive-start-date').setAttribute('min', today);
-  document.getElementById('drive-end-date').setAttribute('min', today);
+  const startDateInput = document.getElementById('drive-start-date');
+  const endDateInput = document.getElementById('drive-end-date');
+  if (startDateInput) startDateInput.setAttribute('min', today);
+  if (endDateInput) endDateInput.setAttribute('min', today);
   
   // Load data
   refreshDrives();
   loadMyAssignments();
   
-  // Forms
+  // Form handlers
   document.getElementById('create-drive-form').addEventListener('submit', createDrive);
   document.getElementById('awareness-form').addEventListener('submit', generateAwareness);
   
@@ -204,28 +545,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
   
-  document.getElementById('logoutBtn').addEventListener('click', () => {
+  // Logout
+  document.getElementById('logoutBtn').addEventListener('click', (e) => {
+    e.preventDefault();
     sessionStorage.clear();
     window.location.href = 'volunteer-login.html';
   });
 });
 
+// Tab switching
 function showTab(tabName) {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
   event.target.classList.add('active');
   document.getElementById(`tab-${tabName}`).classList.add('active');
+  
+  // Reload data for specific tabs
+  if (tabName === 'drives') refreshDrives();
+  if (tabName === 'my-shifts') loadMyAssignments();
 }
 
-// LOAD DRIVES
+// DRIVES TAB
 async function refreshDrives() {
+  const container = document.getElementById('drives-list');
+  container.innerHTML = '<div class="loading">Loading drives...</div>';
+  
   try {
-    const response = await fetch('/api/volunteer/drives');
+    const response = await fetch('/api/volunteer/drives-available');
     const data = await response.json();
-    const container = document.getElementById('drives-list');
     
-    if (!data.success || !data.drives.length) {
-      container.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No upcoming drives.</p>';
+    if (!data.success || !data.drives || data.drives.length === 0) {
+      container.innerHTML = '<p class="empty-state">No upcoming drives available</p>';
       return;
     }
     
@@ -235,47 +585,52 @@ async function refreshDrives() {
       div.className = 'drive-card';
       div.innerHTML = `
         <h4>${drive.drive_name}</h4>
-        <span class="date-badge">${new Date(drive.start_date).toLocaleDateString()}</span>
-        <p><strong>Location:</strong> ${drive.location}</p>
-        <p><strong>Time:</strong> ${drive.start_time} - ${drive.end_time}</p>
-        <p><strong>Organized by:</strong> ${drive.organizer_name}</p>
-        <p><strong>Target:</strong> ${drive.target_donors} donors | Registered: ${drive.registered_donors || 0}</p>
-        <button onclick="openSignupModal(${drive.drive_id}, '${drive.drive_name}')" class="btn-primary">Sign Up as Volunteer</button>
+        <p>📍 ${drive.location}</p>
+        <p><span class="date-badge">📅 ${new Date(drive.start_date).toLocaleDateString()}</span></p>
+        <p>⏰ ${drive.start_time || 'TBD'} - ${drive.end_time || 'TBD'}</p>
+        <p><strong>Target:</strong> ${drive.target_donors} donors | <strong>Registered:</strong> ${drive.registered_donors || 0}</p>
+        <button onclick="openSignupModal(${drive.drive_id}, '${drive.drive_name}')" class="btn-primary" style="margin-top: 10px; width: 100%;">Sign Up as Volunteer</button>
       `;
       container.appendChild(div);
     });
   } catch (error) {
-    console.error(error);
+    console.error('Error loading drives:', error);
+    container.innerHTML = '<p style="color: red;">Error loading drives. Please try again.</p>';
   }
 }
 
-// SIGNUP MODAL
-function openSignupModal(driveId, driveName) {
+async function openSignupModal(driveId, driveName) {
   currentDrive = driveId;
-  document.getElementById('modal-drive-name').textContent = `Sign Up: ${driveName}`;
+  document.getElementById('modal-drive-name').textContent = `Sign Up for: ${driveName}`;
   
-  // Load roles for this drive
-  const rolesGrid = document.getElementById('modal-roles');
-  rolesGrid.innerHTML = `
-    <div class="role-card" onclick="selectRole(1, this)">
-      <h4>Registration Desk</h4>
-      <p>Check-in donors</p>
-    </div>
-    <div class="role-card" onclick="selectRole(2, this)">
-      <h4>Guide</h4>
-      <p>Assist donors</p>
-    </div>
-    <div class="role-card" onclick="selectRole(3, this)">
-      <h4>Refreshments</h4>
-      <p>Serve snacks</p>
-    </div>
-    <div class="role-card" onclick="selectRole(4, this)">
-      <h4>Coordinator</h4>
-      <p>Oversee operations</p>
-    </div>
-  `;
-  
-  document.getElementById('signup-modal').style.display = 'block';
+  // Load available roles for this drive
+  try {
+    const response = await fetch(`/api/volunteer/drive-roles/${driveId}`);
+    const data = await response.json();
+    
+    const rolesContainer = document.getElementById('modal-roles');
+    
+    if (!data.success || !data.roles || data.roles.length === 0) {
+      rolesContainer.innerHTML = '<p style="text-align: center; color: #999;">No roles available</p>';
+    } else {
+      rolesContainer.innerHTML = '';
+      data.roles.forEach(role => {
+        const div = document.createElement('div');
+        div.className = 'role-card';
+        div.onclick = () => selectRole(role.role_id, div);
+        div.innerHTML = `
+          <strong>${role.role_name}</strong><br>
+          <small>${role.assigned_volunteers || 0}/${role.required_volunteers} filled</small>
+        `;
+        rolesContainer.appendChild(div);
+      });
+    }
+    
+    document.getElementById('signup-modal').style.display = 'block';
+  } catch (error) {
+    console.error('Error loading roles:', error);
+    alert('Error loading roles. Please try again.');
+  }
 }
 
 function selectRole(roleId, element) {
@@ -288,15 +643,17 @@ function closeSignupModal() {
   document.getElementById('signup-modal').style.display = 'none';
   selectedRole = null;
   selectedShift = null;
+  document.querySelectorAll('.role-card').forEach(card => card.classList.remove('selected'));
+  document.querySelectorAll('.shift-btn').forEach(btn => btn.classList.remove('selected'));
 }
 
 async function confirmSignup() {
   if (!selectedRole) {
-    alert('Please select a role');
+    alert('❌ Please select a role');
     return;
   }
   if (!selectedShift) {
-    alert('Please select a shift');
+    alert('❌ Please select a shift');
     return;
   }
   
@@ -328,20 +685,22 @@ async function confirmSignup() {
       alert(`❌ ${result.message}`);
     }
   } catch (error) {
-    console.error(error);
-    alert('❌ Server error');
+    console.error('Error signing up:', error);
+    alert('❌ Server error. Please try again.');
   }
 }
 
-// MY ASSIGNMENTS
+// MY ASSIGNMENTS TAB
 async function loadMyAssignments() {
+  const container = document.getElementById('assignments-list');
+  container.innerHTML = '<div class="loading">Loading assignments...</div>';
+  
   try {
     const response = await fetch(`/api/volunteer/my-assignments/${volunteer.user_id}`);
     const data = await response.json();
-    const container = document.getElementById('assignments-list');
     
-    if (!data.success || !data.assignments.length) {
-      container.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No assignments yet.</p>';
+    if (!data.success || !data.assignments || data.assignments.length === 0) {
+      container.innerHTML = '<p class="empty-state">No assignments yet. Sign up for a drive!</p>';
       return;
     }
     
@@ -351,26 +710,26 @@ async function loadMyAssignments() {
       div.className = 'assignment-item';
       div.innerHTML = `
         <strong>${assignment.drive_name}</strong><br>
-        Role: ${assignment.role_name} | ${assignment.location}<br>
-        Date: ${new Date(assignment.start_date).toLocaleDateString()} | ${assignment.shift_start} - ${assignment.shift_end}<br>
-        Status: ${assignment.status}
+        <strong>Role:</strong> ${assignment.role_name} | 📍 ${assignment.location}<br>
+        <strong>Date:</strong> ${new Date(assignment.start_date).toLocaleDateString()} | ⏰ ${assignment.shift_start} - ${assignment.shift_end}<br>
+        <strong>Status:</strong> ${assignment.status || 'assigned'}
       `;
       container.appendChild(div);
     });
   } catch (error) {
-    console.error(error);
+    console.error('Error loading assignments:', error);
+    container.innerHTML = '<p style="color: red;">Error loading assignments. Please try again.</p>';
   }
 }
 
-// CREATE DRIVE
+// CREATE DRIVE TAB
 function addRoleInput() {
   const container = document.getElementById('roles-container');
   const div = document.createElement('div');
   div.className = 'role-input';
-  div.style.marginTop = '10px';
   div.innerHTML = `
     <input type="text" placeholder="Role name" class="role-name">
-    <input type="number" placeholder="# needed" min="1" class="role-count">
+    <input type="number" placeholder="# needed" min="1" value="1" class="role-count">
   `;
   container.appendChild(div);
 }
@@ -379,15 +738,22 @@ async function createDrive(e) {
   e.preventDefault();
   const messageEl = document.getElementById('drive-create-message');
   messageEl.textContent = 'Creating drive...';
+  messageEl.className = 'message-area';
   
   const roles = [];
   document.querySelectorAll('.role-input').forEach(input => {
-    const name = input.querySelector('.role-name').value;
+    const name = input.querySelector('.role-name').value.trim();
     const count = input.querySelector('.role-count').value;
     if (name && count) {
       roles.push({ name, required: parseInt(count) });
     }
   });
+  
+  if (roles.length === 0) {
+    messageEl.textContent = '❌ Please add at least one role';
+    messageEl.className = 'message-area message-error';
+    return;
+  }
   
   try {
     const response = await fetch('/api/volunteer/drive-create', {
@@ -412,23 +778,31 @@ async function createDrive(e) {
       messageEl.textContent = '✅ Drive created successfully!';
       messageEl.className = 'message-area message-success';
       document.getElementById('create-drive-form').reset();
+      // Reset roles container
+      document.getElementById('roles-container').innerHTML = `
+        <div class="role-input">
+          <input type="text" placeholder="Role name (e.g., Registration Desk)" class="role-name">
+          <input type="number" placeholder="# needed" min="1" value="1" class="role-count">
+        </div>
+      `;
       refreshDrives();
     } else {
       messageEl.textContent = `❌ ${result.message}`;
       messageEl.className = 'message-area message-error';
     }
   } catch (error) {
-    console.error(error);
-    messageEl.textContent = '❌ Server error';
+    console.error('Error creating drive:', error);
+    messageEl.textContent = '❌ Server error. Please try again.';
     messageEl.className = 'message-area message-error';
   }
 }
 
-// AWARENESS KIT
+// AWARENESS KIT TAB
 async function generateAwareness(e) {
   e.preventDefault();
   const messageEl = document.getElementById('awareness-message');
   messageEl.textContent = 'Generating material...';
+  messageEl.className = 'message-area';
   
   try {
     const response = await fetch('/api/awareness/generate-material', {
@@ -445,12 +819,12 @@ async function generateAwareness(e) {
     
     if (result.success) {
       generatedMaterial = result.material;
-      messageEl.textContent = '✅ Material generated!';
+      messageEl.textContent = '✅ Material generated successfully!';
       messageEl.className = 'message-area message-success';
       
       const preview = document.getElementById('material-preview');
       preview.style.display = 'flex';
-      preview.innerHTML = `<img src="${result.material.content_url}" alt="Preview" style="max-width: 100%;">`;
+      preview.innerHTML = `<img src="${result.material.content_url}" alt="Preview" style="max-width: 100%; max-height: 100%;">`;
       
       document.getElementById('material-actions').style.display = 'block';
     } else {
@@ -458,8 +832,8 @@ async function generateAwareness(e) {
       messageEl.className = 'message-area message-error';
     }
   } catch (error) {
-    console.error(error);
-    messageEl.textContent = '❌ Server error';
+    console.error('Error generating material:', error);
+    messageEl.textContent = '❌ Server error. Please try again.';
     messageEl.className = 'message-area message-error';
   }
 }
@@ -474,11 +848,15 @@ function downloadMaterial() {
 
 function copyLink() {
   if (!generatedMaterial) return;
-  navigator.clipboard.writeText(generatedMaterial.qr_code_data);
-  alert('✅ Link copied to clipboard!');
+  navigator.clipboard.writeText(generatedMaterial.qr_code_data).then(() => {
+    alert('✅ Link copied to clipboard!');
+  }).catch(err => {
+    console.error('Error copying link:', err);
+    alert('❌ Failed to copy link');
+  });
 }
 </script>
 
-<footer><p>© 2025 LifeLink</p></footer>
+<footer><p>© 2025 LifeLink | Saving Lives Together</p></footer>
 </body>
 </html>

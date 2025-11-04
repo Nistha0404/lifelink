@@ -2,17 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Volunteer & NGO Portal - LifeLink</title>
-    <link rel="stylesheet" href="../style.css">
+     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
         <div class="logo">
-            <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40">
+            <span> <img src=lifeLinklogoD.png > </span>
             <span>LifeLink</span>
         </div>
         <nav>
-            <a href="../index.html">Home</a>
+            <a href="index.html">Home</a>
         </nav>
     </header>
 
@@ -20,7 +21,6 @@
         <section class="main-card">
             <h2>Volunteer & NGO Portal</h2>
             <p>Register or log in to coordinate and save lives.</p>
-            <br>
 
             <div class="form-group">
                 <label for="userType">I am a/an:</label>
@@ -62,27 +62,32 @@
                 </form>
             </div>
             
-            <div id="otpSection" style="display:none; margin-top:20px;">
-                <p>An OTP has been sent to your mobile number.</p>
+            <div id="otpSection" style="display:none;">
+                <div class="info-box">
+                    ✅ An OTP has been sent to your mobile number.
+                </div>
                 <div class="form-group">
                     <label for="otp">Enter OTP</label>
-                    <input type="text" id="otp" placeholder="Enter 6-digit OTP" maxlength="6">
+                    <input type="text" id="otp" placeholder="Enter 6-digit OTP" maxlength="6" required>
                 </div>
                 <button type="button" id="verifyBtn" class="btn-primary">Verify & Login</button>
             </div>
 
-            <p id="message" style="margin-top: 15px; font-weight: bold;"></p>
+            <div id="message"></div>
         </section>
     </main>
 
-    
-
     <script>
-    // --- NO MORE FAKE OTP ---
     let currentUserType = 'volunteer';
 
     const messageEl = document.getElementById('message');
     const otpSection = document.getElementById('otpSection');
+
+    function showMessage(text, type) {
+      messageEl.textContent = text;
+      messageEl.className = type;
+      messageEl.style.display = 'block';
+    }
 
     function toggleRegistrationForm() {
         currentUserType = document.getElementById('userType').value;
@@ -90,13 +95,13 @@
         document.getElementById('ngoFormContainer').style.display = (currentUserType === 'ngo') ? 'block' : 'none';
         
         otpSection.style.display = 'none';
-        messageEl.textContent = '';
+        messageEl.style.display = 'none';
         document.getElementById('getVolunteerOtpBtn').style.display = 'block';
         document.getElementById('getNgoOtpBtn').style.display = 'block';
     }
 
     /**
-     * NEW: Calls the server to get a real OTP
+     * Handle OTP generation
      */
     async function handleGetOtp() {
         let phone;
@@ -111,116 +116,122 @@
         }
 
         if (!/^\d{10}$/.test(phone)) {
-            messageEl.style.color = 'var(--error-color)';
-            messageEl.textContent = "Please enter a valid 10-digit phone number.";
+            showMessage("Please enter a valid 10-digit phone number.", 'error');
             return;
         }
 
         // Disable button and show loading
         btn.disabled = true;
-        btn.textContent = 'Sending...';
-        messageEl.textContent = '';
+        btn.textContent = 'Sending OTP...';
+        messageEl.style.display = 'none';
 
         try {
-            // Call the new server endpoint
             const response = await fetch('/api/volunteer/generate-otp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phoneNumber: phone })
             });
+            
             const result = await response.json();
 
             if (result.success) {
-                // --- HERE IS YOUR ALERT ---
+                // Show OTP in alert for demo purposes
                 alert(`(For Demo) Your OTP is: ${result.otp}`);
                 
-                messageEl.style.color = 'var(--success-color)';
-                messageEl.textContent = 'An OTP has been sent to your mobile.';
+                showMessage('OTP sent successfully!', 'success');
                 otpSection.style.display = 'block';
-                btn.style.display = 'none'; // Hide the 'Get OTP' button
+                btn.style.display = 'none';
             } else {
-                messageEl.style.color = 'var(--error-color)';
-                messageEl.textContent = result.message;
+                showMessage(result.message || 'Failed to send OTP', 'error');
+                btn.disabled = false;
+                btn.textContent = 'Get OTP';
             }
 
         } catch (error) {
             console.error('OTP Error:', error);
-            messageEl.style.color = 'var(--error-color)';
-            messageEl.textContent = 'Could not connect to the server.';
-        } finally {
-            // Re-enable button in case of failure
+            showMessage('Could not connect to the server. Please try again.', 'error');
             btn.disabled = false;
             btn.textContent = 'Get OTP';
         }
     }
 
-    // Attach listeners
+    // Attach OTP button listeners
     document.getElementById('getVolunteerOtpBtn').addEventListener('click', handleGetOtp);
     document.getElementById('getNgoOtpBtn').addEventListener('click', handleGetOtp);
 
     /**
-     * NEW: Calls the server to verify and login
+     * Handle OTP verification and login
      */
     document.getElementById('verifyBtn').addEventListener('click', async () => {
-        const enteredOtp = document.getElementById('otp').value;
+        const enteredOtp = document.getElementById('otp').value.trim();
         const btn = document.getElementById('verifyBtn');
 
-        // 1. Build the full payload
+        if (enteredOtp.length !== 6) {
+             showMessage("Please enter a 6-digit OTP.", 'error');
+             return;
+        }
+
+        // Build payload
         let payload = { 
             type: currentUserType,
             otp: enteredOtp
         };
 
         if (currentUserType === 'volunteer') {
-            payload.fullName = document.getElementById('volunteerName').value.trim();
-            payload.phoneNumber = document.getElementById('volunteerPhone').value.trim();
+            const fullName = document.getElementById('volunteerName').value.trim();
+            const phoneNumber = document.getElementById('volunteerPhone').value.trim();
+            
+            if (!fullName) {
+                showMessage("Please enter your full name.", 'error');
+                return;
+            }
+            
+            payload.fullName = fullName;
+            payload.phoneNumber = phoneNumber;
         } else {
-            payload.ngoName = document.getElementById('ngoName').value.trim();
-            payload.registrationId = document.getElementById('ngoRegId').value.trim();
-            payload.phoneNumber = document.getElementById('ngoPhone').value.trim();
+            const ngoName = document.getElementById('ngoName').value.trim();
+            const registrationId = document.getElementById('ngoRegId').value.trim();
+            const phoneNumber = document.getElementById('ngoPhone').value.trim();
+            
+            if (!ngoName || !registrationId) {
+                showMessage("Please fill in all NGO details.", 'error');
+                return;
+            }
+            
+            payload.ngoName = ngoName;
+            payload.registrationId = registrationId;
+            payload.phoneNumber = phoneNumber;
         }
 
-        // 2. Client-side validation
-        if (payload.otp.length !== 6) {
-             messageEl.style.color = 'var(--error-color)';
-             messageEl.textContent = "Please enter a 6-digit OTP.";
-             return;
-        }
-        // (Add more validation for name, etc. if needed)
-
-        // 3. Send to server
         btn.disabled = true;
         btn.textContent = 'Verifying...';
         
         try {
-            // --- CALLS THE NEW VERIFY ENDPOINT ---
             const response = await fetch('/api/volunteer/verify-login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
+            
             const result = await response.json();
 
             if (result.success) {
-                // Use 'full_name' from server response, which works for both
+                // Store user info
                 sessionStorage.setItem('currentUserName', result.user.full_name);
-                sessionStorage.setItem('currentUserInfo', JSON.stringify(result.user)); // Store full user info
+                sessionStorage.setItem('currentUserInfo', JSON.stringify(result.user));
 
-                messageEl.style.color = 'var(--success-color)';
-                messageEl.textContent = `${result.message} Redirecting...`;
+                showMessage(`${result.message} Redirecting...`, 'success');
                 setTimeout(() => {
                     window.location.href = "volunteer-dashboard.html"; 
                 }, 1500);
             } else {
-                messageEl.style.color = 'var(--error-color)';
-                messageEl.textContent = `Login failed: ${result.message}`;
+                showMessage(`Login failed: ${result.message}`, 'error');
                 btn.disabled = false;
                 btn.textContent = 'Verify & Login';
             }
         } catch (error) {
             console.error('Login error:', error);
-            messageEl.style.color = 'var(--error-color)';
-            messageEl.textContent = 'Could not connect to the server.';
+            showMessage('Could not connect to the server. Please try again.', 'error');
             btn.disabled = false;
             btn.textContent = 'Verify & Login';
         }
@@ -228,7 +239,7 @@
 </script>
 
     <footer>
-        <p>© 2025 LifeLink</p>
+        <p>© 2025 LifeLink | Saving Lives Together</p>
     </footer>
 
 </body>

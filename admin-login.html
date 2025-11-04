@@ -2,22 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Portal - LifeLink</title>
-  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
     <div class="logo">
-      <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40">
+      <span><img src = lifeLinklogoD.png> </span>
       <span>LifeLink</span>
     </div>
     <nav>
-      <a href="../index.html">Home</a>
+      <a href="index.html">Home</a>
     </nav>
   </header>
 
   <main>
-    <section class="main-card" id="auth-section">
+    <section class="main-card">
       <h2>Coordinator / Admin Portal</h2>
       <div class="tabs">
         <button id="login-tab-btn" class="active" onclick="showTab('login')">Login</button>
@@ -28,7 +29,7 @@
         <form id="adminLoginForm">
           <div class="form-group">
             <label for="loginPhone">Phone Number</label>
-            <input type="tel" id="loginPhone" placeholder="Enter your registered phone number" required>
+            <input type="tel" id="loginPhone" placeholder="Enter your registered phone number" maxlength="10" required>
           </div>
           <div class="form-group">
             <label for="password">Password</label>
@@ -42,24 +43,25 @@
         <form id="adminRegisterForm">
           <div class="form-group">
             <label for="registerName">Full Name</label>
-            <input type="text" id="registerName" required>
+            <input type="text" id="registerName" placeholder="Enter your full name" required>
           </div>
           <div class="form-group">
             <label for="registerPincode">Pincode</label>
-            <input type="text" id="registerPincode" maxlength="6" required>
+            <input type="text" id="registerPincode" placeholder="Enter your pincode" maxlength="6" required>
           </div>
           <div class="form-group">
             <label for="registerPhone">Phone Number</label>
-            <input type="tel" id="registerPhone" maxlength="10" required>
+            <input type="tel" id="registerPhone" placeholder="10-digit mobile number" maxlength="10" required>
           </div>
           <div class="form-group">
             <label for="registerPassword">Create Password</label>
-            <input type="password" id="registerPassword" required>
+            <input type="password" id="registerPassword" placeholder="Minimum 6 characters" minlength="6" required>
           </div>
           <button type="submit" class="btn-primary">Register</button>
         </form>
       </div>
-      <p id="message" style="margin-top: 15px; font-weight: bold;"></p>
+      
+      <div id="message"></div>
     </section>
   </main>
   
@@ -73,77 +75,117 @@
       document.getElementById('register-tab').style.display = tabName === 'register' ? 'block' : 'none';
       document.getElementById('login-tab-btn').classList.toggle('active', tabName === 'login');
       document.getElementById('register-tab-btn').classList.toggle('active', tabName === 'register');
-      messageEl.textContent = '';
+      messageEl.style.display = 'none';
+      messageEl.className = '';
     }
 
-    // --- Registration Logic ---
+    function showMessage(text, type) {
+      messageEl.textContent = text;
+      messageEl.className = type;
+      messageEl.style.display = 'block';
+    }
+
+    // Registration Handler
     registerForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const fullName = document.getElementById("registerName").value;
-        const pincode = document.getElementById("registerPincode").value;
-        const phoneNumber = document.getElementById("registerPhone").value;
-        const password = document.getElementById("registerPassword").value;
+      event.preventDefault();
+      
+      const fullName = document.getElementById("registerName").value.trim();
+      const pincode = document.getElementById("registerPincode").value.trim();
+      const phoneNumber = document.getElementById("registerPhone").value.trim();
+      const password = document.getElementById("registerPassword").value;
 
-        try {
-            // --- CHANGED THIS LINE ---
-            const response = await fetch('/api/server/register/admin', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fullName, pincode, phoneNumber, password })
-            });
-            const result = await response.json();
+      // Validation
+      if (!/^\d{10}$/.test(phoneNumber)) {
+        showMessage('Please enter a valid 10-digit phone number', 'error');
+        return;
+      }
 
-            if (result.success) {
-                messageEl.style.color = 'var(--success-color)';
-                messageEl.textContent = `${result.message} You can now log in.`;
-                showTab('login');
-            } else {
-                messageEl.style.color = 'var(--error-color)';
-                messageEl.textContent = `Registration failed: ${result.message}`;
-            }
-        } catch (error) {
-            console.error('Registration error:', error);
-            messageEl.style.color = 'var(--error-color)';
-            messageEl.textContent = 'Could not connect to the server. Please try again.';
+      if (!/^\d{6}$/.test(pincode)) {
+        showMessage('Please enter a valid 6-digit pincode', 'error');
+        return;
+      }
+
+      if (password.length < 6) {
+        showMessage('Password must be at least 6 characters', 'error');
+        return;
+      }
+
+      const submitBtn = registerForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Registering...';
+
+      try {
+        const response = await fetch('/api/server/register/admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fullName, pincode, phoneNumber, password })
+        });
+        
+        const result = await response.json();
+
+        if (result.success) {
+          showMessage(`${result.message} You can now log in.`, 'success');
+          setTimeout(() => showTab('login'), 2000);
+          registerForm.reset();
+        } else {
+          showMessage(`Registration failed: ${result.message}`, 'error');
         }
+      } catch (error) {
+        console.error('Registration error:', error);
+        showMessage('Could not connect to the server. Please try again.', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Register';
+      }
     });
 
-    // --- Login Logic ---
+    // Login Handler
     loginForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const phoneNumber = document.getElementById("loginPhone").value;
-        const password = document.getElementById("password").value;
+      event.preventDefault();
+      
+      const phoneNumber = document.getElementById("loginPhone").value.trim();
+      const password = document.getElementById("password").value;
 
-        try {
-            // --- CHANGED THIS LINE ---
-            const response = await fetch('/api/server/login/admin', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phoneNumber, password })
-            });
-            const result = await response.json();
+      // Validation
+      if (!/^\d{10}$/.test(phoneNumber)) {
+        showMessage('Please enter a valid 10-digit phone number', 'error');
+        return;
+      }
 
-            if (result.success) {
-                sessionStorage.setItem('currentAdminName', result.user.fullName);
-                messageEl.style.color = 'var(--success-color)';
-                messageEl.textContent = 'Login successful! Redirecting...';
-                setTimeout(() => {
-                    window.location.href = "admin-dashboard.html";
-                }, 1500);
-            } else {
-                messageEl.style.color = 'var(--error-color)';
-                messageEl.textContent = `Login failed: ${result.message}`;
-            }
-        } catch (error) {
-            console.error('Login error:', error);
-            messageEl.style.color = 'var(--error-color)';
-            messageEl.textContent = 'Could not connect to the server. Please try again.';
+      const submitBtn = loginForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Logging in...';
+
+      try {
+        const response = await fetch('/api/server/login/admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber, password })
+        });
+        
+        const result = await response.json();
+
+        if (result.success) {
+          sessionStorage.setItem('currentAdminName', result.user.fullName);
+          showMessage('Login successful! Redirecting...', 'success');
+          setTimeout(() => {
+            window.location.href = "admin-dashboard.html";
+          }, 1500);
+        } else {
+          showMessage(`Login failed: ${result.message}`, 'error');
         }
+      } catch (error) {
+        console.error('Login error:', error);
+        showMessage('Could not connect to the server. Please try again.', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Login';
+      }
     });
   </script>
+  
   <footer>
-        <p>© 2025 LifeLink</p>
-    </footer>
-
+    <p>© 2025 LifeLink | Saving Lives Together</p>
+  </footer>
 </body>
 </html>
