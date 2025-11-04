@@ -697,6 +697,54 @@ app.get('/api/volunteer/my-assignments/:volunteerId', async (req, res) => {
   }
 });
 
+
+// MISSING ENDPOINT 1
+app.get('/api/volunteer/drives-available', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        d.drive_id, 
+        d.drive_name, 
+        d.location, 
+        d.start_date, 
+        d.end_date,
+        d.start_time, 
+        d.end_time, 
+        d.target_donors, 
+        d.registered_donors,
+        d.status,
+        u.full_name as organizer_name 
+      FROM donation_drives d 
+      LEFT JOIN users u ON d.organizer_id = u.user_id 
+      WHERE d.start_date >= CURRENT_DATE 
+      ORDER BY d.start_date ASC
+    `);
+    res.json({ success: true, drives: rows });
+  } catch (e) {
+    console.error('Error:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// MISSING ENDPOINT 2
+app.get('/api/volunteer/drive-roles/:driveId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT 
+        role_id, 
+        role_name, 
+        required_volunteers, 
+        assigned_volunteers 
+      FROM volunteer_roles 
+      WHERE drive_id = $1
+    `, [req.params.driveId]);
+    res.json({ success: true, roles: rows });
+  } catch (e) {
+    console.error('Error:', e);
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // AWARENESS KIT
 app.post('/api/awareness/generate-material', async (req, res) => {
   const { createdBy, materialType, title } = req.body;
