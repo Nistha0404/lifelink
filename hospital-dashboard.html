@@ -1,542 +1,797 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Hospital Console - LifeLink Enhanced</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <style>
-    .tabs { display: flex; border-bottom: 2px solid #2a5c60; margin-bottom: 20px; }
-    .tab-btn { flex: 1; padding: 12px; border: none; background: #f0f0f0; cursor: pointer; font-weight: 600; }
-    .tab-btn.active { background: #2a5c60; color: white; }
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
-    .component-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0; }
-    .component-card { padding: 15px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; text-align: center; transition: all 0.3s; }
-    .component-card:hover, .component-card.selected { border-color: #2a5c60; background: #e8f5e9; }
-    .stock-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
-    .confidence-badge { padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 600; }
-    .confidence-high { background: #4caf50; color: white; }
-    .confidence-medium { background: #ff9800; color: white; }
-    .confidence-low { background: #f44336; color: white; }
-    .scanner-input { width: 100%; padding: 15px; font-size: 1.5rem; text-align: center; letter-spacing: 5px; border: 3px solid #2a5c60; border-radius: 8px; }
-    .scan-result { margin-top: 20px; padding: 15px; border-radius: 8px; }
-    .scan-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .scan-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    .playbook-item { padding: 15px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; background: white; }
-    .playbook-item h4 { margin: 0 0 10px 0; color: #2a5c60; }
-    .appointment-item { padding: 12px; border-left: 4px solid #2a5c60; background: #f9f9f9; margin-bottom: 10px; border-radius: 4px; }
-    .flash-animation { animation: flash 0.5s ease-in-out 3; }
-    @keyframes flash { 0%, 100% { background: #f9f9f9; } 50% { background: #ffe58f; } }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hospital Console - LifeLink</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css">
+    
+    <style>
+        /* Dashboard-specific styles using design system variables */
+        
+        /* Tab Navigation */
+        .dashboard-tabs {
+            display: flex;
+            gap: var(--space-2);
+            background: var(--neutral-100);
+            padding: var(--space-1);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-8);
+            overflow-x: auto; /* For mobile */
+        }
+        
+        .dashboard-tab {
+            flex: 1;
+            min-width: 100px; /* For mobile */
+            padding: var(--space-3) var(--space-4);
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            color: var(--neutral-600);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            white-space: nowrap;
+        }
+        
+        .dashboard-tab.active {
+            background: white;
+            color: var(--primary-600);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .tab-content .card { margin-bottom: var(--space-6); }
+
+        /* Welcome Header */
+        .dashboard-header {
+            margin-bottom: var(--space-8);
+        }
+
+        /* Component Selection Grid (Create SOS) */
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: var(--space-4);
+            margin-bottom: var(--space-6);
+        }
+        .component-card {
+            padding: var(--space-4);
+            text-align: center;
+            cursor: pointer;
+            border: 2px solid var(--neutral-200);
+        }
+        .component-card:hover {
+            border-color: var(--primary-400);
+            background: var(--primary-50);
+        }
+        .component-card.selected {
+            border-color: var(--primary-600);
+            background: var(--primary-100);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+        .component-card .emoji {
+            font-size: var(--text-3xl);
+            line-height: 1;
+        }
+
+        /* Stock & Appointment Item Lists */
+        .data-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: var(--space-4);
+            border-bottom: 1px solid var(--neutral-200);
+        }
+        .data-list-item:last-child { border-bottom: none; }
+
+        /* Confidence/Status Badges */
+        .badge {
+            display: inline-block;
+            padding: var(--space-1) var(--space-3);
+            font-size: var(--text-xs);
+            font-weight: var(--font-semibold);
+            border-radius: var(--radius-full);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge-high { background: var(--success-light); color: var(--success); }
+        .badge-medium { background: var(--warning-light); color: var(--warning); }
+        .badge-low { background: var(--error-light); color: var(--error); }
+        .badge-info { background: var(--info-light); color: var(--info); }
+
+        /* Scanner */
+        .scanner-input {
+            font-size: var(--text-2xl);
+            text-align: center;
+            letter-spacing: 3px;
+            padding: var(--space-4);
+        }
+        
+        /* Scan Result Messages */
+        .scan-result {
+            margin-top: var(--space-4);
+            padding: var(--space-4);
+            border-radius: var(--radius-lg);
+            border: 1px solid transparent;
+        }
+        .scan-success {
+            background: var(--success-light);
+            color: var(--success);
+            border-color: var(--success);
+        }
+        .scan-error {
+            background: var(--error-light);
+            color: var(--error);
+            border-color: var(--error);
+        }
+
+        /* Message Area */
+        .message-area {
+            margin-top: var(--space-4);
+            padding: var(--space-4);
+            border-radius: var(--radius-lg);
+            display: none;
+        }
+        .message-area.message-success {
+            display: block;
+            background: var(--success-light);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+        .message-area.message-error {
+            display: block;
+            background: var(--error-light);
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+    </style>
 </head>
 <body>
-<header>
-  <div class="logo"><img src="lifeLinklogoD.png" alt="LifeLink Logo"><span>LifeLink</span></div>
-  <nav><a href="#" id="logoutBtn">Logout</a></nav>
+
+<header id="main-header">
+    <div class="header-container">
+        <a href="index.html" class="logo">
+            <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+            <span>LifeLink</span>
+        </a>
+        <nav id="main-nav">
+             <button id="logoutBtn" class="btn btn-outline btn-sm">Logout</button>
+        </nav>
+        <button class="mobile-menu-toggle" aria-label="Toggle menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+    </div>
 </header>
 
 <main>
-  <section class="dashboard-container">
-    <div class="dashboard-header">
-      <h2 id="welcome-message">Hospital Console</h2>
-    </div>
+    <section class="section" style="background: white;">
+        <div class="section-container">
+            <div class="dashboard-header">
+                <h2 id="welcome-message" style="margin: 0;">Hospital Console</h2>
+            </div>
 
-    <!-- TABS -->
-    <div class="tabs">
-      <button class="tab-btn active" onclick="showTab('sos')">SOS Alerts</button>
-      <button class="tab-btn" onclick="showTab('create-sos')">Create SOS</button>
-      <button class="tab-btn" onclick="showTab('stock')">Stock Management</button>
-      <button class="tab-btn" onclick="showTab('scanner')">Check-In Scanner</button>
-      <button class="tab-btn" onclick="showTab('appointments')">Appointments</button>
-      <button class="tab-btn" onclick="showTab('playbooks')">Playbooks</button>
-      <button class="tab-btn" onclick="showTab('reports')">Reports</button>
-    </div>
+            <div class="dashboard-tabs">
+                <button class="dashboard-tab active" onclick="showTab('sos', event)">SOS Monitor</button>
+                <button class="dashboard-tab" onclick="showTab('create-sos', event)">Create SOS</button>
+                <button class="dashboard-tab" onclick="showTab('stock', event)">Stock</button>
+                <button class="dashboard-tab" onclick="showTab('scanner', event)">Scanner</button>
+                <button class="dashboard-tab" onclick="showTab('appointments', event)">Appointments</button>
+                <button class="dashboard-tab" onclick="showTab('playbooks', event)">Playbooks</button>
+                <button class="dashboard-tab" onclick="showTab('reports', event)">Reports</button>
+            </div>
 
-    <!-- TAB 1: SOS MONITOR -->
-    <div id="tab-sos" class="tab-content active">
-      <h3>Live SOS Monitor</h3>
-      <div id="live-sos-list"></div>
-    </div>
+            <div id="tab-sos" class="tab-content active">
+                <div class="card">
+                    <h3 class="card-title">Live SOS Monitor</h3>
+                    <div class="card-body" id="live-sos-list" style="padding: 0;">
+                        <p style="padding: var(--space-4); text-align: center;">Loading alerts...</p>
+                    </div>
+                </div>
+            </div>
 
-    <!-- TAB 2: CREATE COMPONENT-SPECIFIC SOS -->
-    <div id="tab-create-sos" class="tab-content">
-      <h3>Create Hospital SOS</h3>
-      <form id="component-sos-form">
-        <h4>Select Component</h4>
-        <div class="component-grid">
-          <div class="component-card" data-component="Whole Blood">
-            <div style="font-size: 2rem;">🩸</div>
-            <div>Whole Blood</div>
-          </div>
-          <div class="component-card" data-component="RBC">
-            <div style="font-size: 2rem;">🔴</div>
-            <div>RBC</div>
-          </div>
-          <div class="component-card" data-component="Plasma">
-            <div style="font-size: 2rem;">💛</div>
-            <div>Plasma</div>
-          </div>
-          <div class="component-card" data-component="Platelets">
-            <div style="font-size: 2rem;">🧬</div>
-            <div>Platelets</div>
-          </div>
-        </div>
-        <input type="hidden" id="selected-component" required>
-        
-        <div class="form-group">
-          <label>Blood Type (Optional)</label>
-          <select id="sos-blood-type">
-            <option value="">Any</option>
-            <option value="A+">A+</option>
-            <option value="A-">A-</option>
-            <option value="B+">B+</option>
-            <option value="B-">B-</option>
-            <option value="O+">O+</option>
-            <option value="O-">O-</option>
-            <option value="AB+">AB+</option>
-            <option value="AB-">AB-</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Units Needed</label>
-          <input type="number" id="sos-units" value="1" min="1" required>
-        </div>
-        <div class="form-group">
-          <label>Urgency</label>
-          <select id="sos-urgency" required>
-            <option value="Critical">Critical (Immediate)</option>
-            <option value="Urgent">Urgent (Within Hours)</option>
-            <option value="Routine">Routine (Within 24h)</option>
-          </select>
-        </div>
-        <button type="submit" class="btn-danger" style="width: 100%;">Broadcast SOS</button>
-      </form>
-      <p id="sos-create-message" class="message-area"></p>
-    </div>
+            <div id="tab-create-sos" class="tab-content">
+                <div class="card">
+                    <h3 class="card-title">Create Hospital SOS</h3>
+                    <div class="card-body">
+                        <form id="component-sos-form">
+                            <label class="form-label">Select Component <span class="required">*</span></label>
+                            <div class="component-grid">
+                                <div class="card component-card" data-component="Whole Blood">
+                                    <div class="emoji">🩸</div>
+                                    <div>Whole Blood</div>
+                                </div>
+                                <div class="card component-card" data-component="RBC">
+                                    <div class="emoji">🔴</div>
+                                    <div>RBC</div>
+                                </div>
+                                <div class="card component-card" data-component="Plasma">
+                                    <div class="emoji">💛</div>
+                                    <div>Plasma</div>
+                                </div>
+                                <div class="card component-card" data-component="Platelets">
+                                    <div class="emoji">🧬</div>
+                                    <div>Platelets</div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="selected-component" required>
+                            
+                            <div class="grid grid-cols-3">
+                                <div class="form-group">
+                                    <label class="form-label" for="sos-blood-type">Blood Type</label>
+                                    <select id="sos-blood-type" class="form-select">
+                                        <option value="">Any</option>
+                                        <option value="A+">A+</option><option value="A-">A-</option>
+                                        <option value="B+">B+</option><option value="B-">B-</option>
+                                        <option value="O+">O+</option><option value="O-">O-</option>
+                                        <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="sos-units">Units Needed</label>
+                                    <input type="number" id="sos-units" class="form-input" value="1" min="1" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="sos-urgency">Urgency</label>
+                                    <select id="sos-urgency" class="form-select" required>
+                                        <option value="Critical">Critical (Immediate)</option>
+                                        <option value="Urgent">Urgent (Within Hours)</option>
+                                        <option value="Routine">Routine (Within 24h)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-danger" style="width: 100%;">Broadcast SOS</button>
+                        </form>
+                        <div id="sos-create-message" class="message-area"></div>
+                    </div>
+                </div>
+            </div>
 
-    <!-- TAB 3: STOCK MANAGEMENT -->
-    <div id="tab-stock" class="tab-content">
-      <h3>Blood Stock Management</h3>
-      <form id="stock-update-form">
-        <div class="form-group">
-          <label>Blood Type</label>
-          <select id="stock-blood-type" required>
-            <option value="A+">A+</option>
-            <option value="A-">A-</option>
-            <option value="B+">B+</option>
-            <option value="B-">B-</option>
-            <option value="O+">O+</option>
-            <option value="O-">O-</option>
-            <option value="AB+">AB+</option>
-            <option value="AB-">AB-</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Component</label>
-          <select id="stock-component" required>
-            <option value="Whole Blood">Whole Blood</option>
-            <option value="RBC">RBC</option>
-            <option value="Plasma">Plasma</option>
-            <option value="Platelets">Platelets</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Change (+/-)</label>
-          <input type="number" id="stock-change" placeholder="e.g., +5 or -2" required>
-        </div>
-        <div class="form-group">
-          <label>Confidence Level</label>
-          <select id="stock-confidence">
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Notes</label>
-          <input type="text" id="stock-notes" placeholder="Optional">
-        </div>
-        <button type="submit" class="btn-primary" style="width: 100%;">Update Stock</button>
-      </form>
-      <p id="stock-message" class="message-area"></p>
-      
-      <h4 style="margin-top: 30px;">Recent Stock Changes</h4>
-      <div id="stock-log-list"></div>
-    </div>
+            <div id="tab-stock" class="tab-content">
+                <div class="grid grid-cols-2">
+                    <div class="card">
+                        <h3 class="card-title">Update Stock</h3>
+                        <div class="card-body">
+                            <form id="stock-update-form">
+                                <div class="form-group">
+                                    <label class="form-label" for="stock-blood-type">Blood Type</label>
+                                    <select id="stock-blood-type" class="form-select" required>
+                                        <option value="A+">A+</option><option value="A-">A-</option>
+                                        <option value="B+">B+</option><option value="B-">B-</option>
+                                        <option value="O+">O+</option><option value="O-">O-</option>
+                                        <option value="AB+">AB+</option><option value="AB-">AB-</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="stock-component">Component</label>
+                                    <select id="stock-component" class="form-select" required>
+                                        <option value="Whole Blood">Whole Blood</option>
+                                        <option value="RBC">RBC</option>
+                                        <option value="Plasma">Plasma</option>
+                                        <option value="Platelets">Platelets</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="stock-change">Change (+/-)</label>
+                                    <input type="number" id="stock-change" class="form-input" placeholder="e.g., +5 or -2" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="stock-confidence">Confidence Level</label>
+                                    <select id="stock-confidence" class="form-select">
+                                        <option value="high">High</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="low">Low</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="stock-notes">Notes</label>
+                                    <input type="text" id="stock-notes" class="form-input" placeholder="Optional (e.g., 'From Donor D123')">
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="width: 100%;">Update Stock</button>
+                            </form>
+                            <div id="stock-message" class="message-area"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3 class="card-title">Recent Stock Changes</h3>
+                        <div class="card-body" id="stock-log-list" style="padding: 0;">
+                            </div>
+                    </div>
+                </div>
+            </div>
 
-    <!-- TAB 4: CHECK-IN SCANNER -->
-    <div id="tab-scanner" class="tab-content">
-      <h3>Donor Check-In Scanner</h3>
-      <p>Enter the donor's QR token or 4-digit code:</p>
-      <input type="text" id="scanner-input" class="scanner-input" placeholder="Scan or type token" maxlength="12" autofocus>
-      <button onclick="scanToken()" class="btn-primary" style="width: 100%; margin-top: 15px;">Verify Token</button>
-      <div id="scan-result"></div>
-    </div>
+            <div id="tab-scanner" class="tab-content">
+                <div class="card" style="max-width: 600px; margin: 0 auto;">
+                    <h3 class="card-title" style="text-align: center;">Donor Check-In Scanner</h3>
+                    <div class="card-body">
+                        <p style="text-align: center; color: var(--neutral-600);">Enter the donor's QR token:</p>
+                        <input type="text" id="scanner-input" class="form-input scanner-input" placeholder="Scan or type token" autofocus>
+                        <button onclick="scanToken()" class="btn btn-primary" style="width: 100%; margin-top: var(--space-4);">Verify Token</button>
+                        <div id="scan-result" class="scan-result" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
 
-    <!-- TAB 5: DONOR APPOINTMENTS -->
-    <div id="tab-appointments" class="tab-content">
-      <h3>Upcoming Donor Appointments</h3>
-      <button onclick="refreshAppointments()" class="btn-secondary">🔄 Refresh</button>
-      <div id="appointments-list"></div>
-    </div>
+            <div id="tab-appointments" class="tab-content">
+                <div class="card">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 class="card-title" style="margin: 0;">Upcoming Donor Appointments</h3>
+                        <button onclick="refreshAppointments()" class="btn btn-outline btn-sm">🔄 Refresh</button>
+                    </div>
+                    <div class="card-body" id="appointments-list" style="padding: 0;">
+                        </div>
+                </div>
+            </div>
 
-    <!-- TAB 6: PLAYBOOKS -->
-    <div id="tab-playbooks" class="tab-content">
-      <h3>Hospital Playbooks & Policies</h3>
-      <button onclick="showPlaybookForm()" class="btn-primary">+ New Playbook</button>
-      
-      <div id="playbook-form" style="display: none; margin: 20px 0; padding: 20px; background: #f9f9f9; border-radius: 8px;">
-        <h4>Create New Playbook</h4>
-        <input type="text" id="playbook-title" placeholder="Title" style="width: 100%; margin-bottom: 10px; padding: 10px;">
-        <select id="playbook-category" style="width: 100%; margin-bottom: 10px; padding: 10px;">
-          <option value="Rare Blood">Rare Blood Groups</option>
-          <option value="Apheresis">Apheresis Procedures</option>
-          <option value="Escalation">Escalation Protocols</option>
-          <option value="General">General Policy</option>
-        </select>
-        <textarea id="playbook-content" placeholder="Content (supports markdown)" style="width: 100%; height: 150px; margin-bottom: 10px; padding: 10px;"></textarea>
-        <button onclick="savePlaybook()" class="btn-primary">Save Playbook</button>
-        <button onclick="hidePlaybookForm()" class="btn-secondary">Cancel</button>
-      </div>
-      
-      <div id="playbooks-list"></div>
-    </div>
+            <div id="tab-playbooks" class="tab-content">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
+                    <h3 style="margin: 0;">Hospital Playbooks & Policies</h3>
+                    <button onclick="showPlaybookForm()" class="btn btn-primary">+ New Playbook</button>
+                </div>
+                
+                <div id="playbook-form" class="card" style="display: none;">
+                    <h4 class="card-title">Create New Playbook</h4>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label" for="playbook-title">Title</label>
+                            <input type="text" id="playbook-title" class="form-input" placeholder="Title">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="playbook-category">Category</label>
+                            <select id="playbook-category" class="form-select">
+                                <option value="Rare Blood">Rare Blood Groups</option>
+                                <option value="Apheresis">Apheresis Procedures</option>
+                                <option value="Escalation">Escalation Protocols</option>
+                                <option value="General">General Policy</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="playbook-content">Content</label>
+                            <textarea id="playbook-content" class="form-textarea" placeholder="Content (supports markdown)" rows="5"></textarea>
+                        </div>
+                        <div style="display: flex; gap: var(--space-4);">
+                            <button onclick="savePlaybook()" class="btn btn-primary">Save Playbook</button>
+                            <button type="button" onclick="hidePlaybookForm()" class="btn btn-outline">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="playbooks-list" class="grid grid-cols-3">
+                    </div>
+            </div>
 
-    <!-- TAB 7: REPORTS -->
-    <div id="tab-reports" class="tab-content">
-      <h3>Audit & Reports</h3>
-      <div id="reports-container"></div>
-    </div>
-  </section>
+            <div id="tab-reports" class="tab-content">
+                <div class="card">
+                    <h3 class="card-title">Audit & Reports</h3>
+                    <div class="card-body" id="reports-container" class="grid grid-cols-3">
+                        </div>
+                </div>
+            </div>
+        </div>
+    </section>
 </main>
+
+<footer>
+    <div class="footer-container">
+        <div class="footer-bottom">
+            <p>© 2025 LifeLink. All rights reserved. Saving lives through technology.</p>
+        </div>
+    </div>
+</footer>
 
 <script>
 let hospital = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  hospital = JSON.parse(sessionStorage.getItem('currentHospital'));
-  if (!hospital) {
-    window.location.href = 'hospital-login.html';
-    return;
-  }
-  document.getElementById('welcome-message').textContent = `${hospital.hospital_name} Console`;
-  
-  // Component selection
-  document.querySelectorAll('.component-card').forEach(card => {
-    card.addEventListener('click', () => {
-      document.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
-      card.classList.add('selected');
-      document.getElementById('selected-component').value = card.dataset.component;
+    // --- Auth Check ---
+    try {
+        hospital = JSON.parse(sessionStorage.getItem('currentHospital'));
+    } catch (e) {
+        hospital = null;
+    }
+    
+    if (!hospital || !hospital.hospital_id) {
+        console.error('No hospital info found in session storage. Redirecting.');
+        window.location.href = 'hospital-login.html';
+        return;
+    }
+    document.getElementById('welcome-message').textContent = `${hospital.hospital_name} Console`;
+    
+    // --- Component Selection ---
+    document.querySelectorAll('.component-card').forEach(card => {
+        card.addEventListener('click', () => {
+            document.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            document.getElementById('selected-component').value = card.dataset.component;
+        });
     });
-  });
-  
-  // Forms
-  document.getElementById('component-sos-form').addEventListener('submit', createComponentSOS);
-  document.getElementById('stock-update-form').addEventListener('submit', updateStock);
-  
-  // Initialize
-  fetchSOSAlerts();
-  loadStockLog();
-  refreshAppointments();
-  loadPlaybooks();
-  loadReports();
-  
-  // Auto-refresh
-  setInterval(fetchSOSAlerts, 10000);
-  setInterval(refreshAppointments, 30000);
-  
-  document.getElementById('logoutBtn').addEventListener('click', () => {
-    sessionStorage.clear();
-    window.location.href = 'hospital-login.html';
-  });
+    
+    // --- Form Listeners ---
+    document.getElementById('component-sos-form').addEventListener('submit', createComponentSOS);
+    document.getElementById('stock-update-form').addEventListener('submit', updateStock);
+    
+    // --- Initial Data Load ---
+    fetchSOSAlerts();
+    loadStockLog();
+    refreshAppointments();
+    loadPlaybooks();
+    loadReports();
+    
+    // --- Auto-refresh Intervals ---
+    setInterval(fetchSOSAlerts, 10000); // Check for new SOS
+    setInterval(refreshAppointments, 30000); // Check for new appointments
+    
+    // --- Logout ---
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        sessionStorage.clear();
+        window.location.href = 'hospital-login.html';
+    });
+    
+    // --- Mobile Menu ---
+    const menuToggle = document.querySelector('.mobile-menu-toggle');
+    const nav = document.getElementById('main-nav');
+    if (menuToggle) {
+        menuToggle.addEventListener('click', () => {
+            nav.classList.toggle('open');
+            menuToggle.classList.toggle('active');
+        });
+    }
 });
 
-function showTab(tabName) {
-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById(`tab-${tabName}`).classList.add('active');
-}
-
-// CREATE COMPONENT SOS
-async function createComponentSOS(e) {
-  e.preventDefault();
-  const component = document.getElementById('selected-component').value;
-  if (!component) {
-    alert('Please select a component');
-    return;
-  }
-  
-  const messageEl = document.getElementById('sos-create-message');
-  messageEl.textContent = 'Creating SOS...';
-  messageEl.className = 'message-area';
-  
-  try {
-    const response = await fetch('/api/hospital/sos-component', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        hospitalId: hospital.hospital_id,
-        component,
-        bloodType: document.getElementById('sos-blood-type').value,
-        units: document.getElementById('sos-units').value,
-        urgency: document.getElementById('sos-urgency').value,
-        latitude: hospital.latitude,
-        longitude: hospital.longitude,
-        pincode: hospital.pincode
-      })
-    });
-    const result = await response.json();
-    if (result.success) {
-      messageEl.textContent = `✅ ${result.message}`;
-      messageEl.className = 'message-area message-success';
-      document.getElementById('component-sos-form').reset();
-      document.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
+function showTab(tabName, event) {
+    document.querySelectorAll('.dashboard-tab').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    if (event) {
+        event.target.classList.add('active');
     } else {
-      messageEl.textContent = `❌ ${result.message}`;
-      messageEl.className = 'message-area message-error';
+        document.querySelector(`.dashboard-tab[onclick*="'${tabName}'"]`).classList.add('active');
     }
-  } catch (error) {
-    console.error(error);
-    messageEl.textContent = '❌ Server error';
-    messageEl.className = 'message-area message-error';
-  }
-}
-
-// UPDATE STOCK
-async function updateStock(e) {
-  e.preventDefault();
-  const messageEl = document.getElementById('stock-message');
-  messageEl.textContent = 'Updating stock...';
-  
-  try {
-    const response = await fetch('/api/hospital/stock-update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        hospitalId: hospital.hospital_id,
-        bloodType: document.getElementById('stock-blood-type').value,
-        component: document.getElementById('stock-component').value,
-        unitsChange: parseInt(document.getElementById('stock-change').value),
-        confidence: document.getElementById('stock-confidence').value,
-        notes: document.getElementById('stock-notes').value
-      })
-    });
-    const result = await response.json();
-    if (result.success) {
-      messageEl.textContent = `✅ Stock updated! New total: ${result.newTotal} units`;
-      messageEl.className = 'message-area message-success';
-      document.getElementById('stock-update-form').reset();
-      loadStockLog();
-    } else {
-      messageEl.textContent = `❌ ${result.message}`;
-      messageEl.className = 'message-area message-error';
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+    
+    // Autofocus scanner input when tab is shown
+    if (tabName === 'scanner') {
+        setTimeout(() => document.getElementById('scanner-input').focus(), 0);
     }
-  } catch (error) {
-    console.error(error);
-    messageEl.textContent = '❌ Server error';
-    messageEl.className = 'message-area message-error';
-  }
 }
 
-async function loadStockLog() {
-  // Implementation for stock log display
-}
-
-// CHECK-IN SCANNER
-async function scanToken() {
-  const token = document.getElementById('scanner-input').value.trim();
-  const resultDiv = document.getElementById('scan-result');
-  
-  if (!token) {
-    resultDiv.innerHTML = '<div class="scan-error">Please enter a token</div>';
-    return;
-  }
-  
-  try {
-    const response = await fetch('/api/hospital/scan-checkin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ qrToken: token, hospitalId: hospital.hospital_id })
-    });
-    const result = await response.json();
-    
-    if (result.success) {
-      resultDiv.innerHTML = `
-        <div class="scan-success">
-          <h4>✅ Check-In Successful!</h4>
-          <p><strong>Donor:</strong> ${result.checkin.donor_id}</p>
-          <p><strong>Status:</strong> ${result.checkin.status}</p>
-          <p>${result.message}</p>
-        </div>
-      `;
-      document.getElementById('scanner-input').value = '';
-      refreshAppointments();
-    } else {
-      resultDiv.innerHTML = `<div class="scan-error">❌ ${result.message}</div>`;
-    }
-  } catch (error) {
-    console.error(error);
-    resultDiv.innerHTML = '<div class="scan-error">❌ Server error</div>';
-  }
-}
-
-// APPOINTMENTS
-async function refreshAppointments() {
-  try {
-    const response = await fetch(`/api/hospital/appointments/${hospital.hospital_id}`);
-    const data = await response.json();
-    const list = document.getElementById('appointments-list');
-    
-    if (!data.success || !data.appointments.length) {
-      list.innerHTML = '<p>No upcoming appointments</p>';
-      return;
-    }
-    
-    list.innerHTML = '';
-    data.appointments.forEach(apt => {
-      const div = document.createElement('div');
-      div.className = 'appointment-item';
-      div.innerHTML = `
-        <strong>${apt.full_name}</strong> | ${apt.blood_type} | ${apt.phone_number}<br>
-        Status: ${apt.status} | QR: ${apt.qr_token || 'N/A'}
-      `;
-      list.appendChild(div);
-    });
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-// PLAYBOOKS
-function showPlaybookForm() {
-  document.getElementById('playbook-form').style.display = 'block';
-}
-
-function hidePlaybookForm() {
-  document.getElementById('playbook-form').style.display = 'none';
-}
-
-async function savePlaybook() {
-  const title = document.getElementById('playbook-title').value;
-  const category = document.getElementById('playbook-category').value;
-  const content = document.getElementById('playbook-content').value;
-  
-  if (!title || !content) {
-    alert('Title and content required');
-    return;
-  }
-  
-  try {
-    const response = await fetch('/api/hospital/playbooks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hospitalId: hospital.hospital_id, title, content, category, priority: 1 })
-    });
-    const result = await response.json();
-    if (result.success) {
-      alert('Playbook saved!');
-      hidePlaybookForm();
-      loadPlaybooks();
-    }
-  } catch (error) {
-    console.error(error);
-    alert('Failed to save playbook');
-  }
-}
-
-async function loadPlaybooks() {
-  try {
-    const response = await fetch(`/api/hospital/playbooks/${hospital.hospital_id}`);
-    const playbooks = await response.json();
-    const list = document.getElementById('playbooks-list');
-    
-    if (!playbooks.length) {
-      list.innerHTML = '<p>No playbooks yet</p>';
-      return;
-    }
-    
-    list.innerHTML = '';
-    playbooks.forEach(pb => {
-      const div = document.createElement('div');
-      div.className = 'playbook-item';
-      div.innerHTML = `
-        <h4>${pb.title}</h4>
-        <span class="confidence-badge confidence-${pb.category}">${pb.category}</span>
-        <p>${pb.content.substring(0, 200)}...</p>
-      `;
-      list.appendChild(div);
-    });
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-// REPORTS
-async function loadReports() {
-  try {
-    const response = await fetch(`/api/hospital/reports/${hospital.hospital_id}`);
-    const data = await response.json();
-    const container = document.getElementById('reports-container');
-    
-    container.innerHTML = `
-      <div class="dashboard-card">
-        <h4>Request Summary</h4>
-        ${data.summary.map(s => `<p>${s.status}: ${s.count}</p>`).join('')}
-      </div>
-      <div class="dashboard-card">
-        <h4>Average Response Time</h4>
-        <p>${(data.avgResponseTime || 0).toFixed(1)} seconds</p>
-      </div>
-    `;
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-// SOS ALERTS (EXISTING LOGIC)
+// ============================================================================
+// TAB 1: SOS MONITOR
+// ============================================================================
 async function fetchSOSAlerts() {
-  try {
-    const response = await fetch(`/api/server/sos-alerts/${hospital.hospital_id}`);
-    const alerts = await response.json();
+    // MOCK: In a real app: await fetch(`/api/server/sos-alerts/${hospital.hospital_id}`);
+    const alerts = [
+        { requestId: 'P123', bloodType: 'A+', patientName: 'P. Gupta', distance: 2.1, status: 'Pending' },
+        { requestId: 'P124', bloodType: 'O-', patientName: 'R. Singh', distance: 5.5, status: 'Pending' }
+    ];
     const container = document.getElementById('live-sos-list');
     
     if (!alerts || alerts.length === 0) {
-      container.innerHTML = '<p style="text-align:center; padding:20px;">No active SOS requests</p>';
-      return;
+        container.innerHTML = '<p style="padding: var(--space-4); text-align: center; color: var(--neutral-500);">No active SOS requests for nearby patients.</p>';
+        return;
     }
     
     container.innerHTML = '';
     alerts.forEach(alert => {
-      const div = document.createElement('div');
-      div.className = 'sos-item';
-      div.innerHTML = `
-        <strong>${alert.bloodType}</strong> needed | Patient: ${alert.patientName} | ${alert.distance.toFixed(1)} km away<br>
-        <button onclick="respondToSOS(${alert.requestId}, 'accept')" class="btn-primary">Accept</button>
-        <button onclick="respondToSOS(${alert.requestId}, 'reject')" class="btn-danger">Reject</button>
-      `;
-      container.appendChild(div);
+        const div = document.createElement('div');
+        div.className = 'data-list-item';
+        div.innerHTML = `
+            <div>
+                <strong>${alert.bloodType}</strong> needed for <strong>${alert.patientName}</strong><br>
+                <small>${alert.distance.toFixed(1)} km away | Status: ${alert.status}</small>
+            </div>
+            <div style="display: flex; gap: var(--space-2);">
+                <button onclick="respondToSOS(${alert.requestId}, 'accept')" class="btn btn-primary btn-sm">Accept</button>
+                <button onclick="respondToSOS(${alert.requestId}, 'reject')" class="btn btn-danger btn-sm">Reject</button>
+            </div>
+        `;
+        container.appendChild(div);
     });
-  } catch (error) {
-    console.error(error);
-  }
 }
 
 async function respondToSOS(requestId, response) {
-  try {
-    await fetch('/api/server/hospital-response', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestId, hospitalId: hospital.hospital_id, response })
-    });
+    // MOCK: In a real app: await fetch('/api/server/hospital-response', { ... });
+    console.log(`Responding to ${requestId}: ${response}`);
+    // Refetch alerts to show update
     fetchSOSAlerts();
-  } catch (error) {
-    console.error(error);
-  }
+}
+
+// ============================================================================
+// TAB 2: CREATE COMPONENT SOS
+// ============================================================================
+async function createComponentSOS(e) {
+    e.preventDefault();
+    const component = document.getElementById('selected-component').value;
+    if (!component) {
+        alert('Please select a component');
+        return;
+    }
+    
+    const messageEl = document.getElementById('sos-create-message');
+    messageEl.textContent = 'Broadcasting SOS...';
+    messageEl.className = 'message-area message-success'; // Use success for in-progress
+    
+    // MOCK: In a real app: await fetch('/api/hospital/sos-component', { ... });
+    const result = { success: true, message: 'SOS broadcasted to 120 nearby donors.' };
+    
+    setTimeout(() => { // Simulate network delay
+        if (result.success) {
+            messageEl.textContent = `✅ ${result.message}`;
+            messageEl.className = 'message-area message-success';
+            document.getElementById('component-sos-form').reset();
+            document.querySelectorAll('.component-card').forEach(c => c.classList.remove('selected'));
+            document.getElementById('selected-component').value = '';
+        } else {
+            messageEl.textContent = `❌ ${result.message}`;
+            messageEl.className = 'message-area message-error';
+        }
+    }, 1000);
+}
+
+// ============================================================================
+// TAB 3: STOCK MANAGEMENT
+// ============================================================================
+async function updateStock(e) {
+    e.preventDefault();
+    const messageEl = document.getElementById('stock-message');
+    messageEl.textContent = 'Updating stock...';
+    messageEl.className = 'message-area message-success';
+
+    // MOCK: In a real app: await fetch('/api/hospital/stock-update', { ... });
+    const result = { success: true, newTotal: 25 };
+    
+    setTimeout(() => {
+        if (result.success) {
+            messageEl.textContent = `✅ Stock updated! New total: ${result.newTotal} units`;
+            messageEl.className = 'message-area message-success';
+            document.getElementById('stock-update-form').reset();
+            loadStockLog();
+        } else {
+            messageEl.textContent = `❌ ${result.message}`;
+            messageEl.className = 'message-area message-error';
+        }
+    }, 500);
+}
+
+async function loadStockLog() {
+    // MOCK: In a real app: await fetch(`/api/hospital/stock-log/${hospital.hospital_id}`);
+    const log = [
+        { id: 1, bloodType: 'A+', component: 'RBC', change: -2, confidence: 'high', time: '10m ago' },
+        { id: 2, bloodType: 'O-', component: 'Whole Blood', change: 5, confidence: 'medium', time: '45m ago' },
+        { id: 3, bloodType: 'AB+', component: 'Platelets', change: -1, confidence: 'high', time: '2h ago' }
+    ];
+    
+    const list = document.getElementById('stock-log-list');
+    list.innerHTML = '';
+    
+    if (!log.length) {
+        list.innerHTML = '<p style="padding: var(--space-4); text-align: center; color: var(--neutral-500);">No recent changes.</p>';
+        return;
+    }
+    
+    log.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'data-list-item';
+        const changeClass = item.change > 0 ? 'color: var(--success);' : 'color: var(--error);';
+        
+        div.innerHTML = `
+            <div>
+                <strong>${item.bloodType} ${item.component}</strong>
+                <span class="badge badge-${item.confidence}">${item.confidence}</span><br>
+                <small>${item.time}</small>
+            </div>
+            <strong style="${changeClass} font-size: var(--text-lg);">
+                ${item.change > 0 ? '+' : ''}${item.change} units
+            </strong>
+        `;
+        list.appendChild(div);
+    });
+}
+
+// ============================================================================
+// TAB 4: CHECK-IN SCANNER
+// ============================================================================
+async function scanToken() {
+    const token = document.getElementById('scanner-input').value.trim();
+    const resultDiv = document.getElementById('scan-result');
+    resultDiv.style.display = 'block';
+    
+    if (!token) {
+        resultDiv.innerHTML = 'Please enter a token';
+        resultDiv.className = 'scan-result scan-error';
+        return;
+    }
+    
+    // MOCK: In a real app: await fetch('/api/hospital/scan-checkin', { ... });
+    
+    // --- Mock Success Response ---
+    const result = { 
+        success: true, 
+        message: 'Donor check-in recorded.', 
+        checkin: { donor_name: 'Anil Kumar', status: 'Checked-In', blood_type: 'A+' }
+    };
+    
+    // --- Mock Error Response ---
+    // const result = { 
+    //     success: false, 
+    //     message: 'Invalid or expired token.' 
+    // };
+    
+    if (result.success) {
+        resultDiv.innerHTML = `
+            <h4>✅ Check-In Successful!</h4>
+            <p><strong>Donor:</strong> ${result.checkin.donor_name} (${result.checkin.blood_type})</p>
+            <p><strong>Status:</strong> ${result.checkin.status}</p>
+            <p>${result.message}</p>
+        `;
+        resultDiv.className = 'scan-result scan-success';
+        document.getElementById('scanner-input').value = '';
+        refreshAppointments(); // Update appointment list
+    } else {
+        resultDiv.innerHTML = `<h4>❌ ${result.message}</h4>`;
+        resultDiv.className = 'scan-result scan-error';
+    }
+}
+
+// ============================================================================
+// TAB 5: APPOINTMENTS
+// ============================================================================
+async function refreshAppointments() {
+    // MOCK: In a real app: await fetch(`/api/hospital/appointments/${hospital.hospital_id}`);
+    const data = {
+        success: true,
+        appointments: [
+            { id: 'A101', full_name: 'Anil Kumar', blood_type: 'A+', phone_number: '...1234', status: 'CONFIRMED', qr_token: 'A101-D123' },
+            { id: 'A102', full_name: 'Sunita Sharma', blood_type: 'O+', phone_number: '...5678', status: 'PENDING (SOS)', qr_token: 'A102-D124' },
+            { id: 'A103', full_name: 'Raj Singh', blood_type: 'B-', phone_number: '...9012', status: 'CHECKED-IN', qr_token: 'A103-D125' }
+        ]
+    };
+    
+    const list = document.getElementById('appointments-list');
+    
+    if (!data.success || !data.appointments.length) {
+        list.innerHTML = '<p style="padding: var(--space-4); text-align: center; color: var(--neutral-500);">No upcoming appointments</p>';
+        return;
+    }
+    
+    list.innerHTML = '';
+    data.appointments.forEach(apt => {
+        const div = document.createElement('div');
+        div.className = 'data-list-item';
+        
+        let statusBadge = 'badge-info';
+        if(apt.status === 'CHECKED-IN') statusBadge = 'badge-success';
+        if(apt.status === 'PENDING (SOS)') statusBadge = 'badge-low';
+
+        div.innerHTML = `
+            <div>
+                <strong>${apt.full_name} (${apt.blood_type})</strong> | ${apt.phone_number}<br>
+                <small>Token: ${apt.qr_token || 'N/A'}</small>
+            </div>
+            <span class="badge ${statusBadge}">${apt.status}</span>
+        `;
+        list.appendChild(div);
+    });
+}
+
+// ============================================================================
+// TAB 6: PLAYBOOKS
+// ============================================================================
+function showPlaybookForm() {
+    document.getElementById('playbook-form').style.display = 'block';
+}
+
+function hidePlaybookForm() {
+    document.getElementById('playbook-form').style.display = 'none';
+}
+
+async function savePlaybook() {
+    const title = document.getElementById('playbook-title').value;
+    const category = document.getElementById('playbook-category').value;
+    const content = document.getElementById('playbook-content').value;
+    
+    if (!title || !content) {
+        alert('Title and content required');
+        return;
+    }
+    
+    // MOCK: In a real app: await fetch('/api/hospital/playbooks', { ... });
+    const result = { success: true };
+    
+    if (result.success) {
+        alert('Playbook saved!');
+        hidePlaybookForm();
+        loadPlaybooks();
+    }
+}
+
+async function loadPlaybooks() {
+    // MOCK: In a real app: await fetch(`/api/hospital/playbooks/${hospital.hospital_id}`);
+    const playbooks = [
+        { id: 1, title: 'Rare Blood Group Protocol (Bombay)', category: 'Rare Blood', content: '1. Immediately flag patient in system...' },
+        { id: 2, title: 'Apheresis Donor Call List', category: 'Apheresis', content: '1. Contact donors D101, D105, D200...' },
+        { id: 3, title: 'Mass Casualty Incident (MCI)', category: 'Escalation', content: '1. Activate Code Red. 2. All staff to...'}
+    ];
+    
+    const list = document.getElementById('playbooks-list');
+    
+    if (!playbooks.length) {
+        list.innerHTML = '<div class="card"><div class="card-body" style="text-align: center; color: var(--neutral-500);">No playbooks created yet.</div></div>';
+        return;
+    }
+    
+    list.innerHTML = '';
+    playbooks.forEach(pb => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `
+            <div class="card-body">
+                <span class="badge badge-info">${pb.category}</span>
+                <h4 class="card-title" style="margin-top: var(--space-2);">${pb.title}</h4>
+                <p>${pb.content.substring(0, 100)}...</p>
+                <a href="#" class="btn btn-outline btn-sm">Read More</a>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+}
+
+// ============================================================================
+// TAB 7: REPORTS
+// ============================================================================
+async function loadReports() {
+    // MOCK: In a real app: await fetch(`/api/hospital/reports/${hospital.hospital_id}`);
+    const data = {
+        summary: [
+            { status: 'Fulfilled', count: 120 },
+            { status: 'Expired', count: 15 },
+            { status: 'Rejected', count: 30 }
+        ],
+        avgResponseTime: 45.2 // seconds
+    };
+    
+    const container = document.getElementById('reports-container');
+    
+    container.innerHTML = `
+        <div class="card">
+            <h4 class="card-title">Request Summary (Last 30d)</h4>
+            <div class="card-body">
+                ${data.summary.map(s => `<div class="data-list-item"><span>${s.status}</span><strong>${s.count}</strong></div>`).join('')}
+            </div>
+        </div>
+        <div class="card">
+            <h4 class="card-title">Avg. Donor Response Time</h4>
+            <div class="card-body">
+                <h2 style="font-size: var(--text-5xl); color: var(--primary-600); margin: 0;">
+                    ${(data.avgResponseTime || 0).toFixed(1)}s
+                </h2>
+            </div>
+        </div>
+        <div class="card">
+            <h4 class="card-title">Blood Type Usage</h4>
+            <div class="card-body">
+                <p>O+: 45 units</p>
+                <p>A+: 30 units</p>
+                <p>O-: 12 units</p>
+            </div>
+        </div>
+    `;
 }
 </script>
 
-<footer><p>© 2025 LifeLink</p></footer>
 </body>
 </html>

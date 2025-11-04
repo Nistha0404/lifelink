@@ -2,58 +2,172 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Donor Eligibility - LifeLink</title>
-    <link rel="stylesheet" href="../style.css">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css">
+    
     <style>
-        .question-group { margin-bottom: 1.5rem; }
-        .question-group p { font-weight: bold; margin-bottom: 0.5rem; }
-        .radio-label { margin-right: 1rem; }
-        #eligibility-message { margin-top: 1.5rem; font-weight: bold; }
-        .message-error { color: #D8000C; }
-        .btn-secondary { background-color: #6c757d; }
-        .btn-secondary:hover { background-color: #5a6268; }
+        /* Re-using dashboard styles for consistency */
+        .questionnaire-item {
+            padding: var(--space-4);
+            border: 1px solid var(--neutral-200);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-4);
+        }
+        .questionnaire-item .form-label {
+            font-size: var(--text-base);
+            font-weight: var(--font-semibold);
+            color: var(--neutral-800);
+        }
+        .radio-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-4);
+            margin-top: var(--space-3);
+        }
+        
+        /* Message Area */
+        .message-area {
+            margin-top: var(--space-6);
+            padding: var(--space-5);
+            border-radius: var(--radius-lg);
+            display: none; /* Hidden by default */
+            text-align: center;
+        }
+        .message-area.message-success {
+            display: block;
+            background: var(--success-light);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+        .message-area.message-error {
+            display: block;
+            background: var(--error-light);
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+        .message-area .btn {
+            margin-top: var(--space-4);
+        }
     </style>
 </head>
 <body>
-    <header>
-        <div class="logo">
-            <img src="lifeLinklogoD.png" alt="LifeLink Logo">
-            <span>LifeLink</span>
+
+    <header id="main-header">
+        <div class="header-container">
+            <a href="index.html" class="logo">
+                <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+                <span>LifeLink</span>
+            </a>
+            <nav id="main-nav">
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How It Works</a>
+                <a href="facts.html">Facts</a>
+                <a href="volunteer-login.html">Volunteer</a>
+                <a href="admin-login.html" class="nav-icon-link" title="Admin Portal">
+                    <img src="image copy 6.png" alt="Admin" onerror="this.textContent='⚙️'">
+                </a>
+            </nav>
+            <button class="mobile-menu-toggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
         </div>
-        <nav>
-            <a href="../index.html">Home</a>
-        </nav>
     </header>
+
     <main>
-        <section class="main-card">
-            <h2>Health Questionnaire</h2>
-            <p>Please answer the following questions to check your eligibility for blood donation.</p>
-            <form id="questionnaireForm">
-                <div class="question-group">
-                    <p>1. Are you 18 years or older?</p>
-                    <label class="radio-label"><input type="radio" name="age" value="yes" required> Yes</label>
-                    <label class="radio-label"><input type="radio" name="age" value="no"> No</label>
+        <section class="section" style="background: var(--neutral-100);">
+            <div class="section-container">
+                
+                <div class="card" style="max-width: 700px; margin: 0 auto;">
+                    <div class="card-body">
+                        <h2 class="card-title" style="text-align: center;">Health Questionnaire</h2>
+                        <p style="text-align: center; color: var(--neutral-600); margin-bottom: var(--space-8);">
+                            Please answer the following questions to check your eligibility for blood donation.
+                        </p>
+                        
+                        <form id="questionnaireForm">
+                            <div class="questionnaire-item">
+                                <label class="form-label">1. Are you 18 years or older?</label>
+                                <div class="radio-group">
+                                    <label class="form-checkbox"><input type="radio" name="age" value="yes" required> Yes</label>
+                                    <label class="form-checkbox"><input type="radio" name="age" value="no"> No</label>
+                                </div>
+                            </div>
+                            
+                            <div class="questionnaire-item">
+                                <label class="form-label">2. Have you had any infections in the past 2 weeks?</label>
+                                <div class="radio-group">
+                                    <label class="form-checkbox"><input type="radio" name="infections" value="yes" required> Yes</label>
+                                    <label class="form-checkbox"><input type="radio" name="infections" value="no"> No</label>
+                                </div>
+                            </div>
+                            
+                            <div class="questionnaire-item">
+                                <label class="form-label">3. Have you had any tattoos or piercings in the past 6 months?</label>
+                                <div class="radio-group">
+                                    <label class="form-checkbox"><input type="radio" name="tattoos" value="yes" required> Yes</label>
+                                    <label class="form-checkbox"><input type="radio" name="tattoos" value="no"> No</label>
+                                </div>
+                            </div>
+                            
+                            <div class="questionnaire-item">
+                                <label class="form-label">4. Have you consumed alcohol in the last 24 hours?</label>
+                                <div class="radio-group">
+                                    <label class="form-checkbox"><input type="radio" name="alcohol" value="yes" required> Yes</label>
+                                    <label class="form-checkbox"><input type="radio" name="alcohol" value="no"> No</label>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: var(--space-4);">Check Eligibility</button>
+                        </form>
+                        
+                        <div id="eligibility-message" class="message-area">
+                            </div>
+                    </div>
                 </div>
-                <div class="question-group">
-                    <p>2. Have you had any infections recently?</p>
-                    <label class="radio-label"><input type="radio" name="infections" value="yes" required> Yes</label>
-                    <label class="radio-label"><input type="radio" name="infections" value="no"> No</label>
-                </div>
-                <div class="question-group">
-                    <p>3. Have you had any tattoos or piercings recently?</p>
-                    <label class="radio-label"><input type="radio" name="tattoos" value="yes" required> Yes</label>
-                    <label class="radio-label"><input type="radio" name="tattoos" value="no"> No</label>
-                </div>
-                <div class="question-group">
-                    <p>4. Have you consumed alcohol in the last 24 hours?</p>
-                    <label class="radio-label"><input type="radio" name="alcohol" value="yes" required> Yes</label>
-                    <label class="radio-label"><input type="radio" name="alcohol" value="no"> No</label>
-                </div>
-                <button type="submit" class="btn-primary">Check Eligibility</button>
-            </form>
-            <p id="eligibility-message"></p>
+                
+            </div>
         </section>
     </main>
+
+    <footer>
+        <div class="footer-container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>LifeLink</h4>
+                    <p>Connecting donors, patients, and hospitals to save lives through modern technology.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <p><a href="index.html">Home</a></p>
+                    <p><a href="facts.html">Facts</a></p>
+                    <p><a href="volunteer-login.html">Volunteer</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Get Started</h4>
+                    <p><a href="patient-login.html">Request Blood</a></p>
+                    <p><a href="donor-login.html">Donate Blood</a></p>
+                    <p><a href="hospital-login.html">Hospital Portal</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Support</h4>
+                    <p><a href="admin-login.html">Admin Portal</a></p>
+                    <p><a href="#">Help Center</a></p>
+                    <p><a href="#">Contact Us</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2025 LifeLink. All rights reserved. Saving lives through technology.</p>
+            </div>
+        </div>
+    </footer>
 
     <script>
         document.getElementById('questionnaireForm').addEventListener('submit', function(e) {
@@ -65,27 +179,46 @@
             const alcohol = form.elements['alcohol'].value;
 
             const messageEl = document.getElementById('eligibility-message');
+            
+            // Hide the form
+            form.style.display = 'none';
 
             if (age === 'yes' && infections === 'no' && tattoos === 'no' && alcohol === 'no') {
-                messageEl.textContent = 'Congratulations! You are eligible. Redirecting...';
-                messageEl.className = 'message-success';
-                setTimeout(() => {
-                    window.location.href = './donor-login.html';
-                }, 2000);
-            } else {
+                messageEl.className = 'message-area message-success';
                 messageEl.innerHTML = `
-                    <span class="message-error">You are not eligible to donate at this time.</span><br>
-                    Please ensure you are over 18 and do not have the above health issues/conditions.
-                    <br><br>
-                    <button class="btn-secondary" onclick="window.location.reload()">Try Again</button>
+                    <p style="margin: 0; font-weight: var(--font-semibold);">Congratulations! You are eligible.</p>
+                    <p style="margin-top: var(--space-2); margin-bottom: 0;">Redirecting you to the registration page...</p>
+                `;
+                
+                setTimeout(() => {
+                    // Redirect to the login/register page
+                    window.location.href = 'donor-login.html';
+                }, 2500);
+                
+            } else {
+                messageEl.className = 'message-area message-error';
+                messageEl.innerHTML = `
+                    <p style="margin: 0; font-weight: var(--font-semibold);">You are not eligible to donate at this time.</p>
+                    <p style="margin-top: var(--space-2); margin-bottom: 0;">
+                        Please ensure you are over 18 and have not had recent infections, tattoos, or alcohol.
+                    </p>
+                    <button class="btn btn-outline" style="border-color: var(--error); color: var(--error);" onclick="window.location.reload()">
+                        Try Again
+                    </button>
                 `;
             }
         });
+        
+        // Mobile menu toggle (from index.html)
+        const menuToggle = document.querySelector('.mobile-menu-toggle');
+        const nav = document.getElementById('main-nav');
+        if (menuToggle) {
+             menuToggle.addEventListener('click', () => {
+                nav.classList.toggle('open');
+                menuToggle.classList.toggle('active');
+            });
+        }
     </script>
-
-    <footer>
-        <p>© 2025 LifeLink</p>
-    </footer>
 
 </body>
 </html>

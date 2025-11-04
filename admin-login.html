@@ -1,191 +1,444 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Portal - LifeLink</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Portal - LifeLink</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="style.css">
+    
+    <style>
+        .auth-page {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            background: var(--neutral-50);
+        }
+        
+        .auth-sidebar {
+            background: var(--gradient-primary);
+            padding: var(--space-12);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .auth-sidebar::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        
+        .auth-sidebar-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .auth-sidebar h2 {
+            font-size: var(--text-4xl);
+            color: white;
+            margin-bottom: var(--space-4);
+        }
+        
+        .auth-sidebar p {
+            font-size: var(--text-lg);
+            color: rgba(255, 255, 255, 0.9);
+            line-height: var(--leading-relaxed);
+        }
+        
+        .auth-content {
+            padding: var(--space-12);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .auth-header {
+            margin-bottom: var(--space-8);
+        }
+        
+        .auth-logo {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            font-size: var(--text-2xl);
+            font-weight: var(--font-bold);
+            color: var(--primary-600);
+            margin-bottom: var(--space-8);
+        }
+        
+        .auth-logo img {
+            height: 40px;
+            width: auto;
+        }
+        
+        .auth-title {
+            font-size: var(--text-3xl);
+            margin-bottom: var(--space-3);
+        }
+        
+        .auth-subtitle {
+            color: var(--neutral-600);
+            font-size: var(--text-base);
+        }
+        
+        .auth-tabs {
+            display: flex;
+            gap: var(--space-2);
+            background: var(--neutral-100);
+            padding: var(--space-1);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-8);
+        }
+        
+        .auth-tab {
+            flex: 1;
+            padding: var(--space-3) var(--space-4);
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            color: var(--neutral-600);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .auth-tab.active {
+            background: white;
+            color: var(--primary-600);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .auth-form {
+            max-width: 400px;
+        }
+        
+        .message-success {
+            padding: var(--space-4);
+            background: var(--success-light);
+            color: var(--success);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-4);
+            border: 1px solid var(--success);
+        }
+        
+        .message-error {
+            padding: var(--space-4);
+            background: var(--error-light);
+            color: var(--error);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-4);
+            border: 1px solid var(--error);
+        }
+        
+        .auth-footer {
+            margin-top: var(--space-6);
+            text-align: center;
+            font-size: var(--text-sm);
+            color: var(--neutral-600);
+        }
+        
+        .auth-footer a {
+            color: var(--primary-600);
+            font-weight: var(--font-medium);
+        }
+        
+        @media (max-width: 1024px) {
+            .auth-page {
+                grid-template-columns: 1fr;
+            }
+            
+            .auth-sidebar {
+                display: none;
+            }
+            
+            .auth-content {
+                padding: var(--space-8) var(--space-6);
+            }
+        }
+    </style>
 </head>
 <body>
-  <header>
-    <div class="logo">
-      <span><img src = lifeLinklogoD.png> </span>
-      <span>LifeLink</span>
+    <div class="auth-page">
+        <!-- Sidebar -->
+        <div class="auth-sidebar">
+            <div class="auth-sidebar-content">
+                <div class="auth-logo" style="color: white;">
+                    <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.style.display='none'">
+                    <span>LifeLink</span>
+                </div>
+                
+                <h2>Admin Control Center</h2>
+                <p>
+                    Manage and coordinate blood donation activities. Monitor operations and ensure seamless service delivery.
+                </p>
+            </div>
+            
+            <p style="font-size: var(--text-sm); opacity: 0.8;">
+                © 2025 LifeLink. All rights reserved.
+            </p>
+        </div>
+        
+        <!-- Content -->
+        <div class="auth-content">
+            <div class="auth-header">
+                <a href="index.html" class="auth-logo">
+                    <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.style.display='none'">
+                    <span>LifeLink</span>
+                </a>
+                
+                <h1 class="auth-title">Coordinator / Admin Portal</h1>
+                <p class="auth-subtitle">Access your administrative dashboard</p>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="login-tab-btn" onclick="showTab('login')">Login</button>
+                <button class="auth-tab" id="register-tab-btn" onclick="showTab('register')">Register</button>
+            </div>
+            
+            <!-- Login Form -->
+            <div id="login-tab" class="auth-form">
+                <form id="adminLoginForm">
+                    <div class="form-group">
+                        <label class="form-label" for="loginPhone">
+                            Phone Number <span class="required">*</span>
+                        </label>
+                        <input 
+                            type="tel" 
+                            id="loginPhone" 
+                            class="form-input" 
+                            placeholder="Enter your registered phone number"
+                            maxlength="10"
+                            required
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="password">
+                            Password <span class="required">*</span>
+                        </label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            class="form-input" 
+                            placeholder="Enter your password"
+                            required
+                        >
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        Login
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Register Form -->
+            <div id="register-tab" class="auth-form" style="display: none;">
+                <form id="adminRegisterForm">
+                    <div class="form-group">
+                        <label class="form-label" for="registerName">
+                            Full Name <span class="required">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="registerName" 
+                            class="form-input" 
+                            placeholder="Enter your full name"
+                            required
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="registerPincode">
+                            Pincode <span class="required">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="registerPincode" 
+                            class="form-input" 
+                            placeholder="Enter your pincode"
+                            maxlength="6"
+                            required
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="registerPhone">
+                            Phone Number <span class="required">*</span>
+                        </label>
+                        <input 
+                            type="tel" 
+                            id="registerPhone" 
+                            class="form-input" 
+                            placeholder="10-digit mobile number"
+                            maxlength="10"
+                            required
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="registerPassword">
+                            Create Password <span class="required">*</span>
+                        </label>
+                        <input 
+                            type="password" 
+                            id="registerPassword" 
+                            class="form-input" 
+                            placeholder="Minimum 6 characters"
+                            minlength="6"
+                            required
+                        >
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        Register
+                    </button>
+                </form>
+            </div>
+            
+            <div id="message"></div>
+            
+            <div class="auth-footer">
+                <p>
+                    <a href="index.html">← Back to Home</a>
+                </p>
+            </div>
+        </div>
     </div>
-    <nav>
-      <a href="index.html">Home</a>
-    </nav>
-  </header>
+    
+    <script>
+        const loginForm = document.getElementById("adminLoginForm");
+        const registerForm = document.getElementById("adminRegisterForm");
+        const messageEl = document.getElementById("message");
 
-  <main>
-    <section class="main-card">
-      <h2>Coordinator / Admin Portal</h2>
-      <div class="tabs">
-        <button id="login-tab-btn" class="active" onclick="showTab('login')">Login</button>
-        <button id="register-tab-btn" onclick="showTab('register')">Register</button>
-      </div>
-
-      <div id="login-tab">
-        <form id="adminLoginForm">
-          <div class="form-group">
-            <label for="loginPhone">Phone Number</label>
-            <input type="tel" id="loginPhone" placeholder="Enter your registered phone number" maxlength="10" required>
-          </div>
-          <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" placeholder="Enter your password" required>
-          </div>
-          <button type="submit" class="btn-primary">Login</button>
-        </form>
-      </div>
-
-      <div id="register-tab" style="display:none;">
-        <form id="adminRegisterForm">
-          <div class="form-group">
-            <label for="registerName">Full Name</label>
-            <input type="text" id="registerName" placeholder="Enter your full name" required>
-          </div>
-          <div class="form-group">
-            <label for="registerPincode">Pincode</label>
-            <input type="text" id="registerPincode" placeholder="Enter your pincode" maxlength="6" required>
-          </div>
-          <div class="form-group">
-            <label for="registerPhone">Phone Number</label>
-            <input type="tel" id="registerPhone" placeholder="10-digit mobile number" maxlength="10" required>
-          </div>
-          <div class="form-group">
-            <label for="registerPassword">Create Password</label>
-            <input type="password" id="registerPassword" placeholder="Minimum 6 characters" minlength="6" required>
-          </div>
-          <button type="submit" class="btn-primary">Register</button>
-        </form>
-      </div>
-      
-      <div id="message"></div>
-    </section>
-  </main>
-  
-  <script>
-    const loginForm = document.getElementById("adminLoginForm");
-    const registerForm = document.getElementById("adminRegisterForm");
-    const messageEl = document.getElementById("message");
-
-    function showTab(tabName) {
-      document.getElementById('login-tab').style.display = tabName === 'login' ? 'block' : 'none';
-      document.getElementById('register-tab').style.display = tabName === 'register' ? 'block' : 'none';
-      document.getElementById('login-tab-btn').classList.toggle('active', tabName === 'login');
-      document.getElementById('register-tab-btn').classList.toggle('active', tabName === 'register');
-      messageEl.style.display = 'none';
-      messageEl.className = '';
-    }
-
-    function showMessage(text, type) {
-      messageEl.textContent = text;
-      messageEl.className = type;
-      messageEl.style.display = 'block';
-    }
-
-    // Registration Handler
-    registerForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      
-      const fullName = document.getElementById("registerName").value.trim();
-      const pincode = document.getElementById("registerPincode").value.trim();
-      const phoneNumber = document.getElementById("registerPhone").value.trim();
-      const password = document.getElementById("registerPassword").value;
-
-      // Validation
-      if (!/^\d{10}$/.test(phoneNumber)) {
-        showMessage('Please enter a valid 10-digit phone number', 'error');
-        return;
-      }
-
-      if (!/^\d{6}$/.test(pincode)) {
-        showMessage('Please enter a valid 6-digit pincode', 'error');
-        return;
-      }
-
-      if (password.length < 6) {
-        showMessage('Password must be at least 6 characters', 'error');
-        return;
-      }
-
-      const submitBtn = registerForm.querySelector('button[type="submit"]');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Registering...';
-
-      try {
-        const response = await fetch('/api/server/register/admin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fullName, pincode, phoneNumber, password })
-        });
-        
-        const result = await response.json();
-
-        if (result.success) {
-          showMessage(`${result.message} You can now log in.`, 'success');
-          setTimeout(() => showTab('login'), 2000);
-          registerForm.reset();
-        } else {
-          showMessage(`Registration failed: ${result.message}`, 'error');
+        function showTab(tabName) {
+            document.getElementById('login-tab').style.display = tabName === 'login' ? 'block' : 'none';
+            document.getElementById('register-tab').style.display = tabName === 'register' ? 'block' : 'none';
+            document.getElementById('login-tab-btn').classList.toggle('active', tabName === 'login');
+            document.getElementById('register-tab-btn').classList.toggle('active', tabName === 'register');
+            messageEl.style.display = 'none';
+            messageEl.className = '';
         }
-      } catch (error) {
-        console.error('Registration error:', error);
-        showMessage('Could not connect to the server. Please try again.', 'error');
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Register';
-      }
-    });
 
-    // Login Handler
-    loginForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      
-      const phoneNumber = document.getElementById("loginPhone").value.trim();
-      const password = document.getElementById("password").value;
-
-      // Validation
-      if (!/^\d{10}$/.test(phoneNumber)) {
-        showMessage('Please enter a valid 10-digit phone number', 'error');
-        return;
-      }
-
-      const submitBtn = loginForm.querySelector('button[type="submit"]');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Logging in...';
-
-      try {
-        const response = await fetch('/api/server/login/admin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phoneNumber, password })
-        });
-        
-        const result = await response.json();
-
-        if (result.success) {
-          sessionStorage.setItem('currentAdminName', result.user.fullName);
-          showMessage('Login successful! Redirecting...', 'success');
-          setTimeout(() => {
-            window.location.href = "admin-dashboard.html";
-          }, 1500);
-        } else {
-          showMessage(`Login failed: ${result.message}`, 'error');
+        function showMessage(text, type) {
+            messageEl.textContent = text;
+            messageEl.className = type === 'success' ? 'message-success' : 'message-error';
+            messageEl.style.display = 'block';
         }
-      } catch (error) {
-        console.error('Login error:', error);
-        showMessage('Could not connect to the server. Please try again.', 'error');
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Login';
-      }
-    });
-  </script>
-  
-  <footer>
-    <p>© 2025 LifeLink | Saving Lives Together</p>
-  </footer>
+
+        // Registration Handler
+        registerForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            
+            const fullName = document.getElementById("registerName").value.trim();
+            const pincode = document.getElementById("registerPincode").value.trim();
+            const phoneNumber = document.getElementById("registerPhone").value.trim();
+            const password = document.getElementById("registerPassword").value;
+
+            // Validation
+            if (!/^\d{10}$/.test(phoneNumber)) {
+                showMessage('Please enter a valid 10-digit phone number', 'error');
+                return;
+            }
+
+            if (!/^\d{6}$/.test(pincode)) {
+                showMessage('Please enter a valid 6-digit pincode', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                showMessage('Password must be at least 6 characters', 'error');
+                return;
+            }
+
+            const submitBtn = registerForm.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Registering...';
+
+            try {
+                const response = await fetch('/api/server/register/admin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fullName, pincode, phoneNumber, password })
+                });
+                
+                const result = await response.json();
+
+                if (result.success) {
+                    showMessage(`${result.message} You can now log in.`, 'success');
+                    setTimeout(() => showTab('login'), 2000);
+                    registerForm.reset();
+                } else {
+                    showMessage(`Registration failed: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                showMessage('Could not connect to the server. Please try again.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Register';
+            }
+        });
+
+        // Login Handler
+        loginForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            
+            const phoneNumber = document.getElementById("loginPhone").value.trim();
+            const password = document.getElementById("password").value;
+
+            // Validation
+            if (!/^\d{10}$/.test(phoneNumber)) {
+                showMessage('Please enter a valid 10-digit phone number', 'error');
+                return;
+            }
+
+            const submitBtn = loginForm.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Logging in...';
+
+            try {
+                const response = await fetch('/api/server/login/admin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber, password })
+                });
+                
+                const result = await response.json();
+
+                if (result.success) {
+                    sessionStorage.setItem('currentAdminName', result.user.fullName);
+                    showMessage('Login successful! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = "admin-dashboard.html";
+                    }, 1500);
+                } else {
+                    showMessage(`Login failed: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showMessage('Could not connect to the server. Please try again.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Login';
+            }
+        });
+    </script>
 </body>
 </html>

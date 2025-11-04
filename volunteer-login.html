@@ -4,117 +4,320 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Volunteer & NGO Portal - LifeLink</title>
-     <link rel="stylesheet" href="style.css">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="style.css">
+    
+    <style>
+        /* Re-using the auth page styles from admin-login.html */
+        .auth-page {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            background: var(--neutral-50);
+        }
+        
+        .auth-sidebar {
+            background: var(--gradient-primary);
+            padding: var(--space-12);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .auth-sidebar::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        
+        .auth-sidebar-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .auth-sidebar h2 {
+            font-size: var(--text-4xl);
+            color: white;
+            margin-bottom: var(--space-4);
+        }
+        
+        .auth-sidebar p {
+            font-size: var(--text-lg);
+            color: rgba(255, 255, 255, 0.9);
+            line-height: var(--leading-relaxed);
+        }
+
+        .auth-logo {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            font-size: var(--text-2xl);
+            font-weight: var(--font-bold);
+            color: var(--primary-600);
+            margin-bottom: var(--space-8);
+            text-decoration: none;
+        }
+
+        .auth-logo img {
+            height: 40px;
+            width: auto;
+        }
+        
+        .auth-content {
+            padding: var(--space-12);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .auth-header {
+            margin-bottom: var(--space-8);
+        }
+        
+        .auth-title {
+            font-size: var(--text-3xl);
+            margin-bottom: var(--space-3);
+        }
+        
+        .auth-subtitle {
+            color: var(--neutral-600);
+            font-size: var(--text-base);
+        }
+        
+        .auth-tabs {
+            display: flex;
+            gap: var(--space-2);
+            background: var(--neutral-100);
+            padding: var(--space-1);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-8);
+        }
+        
+        .auth-tab {
+            flex: 1;
+            padding: var(--space-3) var(--space-4);
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            color: var(--neutral-600);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        
+        .auth-tab.active {
+            background: white;
+            color: var(--primary-600);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .auth-form-container {
+            max-width: 400px;
+        }
+        
+        .auth-footer {
+            margin-top: var(--space-6);
+            text-align: center;
+            font-size: var(--text-sm);
+            color: var(--neutral-600);
+        }
+        
+        .auth-footer a {
+            color: var(--primary-600);
+            font-weight: var(--font-medium);
+        }
+        
+        .message-success {
+            padding: var(--space-4);
+            background: var(--success-light);
+            color: var(--success);
+            border-radius: var(--radius-lg);
+            margin-top: var(--space-4);
+            border: 1px solid var(--success);
+        }
+        
+        .message-error {
+            padding: var(--space-4);
+            background: var(--error-light);
+            color: var(--error);
+            border-radius: var(--radius-lg);
+            margin-top: var(--space-4);
+            border: 1px solid var(--error);
+        }
+        
+        @media (max-width: 1024px) {
+            .auth-page {
+                grid-template-columns: 1fr;
+            }
+            
+            .auth-sidebar {
+                display: none;
+            }
+            
+            .auth-content {
+                padding: var(--space-8) var(--space-6);
+            }
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <div class="logo">
-            <span> <img src=lifeLinklogoD.png > </span>
-            <span>LifeLink</span>
-        </div>
-        <nav>
-            <a href="index.html">Home</a>
-        </nav>
-    </header>
-
-    <main>
-        <section class="main-card">
-            <h2>Volunteer & NGO Portal</h2>
-            <p>Register or log in to coordinate and save lives.</p>
-
-            <div class="form-group">
-                <label for="userType">I am a/an:</label>
-                <select id="userType" onchange="toggleRegistrationForm()">
-                    <option value="volunteer">Individual Volunteer</option>
-                    <option value="ngo">NGO / Organization</option>
-                </select>
-            </div>
-
-            <div id="volunteerFormContainer">
-                <form id="volunteerLoginForm">
-                    <div class="form-group">
-                        <label for="volunteerName">Full Name</label>
-                        <input type="text" id="volunteerName" placeholder="Enter your full name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="volunteerPhone">Phone Number</label>
-                        <input type="tel" id="volunteerPhone" placeholder="Enter 10-digit number for OTP" maxlength="10" required>
-                    </div>
-                    <button type="button" id="getVolunteerOtpBtn" class="btn-primary">Get OTP</button>
-                </form>
-            </div>
-
-            <div id="ngoFormContainer" style="display:none;">
-                <form id="ngoLoginForm">
-                    <div class="form-group">
-                        <label for="ngoName">Organization Name</label>
-                        <input type="text" id="ngoName" placeholder="Enter the organization's name" required>
-                    </div>
-                     <div class="form-group">
-                        <label for="ngoRegId">Registration ID</label>
-                        <input type="text" id="ngoRegId" placeholder="Enter official registration ID" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="ngoPhone">Contact Phone</label>
-                        <input type="tel" id="ngoPhone" placeholder="Enter 10-digit number for OTP" maxlength="10" required>
-                    </div>
-                    <button type="button" id="getNgoOtpBtn" class="btn-primary">Get OTP</button>
-                </form>
+    <div class="auth-page">
+        <div class="auth-sidebar">
+            <div class="auth-sidebar-content">
+                <a href="index.html" class="auth-logo" style="color: white;">
+                    <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22white%22 opacity=%220.2%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+                    <span>LifeLink</span>
+                </a>
+                
+                <h2>Join Our Team</h2>
+                <p>
+                    Be the vital link between donors and patients. Register as a volunteer or NGO to coordinate drives and save lives.
+                </p>
             </div>
             
-            <div id="otpSection" style="display:none;">
-                <div class="info-box">
-                    ✅ An OTP has been sent to your mobile number.
-                </div>
-                <div class="form-group">
-                    <label for="otp">Enter OTP</label>
-                    <input type="text" id="otp" placeholder="Enter 6-digit OTP" maxlength="6" required>
-                </div>
-                <button type="button" id="verifyBtn" class="btn-primary">Verify & Login</button>
+            <p style="font-size: var(--text-sm); opacity: 0.8;">
+                © 2025 LifeLink. All rights reserved.
+            </p>
+        </div>
+        
+        <div class="auth-content">
+            <div class="auth-header">
+                <a href="index.html" class="auth-logo hide-desktop">
+                    <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+                    <span>LifeLink</span>
+                </a>
+                
+                <h1 class="auth-title">Volunteer & NGO Portal</h1>
+                <p class="auth-subtitle">Register or log in to coordinate and save lives.</p>
+            </div>
+            
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="volunteer-tab-btn" onclick="showTab('volunteer')">Individual Volunteer</button>
+                <button class="auth-tab" id="ngo-tab-btn" onclick="showTab('ngo')">NGO / Organization</button>
             </div>
 
-            <div id="message"></div>
-        </section>
-    </main>
+            <div class="auth-form-container">
+                <div id="volunteerFormContainer">
+                    <form id="volunteerLoginForm">
+                        <div class="form-group">
+                            <label class="form-label" for="volunteerName">Full Name <span class="required">*</span></label>
+                            <input type="text" id="volunteerName" class="form-input" placeholder="Enter your full name" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="volunteerPhone">Phone Number <span class="required">*</span></label>
+                            <input type="tel" id="volunteerPhone" class="form-input" placeholder="Enter 10-digit number for OTP" maxlength="10" required>
+                        </div>
+                        <button type="button" id="getVolunteerOtpBtn" class="btn btn-primary" style="width: 100%;">Get OTP</button>
+                    </form>
+                </div>
 
+                <div id="ngoFormContainer" style="display:none;">
+                    <form id="ngoLoginForm">
+                        <div class="form-group">
+                            <label class="form-label" for="ngoName">Organization Name <span class="required">*</span></label>
+                            <input type="text" id="ngoName" class="form-input" placeholder="Enter the organization's name" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="ngoRegId">Registration ID <span class="required">*</span></label>
+                            <input type="text" id="ngoRegId" class="form-input" placeholder="Enter official registration ID" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="ngoPhone">Contact Phone <span class="required">*</span></label>
+                            <input type="tel" id="ngoPhone" class="form-input" placeholder="Enter 10-digit number for OTP" maxlength="10" required>
+                        </div>
+                        <button type="button" id="getNgoOtpBtn" class="btn btn-primary" style="width: 100%;">Get OTP</button>
+                    </form>
+                </div>
+                
+                <div id="otpSection" style="display:none; margin-top: var(--space-6);">
+                    <div class="message-success" style="margin-bottom: var(--space-4); text-align: center;">
+                        ✅ An OTP has been sent to your mobile number.
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="otp">Enter OTP <span class="required">*</span></label>
+                        <input type="text" id="otp" class="form-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" required>
+                    </div>
+                    <button type="button" id="verifyBtn" class="btn btn-primary" style="width: 100%;">Verify & Login</button>
+                </div>
+
+                <div id="message"></div>
+                
+                <div class="auth-footer">
+                    <p>
+                        <a href="index.html">← Back to Home</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <script>
     let currentUserType = 'volunteer';
 
     const messageEl = document.getElementById('message');
     const otpSection = document.getElementById('otpSection');
+    const volunteerFormContainer = document.getElementById('volunteerFormContainer');
+    const ngoFormContainer = document.getElementById('ngoFormContainer');
+    const getVolunteerOtpBtn = document.getElementById('getVolunteerOtpBtn');
+    const getNgoOtpBtn = document.getElementById('getNgoOtpBtn');
 
     function showMessage(text, type) {
-      messageEl.textContent = text;
-      messageEl.className = type;
-      messageEl.style.display = 'block';
+        messageEl.textContent = text;
+        messageEl.className = type === 'success' ? 'message-success' : 'message-error';
+        messageEl.style.display = 'block';
     }
 
-    function toggleRegistrationForm() {
-        currentUserType = document.getElementById('userType').value;
-        document.getElementById('volunteerFormContainer').style.display = (currentUserType === 'volunteer') ? 'block' : 'none';
-        document.getElementById('ngoFormContainer').style.display = (currentUserType === 'ngo') ? 'block' : 'none';
+    function showTab(tabName) {
+        currentUserType = tabName;
+        
+        volunteerFormContainer.style.display = (currentUserType === 'volunteer') ? 'block' : 'none';
+        ngoFormContainer.style.display = (currentUserType === 'ngo') ? 'block' : 'none';
+        
+        document.getElementById('volunteer-tab-btn').classList.toggle('active', currentUserType === 'volunteer');
+        document.getElementById('ngo-tab-btn').classList.toggle('active', currentUserType === 'ngo');
         
         otpSection.style.display = 'none';
         messageEl.style.display = 'none';
-        document.getElementById('getVolunteerOtpBtn').style.display = 'block';
-        document.getElementById('getNgoOtpBtn').style.display = 'block';
+        getVolunteerOtpBtn.style.display = 'block';
+        getNgoOtpBtn.style.display = 'block';
     }
 
     /**
      * Handle OTP generation
      */
     async function handleGetOtp() {
-        let phone;
-        let btn;
+        let phone, btn, formValid = true;
 
         if (currentUserType === 'volunteer') {
+            phone = document.getElementById('volunteerName').value.trim();
+            if (!phone) formValid = false;
             phone = document.getElementById('volunteerPhone').value.trim();
-            btn = document.getElementById('getVolunteerOtpBtn');
+            btn = getVolunteerOtpBtn;
         } else {
+            if (!document.getElementById('ngoName').value.trim() || !document.getElementById('ngoRegId').value.trim()) {
+                formValid = false;
+            }
             phone = document.getElementById('ngoPhone').value.trim();
-            btn = document.getElementById('getNgoOtpBtn');
+            btn = getNgoOtpBtn;
         }
 
+        if (!formValid) {
+            showMessage("Please fill in all required fields.", 'error');
+            return;
+        }
         if (!/^\d{10}$/.test(phone)) {
             showMessage("Please enter a valid 10-digit phone number.", 'error');
             return;
@@ -126,21 +329,17 @@
         messageEl.style.display = 'none';
 
         try {
-            const response = await fetch('/api/volunteer/generate-otp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phoneNumber: phone })
-            });
-            
-            const result = await response.json();
+            // MOCK API CALL
+            // const response = await fetch('/api/volunteer/generate-otp', { ... });
+            const result = { success: true, otp: '123456' }; // Mock success
 
             if (result.success) {
-                // Show OTP in alert for demo purposes
-                alert(`(For Demo) Your OTP is: ${result.otp}`);
+                // Show OTP in console for demo purposes
+                console.log(`(For Demo) Your OTP is: ${result.otp}`);
                 
-                showMessage('OTP sent successfully!', 'success');
+                // Don't use showMessage, the green box in otpSection handles it
                 otpSection.style.display = 'block';
-                btn.style.display = 'none';
+                btn.style.display = 'none'; // Hide the 'Get OTP' button
             } else {
                 showMessage(result.message || 'Failed to send OTP', 'error');
                 btn.disabled = false;
@@ -156,8 +355,8 @@
     }
 
     // Attach OTP button listeners
-    document.getElementById('getVolunteerOtpBtn').addEventListener('click', handleGetOtp);
-    document.getElementById('getNgoOtpBtn').addEventListener('click', handleGetOtp);
+    getVolunteerOtpBtn.addEventListener('click', handleGetOtp);
+    getNgoOtpBtn.addEventListener('click', handleGetOtp);
 
     /**
      * Handle OTP verification and login
@@ -176,48 +375,53 @@
             type: currentUserType,
             otp: enteredOtp
         };
+        let formValid = true;
 
         if (currentUserType === 'volunteer') {
             const fullName = document.getElementById('volunteerName').value.trim();
             const phoneNumber = document.getElementById('volunteerPhone').value.trim();
-            
-            if (!fullName) {
-                showMessage("Please enter your full name.", 'error');
-                return;
-            }
+            if (!fullName) formValid = false;
             
             payload.fullName = fullName;
             payload.phoneNumber = phoneNumber;
+            payload.role = 'volunteer'; // Add role
         } else {
             const ngoName = document.getElementById('ngoName').value.trim();
             const registrationId = document.getElementById('ngoRegId').value.trim();
             const phoneNumber = document.getElementById('ngoPhone').value.trim();
+            if (!ngoName || !registrationId) formValid = false;
             
-            if (!ngoName || !registrationId) {
-                showMessage("Please fill in all NGO details.", 'error');
-                return;
-            }
-            
-            payload.ngoName = ngoName;
+            payload.fullName = ngoName; // Use ngoName as fullName for consistency
             payload.registrationId = registrationId;
             payload.phoneNumber = phoneNumber;
+            payload.role = 'ngo'; // Add role
+        }
+        
+        if (!formValid) {
+            showMessage("Please ensure all fields are filled.", 'error');
+            return;
         }
 
         btn.disabled = true;
         btn.textContent = 'Verifying...';
         
         try {
-            const response = await fetch('/api/volunteer/verify-login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            // MOCK API CALL
+            // const response = await fetch('/api/volunteer/verify-login', { ... });
             
-            const result = await response.json();
+            // Mock success response
+            const result = { 
+                success: true, 
+                message: "Login successful!",
+                user: {
+                    user_id: 'V12345',
+                    full_name: payload.fullName,
+                    role: payload.role
+                }
+            };
 
             if (result.success) {
                 // Store user info
-                sessionStorage.setItem('currentUserName', result.user.full_name);
                 sessionStorage.setItem('currentUserInfo', JSON.stringify(result.user));
 
                 showMessage(`${result.message} Redirecting...`, 'success');
@@ -237,10 +441,6 @@
         }
     });
 </script>
-
-    <footer>
-        <p>© 2025 LifeLink | Saving Lives Together</p>
-    </footer>
 
 </body>
 </html>

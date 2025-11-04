@@ -2,47 +2,145 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Patient Portal - LifeLink</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+    
     <link rel="stylesheet" href="style.css">
+    
+    <style>
+        /* Re-using dashboard/auth message styles */
+        .message-area {
+            margin-top: var(--space-6);
+            padding: var(--space-4);
+            border-radius: var(--radius-lg);
+            display: none; /* Hidden by default */
+            text-align: center;
+            border: 1px solid transparent;
+        }
+        .message-area.message-success {
+            display: block;
+            background: var(--success-light);
+            color: var(--success);
+            border-color: var(--success);
+        }
+        .message-area.message-error {
+            display: block;
+            background: var(--error-light);
+            color: var(--error);
+            border-color: var(--error);
+        }
+        .message-area.message-info {
+            display: block;
+            background: var(--info-light);
+            color: var(--info);
+            border-color: var(--info);
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <div class="logo">
-            <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40">
-            <span>LifeLink</span>
+
+    <header id="main-header">
+        <div class="header-container">
+            <a href="index.html" class="logo">
+                <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+                <span>LifeLink</span>
+            </a>
+            <nav id="main-nav">
+                <a href="index.html#features">Features</a>
+                <a href="index.html#how-it-works">How It Works</a>
+                <a href="facts.html">Facts</a>
+                <a href="volunteer-login.html">Volunteer</a>
+                <a href="admin-login.html" class="nav-icon-link" title="Admin Portal">
+                    <img src="image copy 6.png" alt="Admin" onerror="this.textContent='⚙️'">
+                </a>
+            </nav>
+            <button class="mobile-menu-toggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
         </div>
-        <nav><a href="index.html">Home</a></nav>
     </header>
     
     <main>
-        <section class="main-card">
-            <h2>Patient Portal</h2>
-            <form id="patientAuthForm">
-                <div class="form-group">
-                    <label for="name">Full Name</label>
-                    <input type="text" id="name" placeholder="Enter your full name" required>
-                </div>
-                <div class="form-group">
-                    <label for="phone">Phone Number</label>
-                    <input type="tel" id="phone" placeholder="Enter 10-digit number" maxlength="10" required>
-                </div>
-                <div class="form-group">
-                    <label for="pincode">Pincode (for location backup)</label>
-                    <input type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
-                </div>
-                <button type="button" id="getOtpBtn" class="btn-primary">Get OTP</button>
+        <section class="section" style="background: var(--neutral-100);">
+            <div class="section-container">
                 
-                <div id="otpSection" style="display:none; margin-top:20px;">
-                    <div class="form-group">
-                        <label for="otp">Enter OTP</label>
-                        <input type="text" id="otp" placeholder="Enter 4-digit OTP" maxlength="4" inputmode="numeric">
+                <div class="card" style="max-width: 500px; margin: 0 auto;">
+                    <div class="card-body">
+                        <h2 class="card-title" style="text-align: center;">Patient Portal</h2>
+                        <p style="text-align: center; color: var(--neutral-600); margin-bottom: var(--space-8);">
+                            Log in or create an account to make a request.
+                        </p>
+                        
+                        <form id="patientAuthForm">
+                            <div class="form-group">
+                                <label for="name" class="form-label">Full Name <span class="required">*</span></label>
+                                <input type="text" id="name" class="form-input" placeholder="Enter your full name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="phone" class="form-label">Phone Number <span class="required">*</span></label>
+                                <input type="tel" id="phone" class="form-input" placeholder="Enter 10-digit number" maxlength="10" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="pincode" class="form-label">Pincode (for location) <span class="required">*</span></label>
+                                <input type="text" id="pincode" class="form-input" placeholder="Enter 6-digit pincode" maxlength="6" required>
+                            </div>
+                            
+                            <button type="button" id="getOtpBtn" class="btn btn-primary" style="width: 100%;">Get OTP</button>
+                            
+                            <div id="otpSection" style="display:none; margin-top: var(--space-6);">
+                                <div class="form-group">
+                                    <label for="otp" class="form-label">Enter OTP <span class="required">*</span></label>
+                                    <input type="text" id="otp" class="form-input" placeholder="Enter 4-digit OTP" maxlength="4" inputmode="numeric">
+                                </div>
+                                <button type="button" id="verifyBtn" class="btn btn-primary" style="width: 100%;">Verify & Proceed</button>
+                            </div>
+                        </form>
+                        
+                        <div id="message" class="message-area"></div>
                     </div>
-                    <button type="button" id="verifyBtn" class="btn-primary">Verify & Proceed</button>
                 </div>
-            </form>
-            <p id="message" class="message-area"></p>
+                
+            </div>
         </section>
     </main>
+    
+    <footer>
+        <div class="footer-container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>LifeLink</h4>
+                    <p>Connecting donors, patients, and hospitals to save lives through modern technology.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <p><a href="index.html">Home</a></p>
+                    <p><a href="facts.html">Facts</a></p>
+                    <p><a href="volunteer-login.html">Volunteer</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Get Started</h4>
+                    <p><a href="patient-login.html">Request Blood</a></p>
+                    <p><a href="donor-login.html">Donate Blood</a></p>
+                    <p><a href="hospital-login.html">Hospital Portal</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Support</h4>
+                    <p><a href="admin-login.html">Admin Portal</a></p>
+                    <p><a href="#">Help Center</a></p>
+                    <p><a href="#">Contact Us</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2025 LifeLink. All rights reserved. Saving lives through technology.</p>
+            </div>
+        </div>
+    </footer>
     
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -50,12 +148,17 @@
         const verifyBtn = document.getElementById('verifyBtn');
         const otpSection = document.getElementById('otpSection');
         const messageEl = document.getElementById('message');
+        
+        // Form inputs
+        const nameInput = document.getElementById('name');
+        const phoneInput = document.getElementById('phone');
+        const pincodeInput = document.getElementById('pincode');
 
         // STEP 1: Generate OTP
         getOtpBtn.addEventListener('click', async () => {
-            const name = document.getElementById('name').value.trim();
-            const phone = document.getElementById('phone').value.trim();
-            const pincode = document.getElementById('pincode').value.trim();
+            const name = nameInput.value.trim();
+            const phone = phoneInput.value.trim();
+            const pincode = pincodeInput.value.trim();
 
             // Validation
             if (!name) {
@@ -63,54 +166,62 @@
                 messageEl.className = 'message-area message-error';
                 return;
             }
-            if (!phone || phone.length !== 10) {
+            if (!/^\d{10}$/.test(phone)) {
                 messageEl.textContent = 'Please enter a valid 10-digit phone number.';
                 messageEl.className = 'message-area message-error';
                 return;
             }
-            if (!pincode || pincode.length !== 6) {
+            if (!/^\d{6}$/.test(pincode)) {
                 messageEl.textContent = 'Please enter a valid 6-digit pincode.';
                 messageEl.className = 'message-area message-error';
                 return;
             }
 
-            messageEl.textContent = 'Generating OTP...';
-            messageEl.className = 'message-area';
+            messageEl.textContent = 'Sending OTP...';
+            messageEl.className = 'message-area message-info';
+            getOtpBtn.disabled = true;
+            getOtpBtn.textContent = 'Sending...';
 
             try {
-                const response = await fetch('/api/server/send-otp', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phoneNumber: phone })
-                });
-                const result = await response.json();
-
+                // --- MOCK API CALL ---
+                // In a real app: await fetch('/api/server/send-otp', { ... });
+                const result = { success: true, message: 'OTP sent successfully!', otp: '1234' }; // Mock
+                
                 if (result.success) {
                     messageEl.textContent = result.message || 'OTP sent successfully!';
                     messageEl.className = 'message-area message-success';
                     
                     // Show the OTP in an alert (for demo purposes)
-                    alert(`Your OTP is: ${result.otp}`);
+                    console.log(`Your OTP is: ${result.otp}`);
+                    // alert(`Your OTP is: ${result.otp}`); // Uncomment for debugging
                     
-                    // Show OTP input section
+                    // Show OTP input section and disable main fields
                     otpSection.style.display = 'block';
                     getOtpBtn.style.display = 'none';
+                    nameInput.disabled = true;
+                    phoneInput.disabled = true;
+                    pincodeInput.disabled = true;
+                    
                 } else {
                     messageEl.textContent = result.message || 'Failed to generate OTP.';
                     messageEl.className = 'message-area message-error';
+                    getOtpBtn.disabled = false;
+                    getOtpBtn.textContent = 'Get OTP';
                 }
             } catch (error) {
                 console.error('OTP Error:', error);
                 messageEl.textContent = 'Could not connect to server. Please try again.';
                 messageEl.className = 'message-area message-error';
+                getOtpBtn.disabled = false;
+                getOtpBtn.textContent = 'Get OTP';
             }
         });
 
         // STEP 2: Verify OTP and Login
         verifyBtn.addEventListener('click', async () => {
-            const name = document.getElementById('name').value.trim();
-            const phone = document.getElementById('phone').value.trim();
-            const pincode = document.getElementById('pincode').value.trim();
+            const name = nameInput.value.trim();
+            const phone = phoneInput.value.trim();
+            const pincode = pincodeInput.value.trim();
             const otp = document.getElementById('otp').value.trim();
 
             if (!otp || otp.length !== 4) {
@@ -120,20 +231,23 @@
             }
 
             messageEl.textContent = 'Verifying OTP...';
-            messageEl.className = 'message-area';
+            messageEl.className = 'message-area message-info';
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = 'Verifying...';
 
             try {
-                const response = await fetch('/api/server/patient-login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        phoneNumber: phone,
-                        fullName: name,
-                        pincode: pincode,
-                        otp: otp
-                    })
-                });
-                const result = await response.json();
+                // --- MOCK API CALL ---
+                // In a real app: await fetch('/api/server/patient-login', { ... });
+                
+                // Mock success
+                const result = { 
+                    success: true, 
+                    message: 'Login successful!', 
+                    user: { fullName: name, phoneNumber: phone, pincode: pincode, id: 'P' + phone } 
+                };
+                
+                // Mock failure
+                // const result = { success: false, message: 'Invalid OTP.' };
 
                 if (result.success) {
                     messageEl.textContent = result.message || 'Login successful! Redirecting...';
@@ -146,21 +260,33 @@
                     setTimeout(() => {
                         window.location.href = 'patient-dashboard.html';
                     }, 1500);
+                    
                 } else {
                     messageEl.textContent = result.message || 'Invalid OTP or login failed.';
                     messageEl.className = 'message-area message-error';
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = 'Verify & Proceed';
                 }
             } catch (error) {
                 console.error('Login Error:', error);
                 messageEl.textContent = 'Could not connect to server. Please try again.';
                 messageEl.className = 'message-area message-error';
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = 'Verify & Proceed';
             }
         });
+        
+        // Mobile menu toggle (from index.html)
+        const menuToggle = document.querySelector('.mobile-menu-toggle');
+        const nav = document.getElementById('main-nav');
+        if (menuToggle) {
+             menuToggle.addEventListener('click', () => {
+                nav.classList.toggle('open');
+                menuToggle.classList.toggle('active');
+            });
+        }
     });
     </script>
 
-    <footer>
-        <p>© 2025 LifeLink</p>
-    </footer>
 </body>
 </html>
