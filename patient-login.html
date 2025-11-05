@@ -154,7 +154,7 @@
         const phoneInput = document.getElementById('phone');
         const pincodeInput = document.getElementById('pincode');
 
-        // STEP 1: Generate OTP
+        // STEP 1: Generate OTP - INTEGRATED WITH BACKEND
         getOtpBtn.addEventListener('click', async () => {
             const name = nameInput.value.trim();
             const phone = phoneInput.value.trim();
@@ -183,17 +183,21 @@
             getOtpBtn.textContent = 'Sending...';
 
             try {
-                // --- MOCK API CALL ---
-                // In a real app: await fetch('/api/server/send-otp', { ... });
-                const result = { success: true, message: 'OTP sent successfully!', otp: '1234' }; // Mock
+                // REAL API CALL TO BACKEND
+                const response = await fetch('/api/server/send-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber: phone })
+                });
+                
+                const result = await response.json();
                 
                 if (result.success) {
-                    messageEl.textContent = result.message || 'OTP sent successfully!';
                     messageEl.className = 'message-area message-success';
                     
-                    // Show the OTP in an alert (for demo purposes)
-                    console.log(`Your OTP is: ${result.otp}`);
-                    // alert(`Your OTP is: ${result.otp}`); // Uncomment for debugging
+                    // Show OTP in popup alert (instead of SMS in development)
+                    alert(`🔐 Your OTP is: ${result.otp}\n\n(In production, this will be sent via SMS)`);
+                    messageEl.textContent = 'OTP generated! Check the popup alert.';
                     
                     // Show OTP input section and disable main fields
                     otpSection.style.display = 'block';
@@ -217,7 +221,7 @@
             }
         });
 
-        // STEP 2: Verify OTP and Login
+        // STEP 2: Verify OTP and Login - INTEGRATED WITH BACKEND
         verifyBtn.addEventListener('click', async () => {
             const name = nameInput.value.trim();
             const phone = phoneInput.value.trim();
@@ -236,18 +240,19 @@
             verifyBtn.textContent = 'Verifying...';
 
             try {
-                // --- MOCK API CALL ---
-                // In a real app: await fetch('/api/server/patient-login', { ... });
+                // REAL API CALL TO BACKEND
+                const response = await fetch('/api/server/patient-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        phoneNumber: phone,
+                        fullName: name,
+                        pincode: pincode,
+                        otp: otp
+                    })
+                });
                 
-                // Mock success
-                const result = { 
-                    success: true, 
-                    message: 'Login successful!', 
-                    user: { fullName: name, phoneNumber: phone, pincode: pincode, id: 'P' + phone } 
-                };
-                
-                // Mock failure
-                // const result = { success: false, message: 'Invalid OTP.' };
+                const result = await response.json();
 
                 if (result.success) {
                     messageEl.textContent = result.message || 'Login successful! Redirecting...';
@@ -276,7 +281,7 @@
             }
         });
         
-        // Mobile menu toggle (from index.html)
+        // Mobile menu toggle
         const menuToggle = document.querySelector('.mobile-menu-toggle');
         const nav = document.getElementById('main-nav');
         if (menuToggle) {
