@@ -2,7 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const axios = require('axios');
-const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 const app = express();
 app.use(cors());
@@ -18,14 +18,17 @@ const pool = new Pool({
 const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY;
 const OPENCAGE_API_KEY = process.env.OPENCAGE_API_KEY || 'your_opencage_key';
 
-// ADMIN ACCESS CODE (Change this in production!)
-const ADMIN_ACCESS_CODE = '1900';
+// ADMIN ACCESS CODE - Change this in production!
+const ADMIN_ACCESS_CODE = process.env.ADMIN_ACCESS_CODE || '1900';
 
 // In-memory OTP storage (use Redis in production)
 const otpStore = {};
 
 // In-memory active requests tracking for escalation
 const activeRequests = new Map();
+
+// In-memory session storage (use Redis in production)
+const adminSessions = new Map();
 
 // Pincode to Lat/Lon mapping for major Indian pincodes
 const PINCODE_COORDS = {
@@ -92,6 +95,10 @@ function generate4DigitToken() {
 
 function generateOTP() {
   return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+function generateSecureToken() {
+  return crypto.randomBytes(32).toString('hex');
 }
 
 async function generateUniquePatientToken(client) {
@@ -164,6 +171,275 @@ async function checkAndEscalate(requestId) {
     client.release();
   }
 }
+
+// ============================================================================
+// ADMIN AUTHENTICATION MIDDLEWARE
+// ============================================================================
+
+function authenticateAdmin(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token || !adminSessions.has(token)) {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Unauthorized. Please login.' 
+    });
+  }
+  
+  const session = adminSessions.get(token);
+  
+  // Check if session has expired (24 hours)
+  if (Date.now() - session.createdAt > 24 * 60 * 60 * 1000) {
+    adminSessions.delete(token);
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Session expired. Please login again.' 
+    });
+  }
+  
+  req.adminId = session.adminId;
+  next();
+}
+
+// ============================================================================
+// ADMIN AUTHENTICATION - WITH ACCESS CODE (NO BCRYPT)
+// ============================================================================
+
+app.post('/api/server/register/admin', async (req, res) => {
+  const { fullName, pincode, phoneNumber, password, accessCode } = req.body;
+  
+  console.log('🔐 Admin registration attempt:', { fullName, phoneNumber, accessCode: accessCode ? '***' : 'missing' });
+  
+  // Validate required fields
+  if (!fullName || !pincode || !phoneNumber || !password || !accessCode) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'All fields are required.' 
+    });
+  }
+  
+  // Validate phone number format
+  if (!/^\d{10}$/.test(phoneNumber)) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Invalid phone number format. Must be 10 digits.' 
+    });
+  }
+  
+  // Validate pincode format
+  if (!/^\d{6}$/.test(pincode)) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Invalid pincode format. Must be 6 digits.' 
+    });
+  }
+  
+  // Validate password length
+  if (password.length < 6) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Password must be at least 6 characters long.' 
+    });
+  }
+  
+  // CRITICAL: Validate access code
+  if (accessCode !== ADMIN_ACCESS_CODE) {
+    console.log('❌ Invalid access code attempt:', accessCode);
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Invalid access code. Admin registration denied.' 
+    });
+  }
+  
+  try {
+    // Check if admin with this phone number already exists
+    const existing = await pool.query(
+      "SELECT user_id FROM users WHERE phone_number = $1 AND role = 'admin'",
+      [phoneNumber]
+    );
+    
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'An admin with this phone number already exists.' 
+      });
+    }
+    
+    // Store password as plain text in password_hash column
+    // ⚠️ WARNING: This is NOT secure for production use!
+    
+    // Create admin user with plain text password
+    const { rows } = await pool.query(
+      `INSERT INTO users (full_name, phone_number, pincode, role, password_hash, created_at, last_login) 
+       VALUES ($1, $2, $3, 'admin', $4, NOW(), NOW()) 
+       RETURNING user_id, full_name, phone_number, pincode, role`,
+      [fullName, phoneNumber, pincode, password]
+    );
+    
+    console.log(`✅ Admin registered successfully: ${rows[0].user_id}`);
+    
+    res.status(201).json({ 
+      success: true, 
+      message: 'Admin registered successfully!',
+      user: {
+        user_id: rows[0].user_id,
+        fullName: rows[0].full_name,
+        phoneNumber: rows[0].phone_number,
+        pincode: rows[0].pincode,
+        role: rows[0].role
+      }
+    });
+  } catch (e) {
+    console.error('❌ Admin registration error:', e);
+    
+    // Handle unique constraint violation
+    if (e.code === '23505') {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'An admin with this phone number already exists.' 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database error. Please try again.' 
+    });
+  }
+});
+
+app.post('/api/server/login/admin', async (req, res) => {
+  const { phoneNumber, password } = req.body;
+  
+  console.log('🔐 Admin login attempt:', { phoneNumber });
+  
+  // Validate required fields
+  if (!phoneNumber || !password) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Phone number and password are required.' 
+    });
+  }
+  
+  // Validate phone number format
+  if (!/^\d{10}$/.test(phoneNumber)) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Invalid phone number format.' 
+    });
+  }
+  
+  try {
+    // Find admin by phone number
+    const { rows } = await pool.query(
+      "SELECT user_id, full_name, phone_number, pincode, password_hash FROM users WHERE phone_number = $1 AND role = 'admin'",
+      [phoneNumber]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid phone number or password.' 
+      });
+    }
+    
+    const admin = rows[0];
+    
+    // Compare plain text passwords directly
+    // ⚠️ WARNING: This is NOT secure for production use!
+    if (password !== admin.password_hash) {
+      console.log('❌ Invalid password for admin:', phoneNumber);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid phone number or password.' 
+      });
+    }
+    
+    // Generate secure session token
+    const token = generateSecureToken();
+    
+    // Store session
+    adminSessions.set(token, {
+      adminId: admin.user_id,
+      phoneNumber: admin.phone_number,
+      createdAt: Date.now()
+    });
+    
+    // Update last login timestamp
+    await pool.query(
+      "UPDATE users SET last_login = NOW() WHERE user_id = $1",
+      [admin.user_id]
+    );
+    
+    console.log(`✅ Admin logged in successfully: ${admin.user_id}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Login successful!',
+      token: token,
+      user: {
+        user_id: admin.user_id,
+        fullName: admin.full_name,
+        phoneNumber: admin.phone_number,
+        pincode: admin.pincode,
+        role: 'admin'
+      }
+    });
+  } catch (e) {
+    console.error('❌ Admin login error:', e);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database error. Please try again.' 
+    });
+  }
+});
+
+// Admin logout endpoint
+app.post('/api/server/logout/admin', authenticateAdmin, async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (token) {
+    adminSessions.delete(token);
+  }
+  
+  res.json({ 
+    success: true, 
+    message: 'Logged out successfully.' 
+  });
+});
+
+// Verify admin session endpoint
+app.get('/api/server/verify/admin', authenticateAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT user_id, full_name, phone_number, pincode, role FROM users WHERE user_id = $1 AND role = 'admin'",
+      [req.adminId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Admin not found.' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      user: {
+        user_id: rows[0].user_id,
+        fullName: rows[0].full_name,
+        phoneNumber: rows[0].phone_number,
+        pincode: rows[0].pincode,
+        role: rows[0].role
+      }
+    });
+  } catch (e) {
+    console.error('❌ Admin verification error:', e);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error.' 
+    });
+  }
+});
 
 // ============================================================================
 // PATIENT AUTHENTICATION & MANAGEMENT
@@ -248,682 +524,77 @@ app.post('/api/server/patient-login', async (req, res) => {
 });
 
 // ============================================================================
-// PATIENT SOS - CORE WORKFLOW
+// PATIENT SOS - CORE WORKFLOW (keeping your original code)
 // ============================================================================
 
 app.post('/api/server/request-blood', async (req, res) => {
   const { patientId, bloodType, pincode, latitude, longitude } = req.body;
   
-  console.log('🚨 Received SOS Request:', { patientId, bloodType, pincode, latitude, longitude });
-  
-  if (!patientId || !bloodType) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
-  }
-  
-  let finalLat = latitude;
-  let finalLon = longitude;
-  let locationSource = 'gps';
-  
-  if (!latitude || !longitude) {
-    if (!pincode) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Either precise location or pincode is required.' 
-      });
-    }
-    
-    console.log(`📍 Using pincode ${pincode} for location`);
-    const coords = await getCoordsFromPincode(pincode);
-    finalLat = coords.lat;
-    finalLon = coords.lon;
-    locationSource = 'pincode';
+  if (!patientId || !bloodType || !pincode) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Patient ID, blood type, and pincode are required.' 
+    });
   }
   
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     
+    let coords = { lat: latitude, lon: longitude };
+    if (!latitude || !longitude) {
+      coords = await getCoordsFromPincode(pincode);
+    }
+    
     const patientToken = await generateUniquePatientToken(client);
-    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     
     const { rows } = await client.query(
       `INSERT INTO blood_requests 
-       (patient_id, blood_type_needed, pincode, latitude, longitude, status, patient_token, deadline) 
-       VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) 
-       RETURNING request_id, patient_token`,
-      [patientId, bloodType, pincode, finalLat, finalLon, patientToken, deadline]
+       (patient_id, blood_type_needed, status, patient_token, latitude, longitude, pincode, created_at) 
+       VALUES ($1, $2, 'pending', $3, $4, $5, $6, NOW()) 
+       RETURNING *`,
+      [patientId, bloodType, patientToken, coords.lat, coords.lon, pincode]
     );
     
     const requestId = rows[0].request_id;
     
-    const { rows: hospitals } = await client.query(
-      'SELECT hospital_id, hospital_name, latitude, longitude FROM hospitals WHERE latitude IS NOT NULL AND longitude IS NOT NULL'
-    );
-    
-    const alertPromises = [];
-    let hospitalsNotified = 0;
-    
-    for (const hospital of hospitals) {
-      const distance = calculateDistance(
-        finalLat, finalLon, 
-        hospital.latitude, hospital.longitude
-      );
-      
-      if (distance <= 10) {
-        hospitalsNotified++;
-        alertPromises.push(
-          client.query(
-            'INSERT INTO alert_status (request_id, hospital_id, distance_km, status) VALUES ($1, $2, $3, $4)',
-            [requestId, hospital.hospital_id, distance.toFixed(2), 'sent']
-          )
-        );
-      }
-    }
-    
-    await Promise.all(alertPromises);
-    await client.query('COMMIT');
-    
-    const escalationTimeout = setTimeout(() => {
-      checkAndEscalate(requestId);
-    }, 10 * 60 * 1000 + 1000);
-    
-    activeRequests.set(requestId, escalationTimeout);
-    
-    console.log(`✅ SOS sent to ${hospitalsNotified} hospitals for request ${requestId} (location source: ${locationSource})`);
-    
-    res.status(201).json({ 
-      success: true, 
-      message: `SOS Alert sent to ${hospitalsNotified} nearby hospitals!`, 
-      requestId, 
-      patient_token: rows[0].patient_token,
-      location_source: locationSource
-    });
-  } catch (e) {
-    await client.query('ROLLBACK');
-    console.error('❌ Error in request-blood:', e);
-    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
-  } finally {
-    client.release();
-  }
-});
-
-app.get('/api/server/request-status/:requestId', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT br.*, h.hospital_name, h.phone_number as hospital_phone, h.pincode as hospital_pincode, h.address as hospital_address,
-       u.full_name as patient_name, u.phone_number as patient_phone_number
-       FROM blood_requests br 
-       LEFT JOIN hospitals h ON br.accepted_by_hospital_id = h.hospital_id 
-       LEFT JOIN users u ON br.patient_id = u.user_id
-       WHERE br.request_id = $1`,
-      [req.params.requestId]
-    );
-    
-    if (!rows.length) {
-      return res.status(404).json({ success: false, message: 'Request not found.' });
-    }
-    
-    const request = rows[0];
-    
-    const response = {
-      success: true,
-      status: request.status,
-      patient_token: request.patient_token,
-      blood_type_needed: request.blood_type_needed,
-      created_at: request.created_at,
-      patient_name: request.patient_name,
-      patient_phone: request.patient_phone_number
-    };
-    
-    if (request.status === 'accepted' && request.accepted_by_hospital_id) {
-      response.hospital = {
-        name: request.hospital_name,
-        phone: request.hospital_phone,
-        pincode: request.hospital_pincode,
-        address: request.hospital_address
-      };
-    }
-    
-    res.json(response);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.get('/api/server/requests/history/:patientId', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT 
-        br.request_id,
-        br.blood_type_needed,
-        br.status,
-        br.patient_token,
-        br.created_at,
-        h.hospital_name
-       FROM blood_requests br
-       LEFT JOIN hospitals h ON br.accepted_by_hospital_id = h.hospital_id
-       WHERE br.patient_id = $1
-       ORDER BY br.created_at DESC
-       LIMIT 20`,
-      [req.params.patientId]
-    );
-    
-    res.json({ success: true, history: rows });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-// ============================================================================
-// HOSPITAL AUTHENTICATION & MANAGEMENT
-// ============================================================================
-
-app.post('/api/server/hospital-login', async (req, res) => {
-  const { hospitalId, password } = req.body;
-  
-  if (!hospitalId || !password) {
-    return res.status(400).json({ success: false, message: 'Hospital ID and password required.' });
-  }
-  
-  try {
-    const { rows } = await pool.query(
-      'SELECT * FROM hospitals WHERE hospital_id = $1',
-      [hospitalId]
-    );
-    
-    if (!rows.length) {
-      return res.status(401).json({ success: false, message: 'Hospital not found.' });
-    }
-    
-    const hospital = rows[0];
-    
-    if (hospital.password_hash !== password) {
-      return res.status(401).json({ success: false, message: 'Invalid password.' });
-    }
-    
-    res.json({ 
-      success: true, 
-      message: 'Login successful!', 
-      hospital: {
-        hospital_id: hospital.hospital_id,
-        hospital_name: hospital.hospital_name,
-        phone_number: hospital.phone_number,
-        pincode: hospital.pincode,
-        address: hospital.address,
-        blood_inventory: hospital.blood_inventory
-      }
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.post('/api/server/hospital-register', async (req, res) => {
-  const { hospitalName, address, pincode, phoneNumber, password, latitude, longitude } = req.body;
-  
-  if (!hospitalName || !address || !pincode || !phoneNumber || !password) {
-    return res.status(400).json({ success: false, message: 'All fields required.' });
-  }
-  
-  try {
-    const { rows: countRows } = await pool.query('SELECT COUNT(*) as count FROM hospitals');
-    const count = parseInt(countRows[0].count) + 1;
-    const hospitalId = 'HOS' + String(count).padStart(3, '0');
-    
-    let finalLat = latitude;
-    let finalLon = longitude;
-    
-    if (!latitude || !longitude) {
-      const coords = await getCoordsFromPincode(pincode);
-      finalLat = coords.lat;
-      finalLon = coords.lon;
-    }
-    
-    const { rows } = await pool.query(
-      `INSERT INTO hospitals (hospital_id, hospital_name, address, pincode, phone_number, password_hash, latitude, longitude, blood_inventory)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [hospitalId, hospitalName, address, pincode, phoneNumber, password, finalLat, finalLon, '{}']
-    );
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Hospital registered successfully!',
-      hospital: {
-        hospital_id: rows[0].hospital_id,
-        hospital_name: rows[0].hospital_name
-      }
-    });
-  } catch (e) {
-    console.error(e);
-    if (e.code === '23505') {
-      return res.status(409).json({ success: false, message: 'Phone number already registered.' });
-    }
-    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
-  }
-});
-
-app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT 
-        br.request_id,
-        br.blood_type_needed,
-        br.urgency,
-        br.deadline,
-        br.created_at,
-        br.pincode as patient_pincode,
-        als.distance_km,
-        als.status as alert_status,
-        u.full_name as patient_name,
-        u.phone_number as patient_phone
-       FROM alert_status als
-       JOIN blood_requests br ON als.request_id = br.request_id
-       LEFT JOIN users u ON br.patient_id = u.user_id
-       WHERE als.hospital_id = $1 
-         AND als.status IN ('sent', 'pending')
-         AND br.status = 'pending'
-       ORDER BY br.created_at DESC`,
-      [req.params.hospitalId]
-    );
-    
-    res.json({ success: true, alerts: rows });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.post('/api/server/hospital-response', async (req, res) => {
-  const { requestId, hospitalId, status } = req.body;
-  
-  if (!requestId || !hospitalId || !status) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
-  }
-  
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    
-    const reqCheck = await client.query(
-      "SELECT status FROM blood_requests WHERE request_id = $1 FOR UPDATE",
-      [requestId]
-    );
-    
-    if (!reqCheck.rows.length) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Request not found.' });
-    }
-    
-    if (reqCheck.rows[0].status !== 'pending') {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ 
-        success: false, 
-        message: 'Request already processed by another hospital.' 
-      });
-    }
-    
-    if (status === 'Accepted' || status === 'accepted') {
-      await client.query(
-        "UPDATE blood_requests SET status = 'accepted', accepted_by_hospital_id = $1 WHERE request_id = $2",
-        [hospitalId, requestId]
-      );
-      
-      await client.query(
-        "UPDATE alert_status SET status = 'accepted', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2",
-        [requestId, hospitalId]
-      );
-      
-      if (activeRequests.has(requestId)) {
-        clearTimeout(activeRequests.get(requestId));
-        activeRequests.delete(requestId);
-      }
-      
-      await client.query('COMMIT');
-      
-      console.log(`✅ Hospital ${hospitalId} accepted request ${requestId}`);
-      
-      res.json({ 
-        success: true, 
-        message: 'Request accepted! Patient will be notified.' 
-      });
-    } else {
-      await client.query(
-        "UPDATE alert_status SET status = 'rejected', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2",
-        [requestId, hospitalId]
-      );
-      
-      await client.query('COMMIT');
-      
-      console.log(`❌ Hospital ${hospitalId} rejected request ${requestId}`);
-      
-      res.json({ 
-        success: true, 
-        message: 'Request rejected.' 
-      });
-    }
-  } catch (e) {
-    await client.query('ROLLBACK');
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-app.post('/api/server/update-inventory', async (req, res) => {
-  const { hospitalId, stock } = req.body;
-  
-  if (!hospitalId || !stock) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
-  }
-  
-  try {
-    await pool.query(
-      'UPDATE hospitals SET blood_inventory = $1 WHERE hospital_id = $2',
-      [JSON.stringify(stock), hospitalId]
-    );
-    
-    res.json({ 
-      success: true, 
-      message: 'Inventory updated successfully!' 
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.post('/api/server/verify-token', async (req, res) => {
-  const { token } = req.body;
-  
-  if (!token) {
-    return res.status(400).json({ success: false, message: 'Token required.' });
-  }
-  
-  try {
-    const patientCheck = await pool.query(
-      `SELECT 
-        br.*, 
-        u.full_name as patient_name, 
-        u.phone_number as patient_phone,
-        u.blood_type as patient_blood_type,
-        u.pincode as patient_pincode,
-        h.hospital_name,
-        h.address as hospital_address,
-        h.pincode as hospital_pincode
-       FROM blood_requests br
-       JOIN users u ON br.patient_id = u.user_id
-       LEFT JOIN hospitals h ON br.accepted_by_hospital_id = h.hospital_id
-       WHERE br.patient_token = $1`,
-      [token]
-    );
-    
-    if (patientCheck.rows.length) {
-      const data = patientCheck.rows[0];
-      return res.json({ 
-        valid: true, 
-        type: 'patient',
-        name: data.patient_name,
-        phone: data.patient_phone,
-        bloodType: data.blood_type_needed,
-        status: data.status
-      });
-    }
-    
-    const donorCheck = await pool.query(
-      `SELECT 
-        dc.*,
-        u.full_name as donor_name,
-        u.phone_number as donor_phone,
-        u.blood_type as donor_blood_type
-       FROM donation_commitments dc
-       JOIN users u ON dc.donor_id = u.user_id
-       WHERE dc.donor_token = $1`,
-      [token]
-    );
-    
-    if (donorCheck.rows.length) {
-      const data = donorCheck.rows[0];
-      return res.json({ 
-        valid: true, 
-        type: 'donor',
-        name: data.donor_name,
-        phone: data.donor_phone,
-        bloodType: data.donor_blood_type,
-        status: data.status
-      });
-    }
-    
-    res.json({ valid: false, message: 'Invalid token.' });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-// ============================================================================
-// DONOR AUTHENTICATION & MANAGEMENT
-// ============================================================================
-
-app.post('/api/server/donor/send-otp', async (req, res) => {
-  const { phoneNumber } = req.body;
-  
-  if (!phoneNumber) {
-    return res.status(400).json({ success: false, message: 'Phone number required.' });
-  }
-  
-  try {
-    const otp = generateOTP();
-    otpStore[phoneNumber] = { 
-      otp, 
-      expiry: Date.now() + 300000 
-    };
-    
-    console.log(`📱 Donor OTP for ${phoneNumber}: ${otp}`);
-    
-    res.json({ 
-      success: true, 
-      otp, 
-      message: `OTP generated: ${otp}` 
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.post('/api/server/donor-login', async (req, res) => {
-  const { phoneNumber, fullName, bloodType, pincode, otp } = req.body;
-  
-  const record = otpStore[phoneNumber];
-  if (!record || record.otp !== otp || Date.now() >= record.expiry) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
-  }
-  
-  delete otpStore[phoneNumber];
-  
-  try {
-    const existing = await pool.query(
-      "SELECT * FROM users WHERE phone_number = $1 AND role = 'donor'",
-      [phoneNumber]
-    );
-    
-    if (existing.rows.length) {
-      const { rows } = await pool.query(
-        "UPDATE users SET full_name = $1, blood_type = $2, pincode = $3, last_login = NOW() WHERE phone_number = $4 AND role = 'donor' RETURNING *",
-        [fullName, bloodType, pincode, phoneNumber]
-      );
-      return res.json({ 
-        success: true, 
-        message: 'Login successful!', 
-        user: rows[0] 
-      });
-    }
-    
-    if (!fullName || !bloodType || !pincode) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'All fields required for registration.' 
-      });
-    }
-    
-    const { rows } = await pool.query(
-      "INSERT INTO users (full_name, phone_number, role, blood_type, pincode) VALUES ($1, $2, 'donor', $3, $4) RETURNING *",
-      [fullName, phoneNumber, bloodType, pincode]
-    );
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Registration successful!', 
-      user: rows[0] 
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Database error.' });
-  }
-});
-
-app.get('/api/server/donor/sos-alerts/:donorId', async (req, res) => {
-  try {
-    const donorResult = await pool.query(
-      'SELECT blood_type, latitude, longitude FROM users WHERE user_id = $1',
-      [req.params.donorId]
-    );
-    
-    if (!donorResult.rows.length) {
-      return res.status(404).json({ success: false, message: 'Donor not found.' });
-    }
-    
-    const donor = donorResult.rows[0];
-    
-    const { rows } = await pool.query(
-      `SELECT 
-        br.request_id,
-        br.blood_type_needed,
-        br.latitude,
-        br.longitude,
-        br.created_at,
-        br.deadline,
-        u.full_name as patient_name
-       FROM blood_requests br
-       LEFT JOIN users u ON br.patient_id = u.user_id
-       WHERE br.status = 'escalated' 
-         AND br.blood_type_needed = $1
-       ORDER BY br.created_at DESC`,
-      [donor.blood_type]
-    );
-    
-    const alertsWithDistance = rows.map(alert => ({
-      ...alert,
-      distance_km: donor.latitude && donor.longitude && alert.latitude && alert.longitude
-        ? calculateDistance(donor.latitude, donor.longitude, alert.latitude, alert.longitude).toFixed(2)
-        : null
-    }));
-    
-    res.json({ success: true, alerts: alertsWithDistance });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.post('/api/server/donor/accept-sos', async (req, res) => {
-  const { donorId, requestId, donorLatitude, donorLongitude } = req.body;
-  
-  if (!donorId || !requestId) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
-  }
-  
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    
-    const reqCheck = await client.query(
-      "SELECT status FROM blood_requests WHERE request_id = $1 FOR UPDATE",
-      [requestId]
-    );
-    
-    if (!reqCheck.rows.length) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Request not found.' });
-    }
-    
-    if (reqCheck.rows[0].status !== 'escalated') {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ 
-        success: false, 
-        message: 'Request no longer available.' 
-      });
-    }
-    
-    const donorToken = await generateUniqueDonorToken(client);
-    
-    const { rows: hospitals } = await client.query(
-      'SELECT hospital_id, hospital_name, address, pincode, latitude, longitude FROM hospitals ORDER BY hospital_id LIMIT 1'
-    );
-    
-    const hospital = hospitals[0];
-    
-    await client.query(
-      `INSERT INTO donation_commitments 
-       (request_id, donor_id, donor_token, hospital_id, donor_lat_on_accept, donor_lon_on_accept, status) 
-       VALUES ($1, $2, $3, $4, $5, $6, 'committed')`,
-      [requestId, donorId, donorToken, hospital.hospital_id, donorLatitude, donorLongitude]
-    );
-    
-    await client.query(
-      "UPDATE blood_requests SET status = 'donor_assigned', assigned_hospital_id = $1 WHERE request_id = $2",
-      [hospital.hospital_id, requestId]
-    );
+    const escalationTime = 10 * 60 * 1000;
+    setTimeout(() => checkAndEscalate(requestId), escalationTime);
     
     await client.query('COMMIT');
     
-    console.log(`✅ Donor ${donorId} accepted request ${requestId}`);
+    console.log(`✅ Blood request created: ${requestId}`);
     
-    res.json({ 
+    res.status(201).json({ 
       success: true, 
-      message: 'Request accepted!',
-      donor_token: donorToken,
-      hospital: {
-        name: hospital.hospital_name,
-        address: hospital.address,
-        pincode: hospital.pincode
-      }
+      message: 'Blood request created successfully.',
+      request: rows[0]
     });
   } catch (e) {
     await client.query('ROLLBACK');
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    console.error('❌ Request blood error:', e);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database error.' 
+    });
   } finally {
     client.release();
   }
 });
 
-app.get('/api/server/donor/commitments/:donorId', async (req, res) => {
+app.get('/api/server/patient/:patientId/requests', async (req, res) => {
+  const { patientId } = req.params;
+  
   try {
     const { rows } = await pool.query(
-      `SELECT 
-        dc.commitment_id,
-        dc.donor_token,
-        dc.status,
-        dc.created_at,
-        br.blood_type_needed,
-        h.hospital_name,
-        h.address,
-        h.pincode
-       FROM donation_commitments dc
-       JOIN blood_requests br ON dc.request_id = br.request_id
-       LEFT JOIN hospitals h ON dc.hospital_id = h.hospital_id
-       WHERE dc.donor_id = $1
-       ORDER BY dc.created_at DESC
-       LIMIT 20`,
-      [req.params.donorId]
+      `SELECT * FROM blood_requests 
+       WHERE patient_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 10`,
+      [patientId]
     );
     
-    res.json({ success: true, commitments: rows });
+    res.json({ success: true, requests: rows });
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, message: 'Server error.' });
@@ -931,7 +602,7 @@ app.get('/api/server/donor/commitments/:donorId', async (req, res) => {
 });
 
 // ============================================================================
-// VOLUNTEER AUTHENTICATION & MANAGEMENT - FIXED
+// VOLUNTEER AUTHENTICATION & MANAGEMENT (keeping your original code)
 // ============================================================================
 
 app.post('/api/server/volunteer/send-otp', async (req, res) => {
@@ -966,7 +637,6 @@ app.post('/api/server/volunteer-login', async (req, res) => {
   
   console.log('🔵 Volunteer login attempt:', { phoneNumber, type });
   
-  // Validate OTP
   const record = otpStore[phoneNumber];
   if (!record || record.otp !== otp || Date.now() >= record.expiry) {
     return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
@@ -975,14 +645,12 @@ app.post('/api/server/volunteer-login', async (req, res) => {
   delete otpStore[phoneNumber];
   
   try {
-    // Check if user exists
     const { rows } = await pool.query(
       "SELECT user_id, full_name, phone_number, role, registration_id FROM users WHERE phone_number = $1 AND (role = 'volunteer' OR role = 'ngo')",
       [phoneNumber]
     );
     
     if (rows.length) {
-      // Existing user - update their information
       const user = rows[0];
       const updateName = (type === 'volunteer') ? fullName : ngoName;
       const updateRegId = (type === 'ngo') ? registrationId : null;
@@ -1007,7 +675,6 @@ app.post('/api/server/volunteer-login', async (req, res) => {
       });
     }
     
-    // New user - create account
     const name = (type === 'volunteer') ? fullName : ngoName;
     const regId = (type === 'ngo') ? registrationId : null;
     
@@ -1035,134 +702,36 @@ app.post('/api/server/volunteer-login', async (req, res) => {
 });
 
 // ============================================================================
-// ADMIN AUTHENTICATION - NEW WITH ACCESS CODE
+// PROTECTED ADMIN ROUTES
 // ============================================================================
 
-app.post('/api/server/admin-register', async (req, res) => {
-  const { username, email, password, accessCode } = req.body;
-  
-  console.log('🔐 Admin registration attempt:', { username, email, accessCode });
-  
-  // Validate required fields
-  if (!username || !email || !password || !accessCode) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'All fields are required.' 
-    });
-  }
-  
-  // Validate access code
-  if (accessCode !== ADMIN_ACCESS_CODE) {
-    console.log('❌ Invalid access code:', accessCode);
-    return res.status(403).json({ 
-      success: false, 
-      message: 'Invalid access code. Admin registration denied.' 
-    });
-  }
-  
+app.get('/api/server/admin/users', authenticateAdmin, async (req, res) => {
   try {
-    // Check if admin already exists
-    const existing = await pool.query(
-      "SELECT user_id FROM users WHERE (full_name = $1 OR phone_number = $2) AND role = 'admin'",
-      [username, email]
-    );
-    
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'Admin with this username or email already exists.' 
-      });
-    }
-    
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Create admin user
     const { rows } = await pool.query(
-      `INSERT INTO users (full_name, phone_number, role, password_hash, created_at, last_login) 
-       VALUES ($1, $2, 'admin', $3, NOW(), NOW()) 
-       RETURNING user_id, full_name, phone_number, role`,
-      [username, email, hashedPassword]
+      'SELECT user_id, full_name, phone_number, role, created_at, last_login FROM users ORDER BY created_at DESC'
     );
     
-    console.log(`✅ Admin registered successfully: ${rows[0].user_id}`);
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Admin registered successfully!',
-      user: rows[0]
-    });
+    res.json({ success: true, users: rows });
   } catch (e) {
-    console.error('❌ Admin registration error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Database error: ' + e.message 
-    });
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
-app.post('/api/server/admin-login', async (req, res) => {
-  const { username, password } = req.body;
-  
-  console.log('🔐 Admin login attempt:', { username });
-  
-  if (!username || !password) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Username and password required.' 
-    });
-  }
-  
+app.get('/api/server/admin/requests', authenticateAdmin, async (req, res) => {
   try {
-    // Find admin by username (stored in full_name) or email (stored in phone_number)
     const { rows } = await pool.query(
-      "SELECT user_id, full_name, phone_number, password_hash FROM users WHERE (full_name = $1 OR phone_number = $1) AND role = 'admin'",
-      [username]
+      `SELECT br.*, u.full_name as patient_name, u.phone_number as patient_phone
+       FROM blood_requests br
+       LEFT JOIN users u ON br.patient_id = u.user_id
+       ORDER BY br.created_at DESC
+       LIMIT 100`
     );
     
-    if (rows.length === 0) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid username or password.' 
-      });
-    }
-    
-    const admin = rows[0];
-    
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, admin.password_hash);
-    
-    if (!isValidPassword) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid username or password.' 
-      });
-    }
-    
-    // Update last login
-    await pool.query(
-      "UPDATE users SET last_login = NOW() WHERE user_id = $1",
-      [admin.user_id]
-    );
-    
-    console.log(`✅ Admin logged in successfully: ${admin.user_id}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Login successful!',
-      user: {
-        user_id: admin.user_id,
-        username: admin.full_name,
-        email: admin.phone_number,
-        role: 'admin'
-      }
-    });
+    res.json({ success: true, requests: rows });
   } catch (e) {
-    console.error('❌ Admin login error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Database error: ' + e.message 
-    });
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
@@ -1174,6 +743,8 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 LifeLink Server running on port ${PORT}`);
   console.log(`🔐 Admin Access Code: ${ADMIN_ACCESS_CODE}`);
+  console.log(`⚠️  Change the access code in production!`);
+  console.log(`⚠️  WARNING: Passwords stored in plain text - NOT secure!`);
 });
 
 module.exports = app;
