@@ -8,21 +8,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Database connection with better error handling
+// Database connection
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
   ssl: { rejectUnauthorized: false },
-  connectionTimeoutMillis: 5000,
-  idleTimeoutMillis: 30000,
-});
-
-// Test database connection on startup
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('❌ Database connection failed:', err.message);
-  } else {
-    console.log('✅ Database connected successfully at', res.rows[0].now);
-  }
 });
 
 // Environment variables
@@ -30,23 +19,23 @@ const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY;
 const OPENCAGE_API_KEY = process.env.OPENCAGE_API_KEY || 'your_opencage_key';
 const ADMIN_ACCESS_CODE = process.env.ADMIN_ACCESS_CODE || '1900';
 
-// In-memory storage
+// In-memory storage (use Redis in production)
 const otpStore = {};
 const activeRequests = new Map();
 const adminSessions = new Map();
-const hospitalSessions = new Map();
+const hospitalSessions = new Map(); // Hospital sessions
 
 // Pincode to Lat/Lon mapping
 const PINCODE_COORDS = {
-  '147001': { lat: 30.3398, lon: 76.3869 },
+  '147001': { lat: 30.3398, lon: 76.3869 }, // Patiala
   '147002': { lat: 30.3520, lon: 76.4095 },
   '147003': { lat: 30.3216, lon: 76.4250 },
   '147004': { lat: 30.3601, lon: 76.3540 },
-  '110001': { lat: 28.6139, lon: 77.2090 },
-  '400001': { lat: 18.9388, lon: 72.8354 },
-  '560001': { lat: 12.9716, lon: 77.5946 },
-  '600001': { lat: 13.0827, lon: 80.2707 },
-  '700001': { lat: 22.5726, lon: 88.3639 },
+  '110001': { lat: 28.6139, lon: 77.2090 }, // Delhi
+  '400001': { lat: 18.9388, lon: 72.8354 }, // Mumbai
+  '560001': { lat: 12.9716, lon: 77.5946 }, // Bangalore
+  '600001': { lat: 13.0827, lon: 80.2707 }, // Chennai
+  '700001': { lat: 22.5726, lon: 88.3639 }, // Kolkata
 };
 
 // ============================================================================
@@ -135,6 +124,30 @@ async function generateUniqueDonorToken(client) {
 // AUTHENTICATION MIDDLEWARE
 // ============================================================================
 
+function authenticateAdmin(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token || !adminSessions.has(token)) {
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Unauthorized. Please login.' 
+    });
+  }
+  
+  const session = adminSessions.get(token);
+  
+  if (Date.now() - session.createdAt > 24 * 60 * 60 * 1000) {
+    adminSessions.delete(token);
+    return res.status(401).json({ 
+      success: false, 
+      message: 'Session expired. Please login again.' 
+    });
+  }
+  
+  req.adminId = session.adminId;
+  next();
+}
+
 function authenticateHospital(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   
@@ -209,13 +222,14 @@ app.post('/api/server/register/hospital', async (req, res) => {
       });
     }
     
+    // Get coordinates for pincode
     const coords = await getCoordsFromPincode(pincode);
     
     const { rows } = await pool.query(
       `INSERT INTO hospitals (hospital_name, phone_number, password_hash, address, pincode, email, latitude, longitude, created_at, last_login) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()) 
        RETURNING hospital_id, hospital_name, phone_number, address, pincode, email`,
-      [hospitalName, phoneNumber, password, address, pincode, email || null, coords.lat, coords.lon]
+      [hospitalName, phoneNumber, password, address, pincode, email, coords.lat, coords.lon]
     );
     
     console.log(`✅ Hospital registered successfully: ${rows[0].hospital_id}`);
@@ -237,7 +251,7 @@ app.post('/api/server/register/hospital', async (req, res) => {
     
     res.status(500).json({ 
       success: false, 
-      message: 'Database error: ' + e.message 
+      message: 'Database error. Please try again.' 
     });
   }
 });
@@ -316,7 +330,7 @@ app.post('/api/server/login/hospital', async (req, res) => {
     console.error('❌ Hospital login error:', e);
     res.status(500).json({ 
       success: false, 
-      message: 'Database error: ' + e.message 
+      message: 'Database error. Please try again.' 
     });
   }
 });
@@ -363,13 +377,13 @@ app.get('/api/server/verify/hospital', authenticateHospital, async (req, res) =>
     console.error('❌ Hospital verification error:', e);
     res.status(500).json({ 
       success: false, 
-      message: 'Server error: ' + e.message 
+      message: 'Server error.' 
     });
   }
 });
 
 // ============================================================================
-// BLOOD INVENTORY MANAGEMENT
+// HOSPITAL BLOOD INVENTORY MANAGEMENT
 // ============================================================================
 
 app.get('/api/hospital/inventory', authenticateHospital, async (req, res) => {
@@ -385,7 +399,7 @@ app.get('/api/hospital/inventory', authenticateHospital, async (req, res) => {
     res.json({ success: true, inventory: rows });
   } catch (e) {
     console.error('❌ Get inventory error:', e);
-    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
@@ -436,12 +450,12 @@ app.post('/api/hospital/inventory/update', authenticateHospital, async (req, res
     });
   } catch (e) {
     console.error('❌ Update inventory error:', e);
-    res.status(500).json({ success: false, message: 'Database error: ' + e.message });
+    res.status(500).json({ success: false, message: 'Database error.' });
   }
 });
 
 // ============================================================================
-// TOKEN VERIFICATION
+// TOKEN VERIFICATION (DONOR & PATIENT)
 // ============================================================================
 
 app.post('/api/hospital/verify-tokens', authenticateHospital, async (req, res) => {
@@ -458,9 +472,9 @@ app.post('/api/hospital/verify-tokens', authenticateHospital, async (req, res) =
     // Verify donor token
     const donorResult = await pool.query(
       `SELECT dc.*, u.full_name as donor_name, u.phone_number as donor_phone, u.blood_type as donor_blood_type,
-              br.blood_type_needed, br.patient_token, br.request_id
+              br.blood_type_needed, br.patient_token
        FROM donation_commitments dc
-       JOIN users u ON dc.donor_id = u.user_id
+       JOIN users u ON dc.user_id = u.user_id
        JOIN blood_requests br ON dc.request_id = br.request_id
        WHERE dc.donor_token = $1`,
       [donorToken]
@@ -492,8 +506,8 @@ app.post('/api/hospital/verify-tokens', authenticateHospital, async (req, res) =
     const donor = donorResult.rows[0];
     const patient = patientResult.rows[0];
     
-    // Check if tokens match (belong to same request)
-    const tokensMatch = donor.patient_token === patientToken && donor.request_id === patient.request_id;
+    // Check if tokens match
+    const tokensMatch = donor.patient_token === patientToken;
     
     res.json({ 
       success: true, 
@@ -517,7 +531,7 @@ app.post('/api/hospital/verify-tokens', authenticateHospital, async (req, res) =
     });
   } catch (e) {
     console.error('❌ Token verification error:', e);
-    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
@@ -538,7 +552,7 @@ app.get('/api/hospital/playbooks', authenticateHospital, async (req, res) => {
     res.json({ success: true, playbooks: rows });
   } catch (e) {
     console.error('❌ Get playbooks error:', e);
-    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
@@ -569,7 +583,7 @@ app.post('/api/hospital/playbooks', authenticateHospital, async (req, res) => {
     });
   } catch (e) {
     console.error('❌ Create playbook error:', e);
-    res.status(500).json({ success: false, message: 'Database error: ' + e.message });
+    res.status(500).json({ success: false, message: 'Database error.' });
   }
 });
 
@@ -609,7 +623,7 @@ app.put('/api/hospital/playbooks/:id', authenticateHospital, async (req, res) =>
     });
   } catch (e) {
     console.error('❌ Update playbook error:', e);
-    res.status(500).json({ success: false, message: 'Database error: ' + e.message });
+    res.status(500).json({ success: false, message: 'Database error.' });
   }
 });
 
@@ -639,12 +653,12 @@ app.delete('/api/hospital/playbooks/:id', authenticateHospital, async (req, res)
     });
   } catch (e) {
     console.error('❌ Delete playbook error:', e);
-    res.status(500).json({ success: false, message: 'Database error: ' + e.message });
+    res.status(500).json({ success: false, message: 'Database error.' });
   }
 });
 
 // ============================================================================
-// SOS MONITOR
+// SOS MONITOR - VIEW ALL PATIENT REQUESTS
 // ============================================================================
 
 app.get('/api/hospital/sos-requests', authenticateHospital, async (req, res) => {
@@ -666,7 +680,7 @@ app.get('/api/hospital/sos-requests', authenticateHospital, async (req, res) => 
     res.json({ success: true, requests: rows });
   } catch (e) {
     console.error('❌ Get SOS requests error:', e);
-    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
@@ -680,7 +694,7 @@ app.get('/api/hospital/appointments', authenticateHospital, async (req, res) => 
       `SELECT dc.*, u.full_name as donor_name, u.phone_number as donor_phone, u.blood_type,
               br.blood_type_needed, br.patient_token
        FROM donation_commitments dc
-       JOIN users u ON dc.donor_id = u.user_id
+       JOIN users u ON dc.user_id = u.user_id
        JOIN blood_requests br ON dc.request_id = br.request_id
        WHERE br.accepted_by_hospital_id = $1
        ORDER BY dc.created_at DESC
@@ -691,12 +705,231 @@ app.get('/api/hospital/appointments', authenticateHospital, async (req, res) => 
     res.json({ success: true, appointments: rows });
   } catch (e) {
     console.error('❌ Get appointments error:', e);
-    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
 // ============================================================================
-// PATIENT SOS REQUEST (Broadcasting to all hospitals)
+// ADMIN AUTHENTICATION (keeping existing)
+// ============================================================================
+
+app.post('/api/server/register/admin', async (req, res) => {
+  const { fullName, pincode, phoneNumber, password, accessCode } = req.body;
+  
+  console.log('🔐 Admin registration attempt:', { fullName, phoneNumber });
+  
+  if (!fullName || !pincode || !phoneNumber || !password || !accessCode) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'All fields are required.' 
+    });
+  }
+  
+  if (!/^\d{10}$/.test(phoneNumber)) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Invalid phone number format. Must be 10 digits.' 
+    });
+  }
+  
+  if (!/^\d{6}$/.test(pincode)) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Invalid pincode format. Must be 6 digits.' 
+    });
+  }
+  
+  if (password.length < 6) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Password must be at least 6 characters long.' 
+    });
+  }
+  
+  if (accessCode !== ADMIN_ACCESS_CODE) {
+    console.log('❌ Invalid access code attempt:', accessCode);
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Invalid access code. Admin registration denied.' 
+    });
+  }
+  
+  try {
+    const existing = await pool.query(
+      "SELECT user_id FROM users WHERE phone_number = $1 AND role = 'admin'",
+      [phoneNumber]
+    );
+    
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'An admin with this phone number already exists.' 
+      });
+    }
+    
+    const { rows } = await pool.query(
+      `INSERT INTO users (full_name, phone_number, pincode, role, password_hash, created_at, last_login) 
+       VALUES ($1, $2, $3, 'admin', $4, NOW(), NOW()) 
+       RETURNING user_id, full_name, phone_number, pincode, role`,
+      [fullName, phoneNumber, pincode, password]
+    );
+    
+    console.log(`✅ Admin registered successfully: ${rows[0].user_id}`);
+    
+    res.status(201).json({ 
+      success: true, 
+      message: 'Admin registered successfully!',
+      user: {
+        user_id: rows[0].user_id,
+        fullName: rows[0].full_name,
+        phoneNumber: rows[0].phone_number,
+        pincode: rows[0].pincode,
+        role: rows[0].role
+      }
+    });
+  } catch (e) {
+    console.error('❌ Admin registration error:', e);
+    
+    if (e.code === '23505') {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'An admin with this phone number already exists.' 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database error. Please try again.' 
+    });
+  }
+});
+
+app.post('/api/server/login/admin', async (req, res) => {
+  const { phoneNumber, password } = req.body;
+  
+  console.log('🔐 Admin login attempt:', { phoneNumber });
+  
+  if (!phoneNumber || !password) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Phone number and password are required.' 
+    });
+  }
+  
+  if (!/^\d{10}$/.test(phoneNumber)) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Invalid phone number format.' 
+    });
+  }
+  
+  try {
+    const { rows } = await pool.query(
+      "SELECT user_id, full_name, phone_number, pincode, password_hash FROM users WHERE phone_number = $1 AND role = 'admin'",
+      [phoneNumber]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid phone number or password.' 
+      });
+    }
+    
+    const admin = rows[0];
+    
+    if (password !== admin.password_hash) {
+      console.log('❌ Invalid password for admin:', phoneNumber);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid phone number or password.' 
+      });
+    }
+    
+    const token = generateSecureToken();
+    
+    adminSessions.set(token, {
+      adminId: admin.user_id,
+      phoneNumber: admin.phone_number,
+      createdAt: Date.now()
+    });
+    
+    await pool.query(
+      "UPDATE users SET last_login = NOW() WHERE user_id = $1",
+      [admin.user_id]
+    );
+    
+    console.log(`✅ Admin logged in successfully: ${admin.user_id}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Login successful!',
+      token: token,
+      user: {
+        user_id: admin.user_id,
+        fullName: admin.full_name,
+        phoneNumber: admin.phone_number,
+        pincode: admin.pincode,
+        role: 'admin'
+      }
+    });
+  } catch (e) {
+    console.error('❌ Admin login error:', e);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database error. Please try again.' 
+    });
+  }
+});
+
+app.post('/api/server/logout/admin', authenticateAdmin, async (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  
+  if (token) {
+    adminSessions.delete(token);
+  }
+  
+  res.json({ 
+    success: true, 
+    message: 'Logged out successfully.' 
+  });
+});
+
+app.get('/api/server/verify/admin', authenticateAdmin, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT user_id, full_name, phone_number, pincode, role FROM users WHERE user_id = $1 AND role = 'admin'",
+      [req.adminId]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Admin not found.' 
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      user: {
+        user_id: rows[0].user_id,
+        fullName: rows[0].full_name,
+        phoneNumber: rows[0].phone_number,
+        pincode: rows[0].pincode,
+        role: rows[0].role
+      }
+    });
+  } catch (e) {
+    console.error('❌ Admin verification error:', e);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error.' 
+    });
+  }
+});
+
+// ============================================================================
+// PATIENT & VOLUNTEER (keeping existing endpoints - abbreviated for space)
 // ============================================================================
 
 app.post('/api/server/send-otp', async (req, res) => {
@@ -777,6 +1010,10 @@ app.post('/api/server/patient-login', async (req, res) => {
   }
 });
 
+// ============================================================================
+// SOS BROADCAST TO ALL HOSPITALS
+// ============================================================================
+
 app.post('/api/server/request-blood', async (req, res) => {
   const { patientId, bloodType, pincode, latitude, longitude } = req.body;
   
@@ -847,7 +1084,7 @@ app.post('/api/server/request-blood', async (req, res) => {
     console.error('❌ Request blood error:', e);
     res.status(500).json({ 
       success: false, 
-      message: 'Database error: ' + e.message 
+      message: 'Database error.' 
     });
   } finally {
     client.release();
