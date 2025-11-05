@@ -15,13 +15,26 @@ const pool = new Pool({
 
 // Environment variables
 const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY;
-const OPENCAGE_API_KEY = process.env.OPENCAGE_API_KEY;
+const OPENCAGE_API_KEY = process.env.OPENCAGE_API_KEY || 'your_opencage_key';
 
 // In-memory OTP storage (use Redis in production)
 const otpStore = {};
 
 // In-memory active requests tracking for escalation
 const activeRequests = new Map();
+
+// Pincode to Lat/Lon mapping for major Indian pincodes
+const PINCODE_COORDS = {
+  '147001': { lat: 30.3398, lon: 76.3869 }, // Patiala
+  '147002': { lat: 30.3520, lon: 76.4095 },
+  '147003': { lat: 30.3216, lon: 76.4250 },
+  '147004': { lat: 30.3601, lon: 76.3540 },
+  '110001': { lat: 28.6139, lon: 77.2090 }, // Delhi
+  '400001': { lat: 18.9388, lon: 72.8354 }, // Mumbai
+  '560001': { lat: 12.9716, lon: 77.5946 }, // Bangalore
+  '600001': { lat: 13.0827, lon: 80.2707 }, // Chennai
+  '700001': { lat: 22.5726, lon: 88.3639 }, // Kolkata
+};
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -40,6 +53,42 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
             Math.sin(dLon/2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+}
+
+/**
+ * Get coordinates from pincode
+ */
+async function getCoordsFromPincode(pincode) {
+  // First check local mapping
+  if (PINCODE_COORDS[pincode]) {
+    return PINCODE_COORDS[pincode];
+  }
+  
+  // Try OpenCage Geocoding API
+  if (OPENCAGE_API_KEY && OPENCAGE_API_KEY !== 'your_opencage_key') {
+    try {
+      const response = await axios.get(`https://api.opencagedata.com/geocode/v1/json`, {
+        params: {
+          q: `${pincode}, India`,
+          key: OPENCAGE_API_KEY,
+          limit: 1
+        }
+      });
+      
+      if (response.data.results && response.data.results.length > 0) {
+        const result = response.data.results[0];
+        return {
+          lat: result.geometry.lat,
+          lon: result.geometry.lng
+        };
+      }
+    } catch (error) {
+      console.error('OpenCage API error:', error.message);
+    }
+  }
+  
+  // Fallback to approximate center of India if pincode not found
+  return { lat: 23.0, lon: 80.0 };
 }
 
 /**
@@ -94,7 +143,6 @@ async function checkAndEscalate(requestId) {
   try {
     await client.query('BEGIN');
     
-    // Check if request is still pending
     const reqRes = await client.query(
       "SELECT status, blood_type_needed, latitude, longitude FROM blood_requests WHERE request_id = $1 FOR UPDATE", 
       [requestId]
@@ -107,7 +155,6 @@ async function checkAndEscalate(requestId) {
 
     const { blood_type_needed, latitude, longitude } = reqRes.rows[0];
     
-    // Check if any hospital has already responded
     const sentAlerts = await client.query(
       "SELECT 1 FROM alert_status WHERE request_id = $1 AND status = 'accepted'", 
       [requestId]
@@ -116,22 +163,17 @@ async function checkAndEscalate(requestId) {
     if (sentAlerts.rows.length === 0) {
       console.log(`🚨 Escalating request ${requestId} to donors...`);
       
-      // Update request status to escalated
       await client.query(
         "UPDATE blood_requests SET status = 'escalated' WHERE request_id = $1", 
         [requestId]
       );
       
-      // Get matching donors
       const { rows: donors } = await client.query(
         "SELECT user_id, phone_number, full_name, latitude, longitude FROM users WHERE role = 'donor' AND blood_type = $1", 
         [blood_type_needed]
       );
       
       console.log(`📢 Notified ${donors.length} donors for request ${requestId}`);
-      
-      // In production, send actual SMS/push notifications here
-      // For now, donors will see alerts when they check their dashboard
     }
     
     await client.query('COMMIT');
@@ -147,9 +189,6 @@ async function checkAndEscalate(requestId) {
 // PATIENT AUTHENTICATION & MANAGEMENT
 // ============================================================================
 
-/**
- * Send OTP to patient phone (mock - returns OTP in response for popup display)
- */
 app.post('/api/server/send-otp', async (req, res) => {
   const { phoneNumber } = req.body;
   
@@ -161,15 +200,14 @@ app.post('/api/server/send-otp', async (req, res) => {
     const otp = generateOTP();
     otpStore[phoneNumber] = { 
       otp, 
-      expiry: Date.now() + 300000 // 5 minutes
+      expiry: Date.now() + 300000
     };
     
     console.log(`📱 Patient OTP for ${phoneNumber}: ${otp}`);
     
-    // Return OTP in response for popup display (in production, send via SMS)
     res.json({ 
       success: true, 
-      otp, // Include OTP for frontend popup
+      otp,
       message: `OTP generated: ${otp}` 
     });
   } catch (e) {
@@ -178,13 +216,9 @@ app.post('/api/server/send-otp', async (req, res) => {
   }
 });
 
-/**
- * Patient login/register with OTP verification
- */
 app.post('/api/server/patient-login', async (req, res) => {
   const { phoneNumber, fullName, pincode, otp } = req.body;
   
-  // Verify OTP
   const record = otpStore[phoneNumber];
   if (!record || record.otp !== otp || Date.now() >= record.expiry) {
     return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
@@ -193,14 +227,12 @@ app.post('/api/server/patient-login', async (req, res) => {
   delete otpStore[phoneNumber];
   
   try {
-    // Check if user exists
     const existing = await pool.query(
       "SELECT * FROM users WHERE phone_number = $1 AND role = 'patient'", 
       [phoneNumber]
     );
     
     if (existing.rows.length) {
-      // Update existing user
       const { rows } = await pool.query(
         "UPDATE users SET full_name = $1, pincode = $2, last_login = NOW() WHERE phone_number = $3 AND role = 'patient' RETURNING *", 
         [fullName, pincode, phoneNumber]
@@ -212,7 +244,6 @@ app.post('/api/server/patient-login', async (req, res) => {
       });
     }
     
-    // Create new user
     if (!fullName || !pincode) {
       return res.status(400).json({ 
         success: false, 
@@ -237,12 +268,9 @@ app.post('/api/server/patient-login', async (req, res) => {
 });
 
 // ============================================================================
-// PATIENT SOS - CORE WORKFLOW
+// PATIENT SOS - CORE WORKFLOW WITH PINCODE FALLBACK
 // ============================================================================
 
-/**
- * Patient requests blood - sends SOS to nearby hospitals
- */
 app.post('/api/server/request-blood', async (req, res) => {
   const { patientId, bloodType, pincode, latitude, longitude } = req.body;
   
@@ -252,27 +280,39 @@ app.post('/api/server/request-blood', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Missing required fields.' });
   }
   
+  let finalLat = latitude;
+  let finalLon = longitude;
+  let locationSource = 'gps';
+  
+  // If location not provided or denied, use pincode
   if (!latitude || !longitude) {
-    return res.status(400).json({ success: false, message: 'Precise location is required.' });
+    if (!pincode) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Either precise location or pincode is required.' 
+      });
+    }
+    
+    console.log(`📍 Using pincode ${pincode} for location`);
+    const coords = await getCoordsFromPincode(pincode);
+    finalLat = coords.lat;
+    finalLon = coords.lon;
+    locationSource = 'pincode';
   }
   
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     
-    // Generate unique patient token
     const patientToken = await generateUniquePatientToken(client);
-    
-    // Set 10-minute deadline
     const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     
-    // Insert blood request
     const { rows } = await client.query(
       `INSERT INTO blood_requests 
        (patient_id, blood_type_needed, pincode, latitude, longitude, status, patient_token, deadline) 
        VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) 
        RETURNING request_id, patient_token`,
-      [patientId, bloodType, pincode, latitude, longitude, patientToken, deadline]
+      [patientId, bloodType, pincode, finalLat, finalLon, patientToken, deadline]
     );
     
     const requestId = rows[0].request_id;
@@ -287,7 +327,7 @@ app.post('/api/server/request-blood', async (req, res) => {
     
     for (const hospital of hospitals) {
       const distance = calculateDistance(
-        latitude, longitude, 
+        finalLat, finalLon, 
         hospital.latitude, hospital.longitude
       );
       
@@ -310,16 +350,16 @@ app.post('/api/server/request-blood', async (req, res) => {
       checkAndEscalate(requestId);
     }, 10 * 60 * 1000 + 1000);
     
-    // Store timeout reference for potential cancellation
     activeRequests.set(requestId, escalationTimeout);
     
-    console.log(`✅ SOS sent to ${hospitalsNotified} hospitals for request ${requestId}`);
+    console.log(`✅ SOS sent to ${hospitalsNotified} hospitals for request ${requestId} (location source: ${locationSource})`);
     
     res.status(201).json({ 
       success: true, 
       message: `SOS Alert sent to ${hospitalsNotified} nearby hospitals!`, 
       requestId, 
-      patient_token: rows[0].patient_token 
+      patient_token: rows[0].patient_token,
+      location_source: locationSource
     });
   } catch (e) {
     await client.query('ROLLBACK');
@@ -330,15 +370,14 @@ app.post('/api/server/request-blood', async (req, res) => {
   }
 });
 
-/**
- * Get patient request status
- */
 app.get('/api/server/request-status/:requestId', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT br.*, h.hospital_name, h.phone_number as hospital_phone, h.pincode as hospital_pincode, h.address as hospital_address
+      `SELECT br.*, h.hospital_name, h.phone_number as hospital_phone, h.pincode as hospital_pincode, h.address as hospital_address,
+       u.full_name as patient_name, u.phone_number as patient_phone_number
        FROM blood_requests br 
        LEFT JOIN hospitals h ON br.accepted_by_hospital_id = h.hospital_id 
+       LEFT JOIN users u ON br.patient_id = u.user_id
        WHERE br.request_id = $1`,
       [req.params.requestId]
     );
@@ -349,13 +388,14 @@ app.get('/api/server/request-status/:requestId', async (req, res) => {
     
     const request = rows[0];
     
-    // Format response based on status
     const response = {
       success: true,
       status: request.status,
       patient_token: request.patient_token,
       blood_type_needed: request.blood_type_needed,
-      created_at: request.created_at
+      created_at: request.created_at,
+      patient_name: request.patient_name,
+      patient_phone: request.patient_phone_number
     };
     
     if (request.status === 'accepted' && request.hospital_name) {
@@ -374,9 +414,6 @@ app.get('/api/server/request-status/:requestId', async (req, res) => {
   }
 });
 
-/**
- * Get patient request history
- */
 app.get('/api/server/requests/history/:patientId', async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -397,23 +434,20 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
 });
 
 // ============================================================================
-// HOSPITAL AUTHENTICATION & MANAGEMENT
+// HOSPITAL AUTHENTICATION & MANAGEMENT - FIXED
 // ============================================================================
 
-/**
- * Hospital login with phone and password
- */
 app.post('/api/server/hospital-login', async (req, res) => {
-  const { phoneNumber, password } = req.body;
+  const { hospitalId, password } = req.body;
   
-  if (!phoneNumber || !password) {
-    return res.status(400).json({ success: false, message: 'Phone number and password required.' });
+  if (!hospitalId || !password) {
+    return res.status(400).json({ success: false, message: 'Hospital ID and password required.' });
   }
   
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM hospitals WHERE phone_number = $1',
-      [phoneNumber]
+      'SELECT * FROM hospitals WHERE hospital_id = $1',
+      [hospitalId]
     );
     
     if (!rows.length) {
@@ -435,7 +469,8 @@ app.post('/api/server/hospital-login', async (req, res) => {
         hospital_name: hospital.hospital_name,
         phone_number: hospital.phone_number,
         pincode: hospital.pincode,
-        address: hospital.address
+        address: hospital.address,
+        blood_inventory: hospital.blood_inventory
       }
     });
   } catch (e) {
@@ -444,9 +479,54 @@ app.post('/api/server/hospital-login', async (req, res) => {
   }
 });
 
-/**
- * Get SOS alerts for a specific hospital
- */
+// HOSPITAL REGISTRATION - NEW
+app.post('/api/server/hospital-register', async (req, res) => {
+  const { hospitalName, address, pincode, phoneNumber, password, latitude, longitude } = req.body;
+  
+  if (!hospitalName || !address || !pincode || !phoneNumber || !password) {
+    return res.status(400).json({ success: false, message: 'All fields required.' });
+  }
+  
+  try {
+    // Generate hospital ID
+    const { rows: countRows } = await pool.query('SELECT COUNT(*) as count FROM hospitals');
+    const count = parseInt(countRows[0].count) + 1;
+    const hospitalId = 'HOS' + String(count).padStart(3, '0');
+    
+    // Get coordinates from pincode if not provided
+    let finalLat = latitude;
+    let finalLon = longitude;
+    
+    if (!latitude || !longitude) {
+      const coords = await getCoordsFromPincode(pincode);
+      finalLat = coords.lat;
+      finalLon = coords.lon;
+    }
+    
+    const { rows } = await pool.query(
+      `INSERT INTO hospitals (hospital_id, hospital_name, address, pincode, phone_number, password_hash, latitude, longitude, blood_inventory)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [hospitalId, hospitalName, address, pincode, phoneNumber, password, finalLat, finalLon, '{}']
+    );
+    
+    res.status(201).json({ 
+      success: true, 
+      message: 'Hospital registered successfully!',
+      hospital: {
+        hospital_id: rows[0].hospital_id,
+        hospital_name: rows[0].hospital_name
+      }
+    });
+  } catch (e) {
+    console.error(e);
+    if (e.code === '23505') { // Unique violation
+      return res.status(409).json({ success: false, message: 'Phone number already registered.' });
+    }
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// Get SOS alerts for a specific hospital
 app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -456,6 +536,7 @@ app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
         br.urgency,
         br.deadline,
         br.created_at,
+        br.pincode as patient_pincode,
         als.distance_km,
         als.status as alert_status,
         u.full_name as patient_name,
@@ -477,11 +558,9 @@ app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
   }
 });
 
-/**
- * Hospital responds to SOS (Accept/Reject)
- */
+// Hospital responds to SOS (Accept/Reject)
 app.post('/api/server/hospital-response', async (req, res) => {
-  const { sosId, requestId, hospitalId, status } = req.body;
+  const { requestId, hospitalId, status } = req.body;
   
   if (!requestId || !hospitalId || !status) {
     return res.status(400).json({ success: false, message: 'Missing required fields.' });
@@ -491,7 +570,6 @@ app.post('/api/server/hospital-response', async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    // Check if request is still pending
     const reqCheck = await client.query(
       "SELECT status FROM blood_requests WHERE request_id = $1 FOR UPDATE",
       [requestId]
@@ -511,19 +589,16 @@ app.post('/api/server/hospital-response', async (req, res) => {
     }
     
     if (status === 'Accepted' || status === 'accepted') {
-      // Update request status
       await client.query(
         "UPDATE blood_requests SET status = 'accepted', accepted_by_hospital_id = $1 WHERE request_id = $2",
         [hospitalId, requestId]
       );
       
-      // Update alert status
       await client.query(
         "UPDATE alert_status SET status = 'accepted', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2",
         [requestId, hospitalId]
       );
       
-      // Cancel escalation timeout
       if (activeRequests.has(requestId)) {
         clearTimeout(activeRequests.get(requestId));
         activeRequests.delete(requestId);
@@ -538,7 +613,6 @@ app.post('/api/server/hospital-response', async (req, res) => {
         message: 'Request accepted! Patient will be notified.' 
       });
     } else {
-      // Update alert status to rejected
       await client.query(
         "UPDATE alert_status SET status = 'rejected', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2",
         [requestId, hospitalId]
@@ -562,9 +636,87 @@ app.post('/api/server/hospital-response', async (req, res) => {
   }
 });
 
-/**
- * Hospital updates inventory
- */
+// HOSPITAL SOS BROADCAST - NEW (Hospital-to-Hospital)
+app.post('/api/server/hospital-sos', async (req, res) => {
+  const { hospitalId, component, bloodType, units, urgency } = req.body;
+  
+  if (!hospitalId || !component || !bloodType || !units) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Get broadcasting hospital's location
+    const { rows: hospRows } = await client.query(
+      'SELECT latitude, longitude FROM hospitals WHERE hospital_id = $1',
+      [hospitalId]
+    );
+    
+    if (!hospRows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Hospital not found.' });
+    }
+    
+    const { latitude, longitude } = hospRows[0];
+    
+    // Create a special hospital-to-hospital request
+    const patientToken = await generateUniquePatientToken(client);
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    
+    const { rows } = await client.query(
+      `INSERT INTO blood_requests 
+       (creator_hospital_id, blood_type_needed, component_needed, urgency, latitude, longitude, status, patient_token, deadline) 
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8) 
+       RETURNING request_id`,
+      [hospitalId, bloodType, component, urgency || 'urgent', latitude, longitude, patientToken, deadline]
+    );
+    
+    const requestId = rows[0].request_id;
+    
+    // Notify ALL other hospitals
+    const { rows: allHospitals } = await client.query(
+      'SELECT hospital_id, hospital_name, latitude, longitude FROM hospitals WHERE hospital_id != $1 AND latitude IS NOT NULL',
+      [hospitalId]
+    );
+    
+    const alertPromises = [];
+    
+    for (const hospital of allHospitals) {
+      const distance = calculateDistance(
+        latitude, longitude,
+        hospital.latitude, hospital.longitude
+      );
+      
+      alertPromises.push(
+        client.query(
+          'INSERT INTO alert_status (request_id, hospital_id, distance_km, status) VALUES ($1, $2, $3, $4)',
+          [requestId, hospital.hospital_id, distance.toFixed(2), 'sent']
+        )
+      );
+    }
+    
+    await Promise.all(alertPromises);
+    await client.query('COMMIT');
+    
+    console.log(`✅ Hospital SOS broadcast to ${allHospitals.length} hospitals`);
+    
+    res.status(201).json({ 
+      success: true, 
+      message: `SOS broadcast sent to ${allHospitals.length} hospitals!`,
+      requestId
+    });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  } finally {
+    client.release();
+  }
+});
+
+// HOSPITAL INVENTORY UPDATE - FIXED
 app.post('/api/server/update-inventory', async (req, res) => {
   const { hospitalId, stock } = req.body;
   
@@ -585,9 +737,101 @@ app.post('/api/server/update-inventory', async (req, res) => {
   }
 });
 
-/**
- * Verify token at hospital
- */
+// GET HOSPITAL INVENTORY
+app.get('/api/server/hospital-inventory/:hospitalId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT blood_inventory FROM hospitals WHERE hospital_id = $1',
+      [req.params.hospitalId]
+    );
+    
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'Hospital not found.' });
+    }
+    
+    res.json({ 
+      success: true, 
+      inventory: rows[0].blood_inventory || {}
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// PLAYBOOKS - CREATE
+app.post('/api/server/playbooks', async (req, res) => {
+  const { hospitalId, title, content, category } = req.body;
+  
+  if (!hospitalId || !title || !content) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+  
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO playbooks (hospital_id, title, content, category, is_active) 
+       VALUES ($1, $2, $3, $4, true) 
+       RETURNING *`,
+      [hospitalId, title, content, category || 'General']
+    );
+    
+    res.status(201).json({ 
+      success: true, 
+      message: 'Playbook created successfully!',
+      playbook: rows[0]
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// PLAYBOOKS - GET ALL FOR HOSPITAL
+app.get('/api/server/playbooks/:hospitalId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM playbooks WHERE hospital_id = $1 ORDER BY created_at DESC',
+      [req.params.hospitalId]
+    );
+    
+    res.json({ success: true, playbooks: rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// DONOR APPOINTMENTS - GET FOR HOSPITAL
+app.get('/api/hospital/appointments/:hospitalId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT 
+        dc.commitment_id,
+        dc.donor_token,
+        dc.status,
+        dc.created_at,
+        u.full_name as donor_name,
+        u.phone_number as donor_phone,
+        u.blood_type,
+        br.blood_type_needed,
+        br.request_id
+       FROM donation_commitments dc
+       JOIN users u ON dc.donor_id = u.user_id
+       LEFT JOIN blood_requests br ON dc.request_id = br.request_id
+       WHERE dc.hospital_id = $1
+       ORDER BY dc.created_at DESC
+       LIMIT 50`,
+      [req.params.hospitalId]
+    );
+    
+    res.json({ success: true, appointments: rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// TOKEN VERIFICATION - ENHANCED WITH FULL DETAILS
 app.post('/api/server/verify-token', async (req, res) => {
   const { token } = req.body;
   
@@ -598,39 +842,86 @@ app.post('/api/server/verify-token', async (req, res) => {
   try {
     // Check patient tokens
     const patientCheck = await pool.query(
-      `SELECT br.*, u.full_name, u.phone_number 
+      `SELECT 
+        br.*, 
+        u.full_name as patient_name, 
+        u.phone_number as patient_phone,
+        u.blood_type as patient_blood_type,
+        u.pincode as patient_pincode,
+        h.hospital_name,
+        h.address as hospital_address,
+        h.pincode as hospital_pincode
        FROM blood_requests br
        JOIN users u ON br.patient_id = u.user_id
+       LEFT JOIN hospitals h ON br.accepted_by_hospital_id = h.hospital_id
        WHERE br.patient_token = $1`,
       [token]
     );
     
     if (patientCheck.rows.length) {
+      const data = patientCheck.rows[0];
       return res.json({ 
         valid: true, 
         type: 'patient',
-        name: patientCheck.rows[0].full_name,
-        bloodType: patientCheck.rows[0].blood_type_needed,
-        status: patientCheck.rows[0].status
+        details: {
+          name: data.patient_name,
+          phone: data.patient_phone,
+          bloodType: data.blood_type_needed,
+          patientBloodType: data.patient_blood_type,
+          pincode: data.patient_pincode,
+          status: data.status,
+          requestId: data.request_id,
+          createdAt: data.created_at,
+          hospital: data.hospital_name ? {
+            name: data.hospital_name,
+            address: data.hospital_address,
+            pincode: data.hospital_pincode
+          } : null
+        }
       });
     }
     
     // Check donor tokens
     const donorCheck = await pool.query(
-      `SELECT dc.*, u.full_name, u.blood_type
+      `SELECT 
+        dc.*,
+        u.full_name as donor_name,
+        u.phone_number as donor_phone,
+        u.blood_type as donor_blood_type,
+        u.pincode as donor_pincode,
+        h.hospital_name,
+        h.address as hospital_address,
+        h.pincode as hospital_pincode,
+        br.blood_type_needed,
+        br.request_id
        FROM donation_commitments dc
        JOIN users u ON dc.donor_id = u.user_id
+       LEFT JOIN hospitals h ON dc.hospital_id = h.hospital_id
+       LEFT JOIN blood_requests br ON dc.request_id = br.request_id
        WHERE dc.donor_token = $1`,
       [token]
     );
     
     if (donorCheck.rows.length) {
+      const data = donorCheck.rows[0];
       return res.json({ 
         valid: true, 
         type: 'donor',
-        name: donorCheck.rows[0].full_name,
-        bloodType: donorCheck.rows[0].blood_type,
-        status: donorCheck.rows[0].status
+        details: {
+          name: data.donor_name,
+          phone: data.donor_phone,
+          bloodType: data.donor_blood_type,
+          pincode: data.donor_pincode,
+          status: data.status,
+          bloodTypeNeeded: data.blood_type_needed,
+          requestId: data.request_id,
+          createdAt: data.created_at,
+          hospital: data.hospital_name ? {
+            name: data.hospital_name,
+            address: data.hospital_address,
+            pincode: data.hospital_pincode
+          } : null
+        }
       });
     }
     
@@ -645,9 +936,6 @@ app.post('/api/server/verify-token', async (req, res) => {
 // DONOR AUTHENTICATION & MANAGEMENT
 // ============================================================================
 
-/**
- * Send OTP to donor
- */
 app.post('/api/server/donor/send-otp', async (req, res) => {
   const { phoneNumber } = req.body;
   
@@ -675,9 +963,6 @@ app.post('/api/server/donor/send-otp', async (req, res) => {
   }
 });
 
-/**
- * Donor login/register with OTP
- */
 app.post('/api/server/donor-login', async (req, res) => {
   const { phoneNumber, fullName, bloodType, pincode, otp } = req.body;
   
@@ -729,12 +1014,8 @@ app.post('/api/server/donor-login', async (req, res) => {
   }
 });
 
-/**
- * Get SOS alerts for donor (escalated requests)
- */
 app.get('/api/server/donor/sos-alerts/:donorId', async (req, res) => {
   try {
-    // Get donor's blood type
     const donorResult = await pool.query(
       'SELECT blood_type, latitude, longitude FROM users WHERE user_id = $1',
       [req.params.donorId]
@@ -746,7 +1027,6 @@ app.get('/api/server/donor/sos-alerts/:donorId', async (req, res) => {
     
     const donor = donorResult.rows[0];
     
-    // Get escalated requests matching donor's blood type
     const { rows } = await pool.query(
       `SELECT 
         br.request_id,
@@ -764,7 +1044,6 @@ app.get('/api/server/donor/sos-alerts/:donorId', async (req, res) => {
       [donor.blood_type]
     );
     
-    // Calculate distances if donor has location
     const alertsWithDistance = rows.map(alert => ({
       ...alert,
       distance_km: donor.latitude && donor.longitude && alert.latitude && alert.longitude
@@ -779,9 +1058,6 @@ app.get('/api/server/donor/sos-alerts/:donorId', async (req, res) => {
   }
 });
 
-/**
- * Donor accepts SOS alert
- */
 app.post('/api/server/donor/accept-sos', async (req, res) => {
   const { donorId, requestId, donorLatitude, donorLongitude } = req.body;
   
@@ -793,7 +1069,6 @@ app.post('/api/server/donor/accept-sos', async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    // Check if request is still escalated
     const reqCheck = await client.query(
       "SELECT status FROM blood_requests WHERE request_id = $1 FOR UPDATE",
       [requestId]
@@ -812,17 +1087,14 @@ app.post('/api/server/donor/accept-sos', async (req, res) => {
       });
     }
     
-    // Generate donor token
     const donorToken = await generateUniqueDonorToken(client);
     
-    // Find nearest hospital
     const { rows: hospitals } = await client.query(
       'SELECT hospital_id, hospital_name, address, pincode, latitude, longitude FROM hospitals ORDER BY hospital_id LIMIT 1'
     );
     
     const hospital = hospitals[0];
     
-    // Create donation commitment
     await client.query(
       `INSERT INTO donation_commitments 
        (request_id, donor_id, donor_token, hospital_id, donor_lat_on_accept, donor_lon_on_accept, status) 
@@ -830,7 +1102,6 @@ app.post('/api/server/donor/accept-sos', async (req, res) => {
       [requestId, donorId, donorToken, hospital.hospital_id, donorLatitude, donorLongitude]
     );
     
-    // Update request status
     await client.query(
       "UPDATE blood_requests SET status = 'donor_assigned', assigned_hospital_id = $1 WHERE request_id = $2",
       [hospital.hospital_id, requestId]
@@ -859,9 +1130,6 @@ app.post('/api/server/donor/accept-sos', async (req, res) => {
   }
 });
 
-/**
- * Get donor's accepted commitments
- */
 app.get('/api/server/donor/commitments/:donorId', async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -894,9 +1162,6 @@ app.get('/api/server/donor/commitments/:donorId', async (req, res) => {
 // VOLUNTEER AUTHENTICATION & MANAGEMENT
 // ============================================================================
 
-/**
- * Send OTP to volunteer/NGO
- */
 app.post('/api/server/volunteer/send-otp', async (req, res) => {
   const { phoneNumber } = req.body;
   
@@ -924,9 +1189,6 @@ app.post('/api/server/volunteer/send-otp', async (req, res) => {
   }
 });
 
-/**
- * Volunteer/NGO login
- */
 app.post('/api/server/volunteer-login', async (req, res) => {
   const { phoneNumber, fullName, ngoName, registrationId, type, otp } = req.body;
   
@@ -969,9 +1231,6 @@ app.post('/api/server/volunteer-login', async (req, res) => {
   }
 });
 
-/**
- * Get available drives for volunteers
- */
 app.get('/api/volunteer/drives-available', async (req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -999,9 +1258,6 @@ app.get('/api/volunteer/drives-available', async (req, res) => {
   }
 });
 
-/**
- * Get roles for specific drive
- */
 app.get('/api/volunteer/drive-roles/:driveId', async (req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -1020,9 +1276,6 @@ app.get('/api/volunteer/drive-roles/:driveId', async (req, res) => {
   }
 });
 
-/**
- * Create donation drive
- */
 app.post('/api/volunteer/drive-create', async (req, res) => {
   const { organizerId, driveName, location, startDate, endDate, startTime, endTime, targetDonors, roles } = req.body;
   
@@ -1062,9 +1315,6 @@ app.post('/api/volunteer/drive-create', async (req, res) => {
   }
 });
 
-/**
- * Sign up for drive role
- */
 app.post('/api/volunteer/drive-signup', async (req, res) => {
   const { volunteerId, roleId, shiftStart, shiftEnd } = req.body;
   
@@ -1090,9 +1340,6 @@ app.post('/api/volunteer/drive-signup', async (req, res) => {
   }
 });
 
-/**
- * Get volunteer assignments
- */
 app.get('/api/volunteer/my-assignments/:volunteerId', async (req, res) => {
   try {
     const { rows } = await pool.query(
@@ -1115,13 +1362,9 @@ app.get('/api/volunteer/my-assignments/:volunteerId', async (req, res) => {
 // ADMIN AUTHENTICATION
 // ============================================================================
 
-/**
- * Admin login with username and password
- */
 app.post('/api/server/admin-login', async (req, res) => {
   const { username, password } = req.body;
   
-  // Simple admin authentication (use proper auth in production)
   if (username === 'admin' && password === 'admin123') {
     res.json({ 
       success: true, 
@@ -1172,7 +1415,6 @@ app.get('/api/server/health', (req, res) => {
 // SERVER STARTUP
 // ============================================================================
 
-// For local development
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
@@ -1180,5 +1422,4 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-// For Vercel serverless deployment
 module.exports = app;

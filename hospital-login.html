@@ -10,384 +10,280 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="style.css">
-    
-    <style>
-        /* Re-using the auth page styles from admin-login.html */
-        .auth-page {
-            min-height: 100vh;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            background: var(--neutral-50);
-        }
-        
-        .auth-sidebar {
-            background: var(--gradient-primary);
-            padding: var(--space-12);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            color: white;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .auth-sidebar::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-            pointer-events: none;
-        }
-        
-        .auth-sidebar-content {
-            position: relative;
-            z-index: 1;
-        }
-        
-        .auth-sidebar h2 {
-            font-size: var(--text-4xl);
-            color: white;
-            margin-bottom: var(--space-4);
-        }
-        
-        .auth-sidebar p {
-            font-size: var(--text-lg);
-            color: rgba(255, 255, 255, 0.9);
-            line-height: var(--leading-relaxed);
-        }
-
-        .auth-logo {
-            display: flex;
-            align-items: center;
-            gap: var(--space-3);
-            font-size: var(--text-2xl);
-            font-weight: var(--font-bold);
-            color: var(--primary-600);
-            margin-bottom: var(--space-8);
-            text-decoration: none;
-        }
-
-        .auth-logo img {
-            height: 40px;
-            width: auto;
-        }
-        
-        .auth-content {
-            padding: var(--space-12);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        
-        .auth-header {
-            margin-bottom: var(--space-8);
-        }
-        
-        .auth-title {
-            font-size: var(--text-3xl);
-            margin-bottom: var(--space-3);
-        }
-        
-        .auth-subtitle {
-            color: var(--neutral-600);
-            font-size: var(--text-base);
-        }
-        
-        .auth-tabs {
-            display: flex;
-            gap: var(--space-2);
-            background: var(--neutral-100);
-            padding: var(--space-1);
-            border-radius: var(--radius-lg);
-            margin-bottom: var(--space-8);
-        }
-        
-        .auth-tab {
-            flex: 1;
-            padding: var(--space-3) var(--space-4);
-            background: transparent;
-            border: none;
-            border-radius: var(--radius-md);
-            font-size: var(--text-sm);
-            font-weight: var(--font-medium);
-            color: var(--neutral-600);
-            cursor: pointer;
-            transition: all var(--transition-fast);
-        }
-        
-        .auth-tab.active {
-            background: white;
-            color: var(--primary-600);
-            box-shadow: var(--shadow-sm);
-        }
-        
-        .auth-form {
-            max-width: 400px;
-        }
-        
-        .auth-footer {
-            margin-top: var(--space-6);
-            text-align: center;
-            font-size: var(--text-sm);
-            color: var(--neutral-600);
-        }
-        
-        .auth-footer a {
-            color: var(--primary-600);
-            font-weight: var(--font-medium);
-        }
-        
-        .message-success {
-            padding: var(--space-4);
-            background: var(--success-light);
-            color: var(--success);
-            border-radius: var(--radius-lg);
-            margin-bottom: var(--space-4);
-            border: 1px solid var(--success);
-        }
-        
-        .message-error {
-            padding: var(--space-4);
-            background: var(--error-light);
-            color: var(--error);
-            border-radius: var(--radius-lg);
-            margin-bottom: var(--space-4);
-            border: 1px solid var(--error);
-        }
-        
-        @media (max-width: 1024px) {
-            .auth-page {
-                grid-template-columns: 1fr;
-            }
-            
-            .auth-sidebar {
-                display: none;
-            }
-            
-            .auth-content {
-                padding: var(--space-8) var(--space-6);
-            }
-        }
-    </style>
 </head>
 <body>
-    <div class="auth-page">
-        <div class="auth-sidebar">
+    <div class="auth-page" style="min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; background: var(--neutral-50);">
+        
+        <!-- Sidebar -->
+        <div class="auth-sidebar" style="background: var(--gradient-primary); padding: var(--space-12); color: white;">
             <div class="auth-sidebar-content">
-                <a href="index.html" class="auth-logo" style="color: white;">
-                    <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22white%22 opacity=%220.2%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
-                    <span>LifeLink</span>
-                </a>
-                
-                <h2>Hospital Portal</h2>
-                <p>
-                    Manage your blood inventory, broadcast SOS alerts, and coordinate with donors seamlessly.
+                <h2 style="font-size: var(--text-4xl); margin-bottom: var(--space-4);">Hospital Management Portal</h2>
+                <p style="font-size: var(--text-lg); line-height: var(--leading-relaxed);">
+                    Manage blood requests, inventory, and coordinate with donors efficiently.
                 </p>
             </div>
-            
-            <p style="font-size: var(--text-sm); opacity: 0.8;">
-                © 2025 LifeLink. All rights reserved.
-            </p>
         </div>
         
-        <div class="auth-content">
-            <div class="auth-header">
-                <a href="index.html" class="auth-logo hide-desktop">
-                    <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
-                    <span>LifeLink</span>
-                </a>
-                
-                <h1 class="auth-title">Hospital Portal</h1>
-                <p class="auth-subtitle">Access your hospital's dashboard</p>
+        <!-- Main Content -->
+        <div class="auth-content" style="padding: var(--space-12); display: flex; flex-direction: column; justify-content: center;">
+            
+            <a href="index.html" class="auth-logo" style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-8); text-decoration: none; color: var(--primary-600);">
+                <span style="font-size: var(--text-2xl); font-weight: var(--font-bold);">LifeLink</span>
+            </a>
+            
+            <div class="auth-header" style="margin-bottom: var(--space-8);">
+                <h1 class="auth-title" style="font-size: var(--text-3xl); margin-bottom: var(--space-3);">Hospital Portal</h1>
+                <p class="auth-subtitle" style="color: var(--neutral-600);">Sign in to access your hospital dashboard</p>
             </div>
             
-            <div class="auth-tabs">
-                <button class="auth-tab active" id="login-tab-btn" onclick="showTab('login')">Login</button>
-                <button class="auth-tab" id="register-tab-btn" onclick="showTab('register')">Register</button>
+            <!-- Tabs -->
+            <div class="auth-tabs" style="display: flex; gap: var(--space-2); background: var(--neutral-100); padding: var(--space-1); border-radius: var(--radius-lg); margin-bottom: var(--space-8);">
+                <button class="auth-tab active" data-tab="login" style="flex: 1; padding: var(--space-3); background: white; border: none; border-radius: var(--radius-md); cursor: pointer;">
+                    Login
+                </button>
+                <button class="auth-tab" data-tab="register" style="flex: 1; padding: var(--space-3); background: transparent; border: none; border-radius: var(--radius-md); cursor: pointer; color: var(--neutral-600);">
+                    Register
+                </button>
             </div>
             
-            <div id="login-tab" class="auth-form">
-                <form id="hospitalLoginForm">
+            <!-- Login Form -->
+            <div id="login-form" class="auth-form">
+                <form id="hospitalLoginForm" style="max-width: 400px;">
                     <div class="form-group">
-                        <label class="form-label" for="hospitalId">Hospital ID <span class="required">*</span></label>
+                        <label for="hospitalId" class="form-label">Hospital ID</label>
                         <input type="text" id="hospitalId" class="form-input" placeholder="e.g., HOS101" required>
+                        <p class="form-hint">Use your assigned hospital ID</p>
                     </div>
+                    
                     <div class="form-group">
-                        <label class="form-label" for="password">Password <span class="required">*</span></label>
+                        <label for="password" class="form-label">Password</label>
                         <input type="password" id="password" class="form-input" placeholder="Enter your password" required>
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
                 </form>
-            </div>
-
-            <div id="register-tab" class="auth-form" style="display:none;">
-                <form id="hospitalRegisterForm">
-                    <div class="form-group">
-                        <label class="form-label" for="hospitalName">Hospital Name <span class="required">*</span></label>
-                        <input type="text" id="hospitalName" class="form-input" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="address">Full Address <span class="required">*</span></label>
-                        <input type="text" id="address" class="form-input" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="pincode">Pincode <span class="required">*</span></label>
-                        <input type="text" id="pincode" class="form-input" placeholder="6-digit pincode" maxlength="6" inputmode="numeric" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="registerPhone">Contact Phone <span class="required">*</span></label>
-                        <input type="tel" id="registerPhone" class="form-input" placeholder="10-digit number" maxlength="10" inputmode="tel" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="registerPassword">Create Password <span class="required">*</span></label>
-                        <input type="password" id="registerPassword" class="form-input" minlength="6" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="verifyPassword">Verify Password <span class="required">*</span></label>
-                        <input type="password" id="verifyPassword" class="form-input" placeholder="Re-enter your password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%;">Register</button>
-                </form>
+                
+                <div id="login-message" class="message-area" style="margin-top: var(--space-4);"></div>
             </div>
             
-            <div id="message" class="mt-4"></div>
-            
-            <div class="auth-footer">
-                <p>
-                    <a href="index.html">← Back to Home</a>
-                </p>
+            <!-- Register Form -->
+            <div id="register-form" class="auth-form" style="display: none;">
+                <form id="hospitalRegisterForm" style="max-width: 400px;">
+                    <div class="form-group">
+                        <label for="regHospitalName" class="form-label">Hospital Name <span class="required">*</span></label>
+                        <input type="text" id="regHospitalName" class="form-input" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="regAddress" class="form-label">Address <span class="required">*</span></label>
+                        <textarea id="regAddress" class="form-input" rows="2" required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="regPincode" class="form-label">Pincode <span class="required">*</span></label>
+                        <input type="text" id="regPincode" class="form-input" maxlength="6" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="regPhone" class="form-label">Phone Number <span class="required">*</span></label>
+                        <input type="tel" id="regPhone" class="form-input" maxlength="10" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="regPassword" class="form-label">Password <span class="required">*</span></label>
+                        <input type="password" id="regPassword" class="form-input" required>
+                    </div>
+                    
+                    <button type="button" id="fetchLocationBtn" class="btn btn-outline" style="width: 100%; margin-bottom: var(--space-4);">
+                        📍 Get Current Location
+                    </button>
+                    
+                    <input type="hidden" id="regLatitude">
+                    <input type="hidden" id="regLongitude">
+                    <p id="locationStatus" class="form-hint"></p>
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Register Hospital</button>
+                </form>
+                
+                <div id="register-message" class="message-area" style="margin-top: var(--space-4);"></div>
             </div>
+            
         </div>
     </div>
     
     <script>
-        const loginForm = document.getElementById("hospitalLoginForm");
-        const registerForm = document.getElementById("hospitalRegisterForm");
-        const messageEl = document.getElementById("message");
-
-        function showTab(tabName) {
-            document.getElementById('login-tab').style.display = tabName === 'login' ? 'block' : 'none';
-            document.getElementById('register-tab').style.display = tabName === 'register' ? 'block' : 'none';
-            document.getElementById('login-tab-btn').classList.toggle('active', tabName === 'login');
-            document.getElementById('register-tab-btn').classList.toggle('active', tabName === 'register');
-            messageEl.style.display = 'none';
-            messageEl.className = '';
-        }
-
-        function showMessage(text, type) {
-            messageEl.textContent = text;
-            messageEl.className = type === 'success' ? 'message-success' : 'message-error';
-            messageEl.style.display = 'block';
-        }
-
-        // --- Registration Logic ---
-        registerForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const password = document.getElementById("registerPassword").value;
-            const verifyPassword = document.getElementById("verifyPassword").value;
-            const phone = document.getElementById("registerPhone").value;
-            const pincode = document.getElementById("pincode").value;
-
-            // Validation
-            if (password !== verifyPassword) {
-                showMessage('Passwords do not match.', 'error');
-                return;
-            }
-            if (password.length < 6) {
-                showMessage('Password must be at least 6 characters.', 'error');
-                return;
-            }
-            if (!/^\d{10}$/.test(phone)) {
-                showMessage('Please enter a valid 10-digit phone number.', 'error');
-                return;
-            }
-            if (!/^\d{6}$/.test(pincode)) {
-                showMessage('Please enter a valid 6-digit pincode.', 'error');
-                return;
-            }
-
-            const hospitalData = {
-                hospitalName: document.getElementById("hospitalName").value,
-                address: document.getElementById("address").value,
-                pincode: pincode,
-                phoneNumber: phone,
-                password: password
-            };
+    // Tab switching
+    document.querySelectorAll('.auth-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.dataset.tab;
             
-            const submitBtn = registerForm.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Registering...';
-
-            try {
-                const response = await fetch('/api/server/hospital-register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(hospitalData)
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    // alert(`Registration successful! Your new Hospital ID is: ${result.hospitalId}`); // Replaced with showMessage
-                    showMessage(`Registration complete! Your ID is ${result.hospitalId}. You can now log in.`, 'success');
-                    registerForm.reset();
-                    setTimeout(() => showTab('login'), 2500);
-                } else {
-                    showMessage(`Registration failed: ${result.message}`, 'error');
-                }
-            } catch (error) {
-                console.error('Registration error:', error);
-                showMessage('Could not connect to the server. Please try again.', 'error');
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Register';
-            }
+            // Update active tab
+            document.querySelectorAll('.auth-tab').forEach(t => {
+                t.classList.remove('active');
+                t.style.background = 'transparent';
+                t.style.color = 'var(--neutral-600)';
+            });
+            tab.classList.add('active');
+            tab.style.background = 'white';
+            tab.style.color = 'var(--primary-600)';
+            
+            // Show/hide forms
+            document.getElementById('login-form').style.display = targetTab === 'login' ? 'block' : 'none';
+            document.getElementById('register-form').style.display = targetTab === 'register' ? 'block' : 'none';
         });
-
-        // --- Login Logic ---
-        loginForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const hospitalId = document.getElementById("hospitalId").value;
-            const password = document.getElementById("password").value;
-
-            if (!hospitalId || !password) {
-                showMessage('Please fill in all fields.', 'error');
-                return;
+    });
+    
+    // ========== LOGIN FORM ==========
+    document.getElementById('hospitalLoginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const hospitalId = document.getElementById('hospitalId').value.trim();
+        const password = document.getElementById('password').value;
+        const messageEl = document.getElementById('login-message');
+        
+        messageEl.textContent = 'Logging in...';
+        messageEl.className = 'message-area message-info';
+        messageEl.style.display = 'block';
+        
+        try {
+            const response = await fetch('/api/server/hospital-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hospitalId, password })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                messageEl.textContent = result.message;
+                messageEl.className = 'message-area message-success';
+                
+                // Store hospital info
+                sessionStorage.setItem('currentHospital', JSON.stringify(result.hospital));
+                
+                // Redirect to dashboard
+                setTimeout(() => {
+                    window.location.href = 'hospital-dashboard.html';
+                }, 1000);
+            } else {
+                messageEl.textContent = result.message;
+                messageEl.className = 'message-area message-error';
             }
-
-            const submitBtn = loginForm.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Logging in...';
-
-            try {
-                const response = await fetch('/api/server/hospital-login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ hospitalId, password })
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    sessionStorage.setItem('currentHospital', JSON.stringify(result.hospital));
-                    showMessage('Login successful! Redirecting...', 'success');
-                    setTimeout(() => {
-                        window.location.href = "hospital-dashboard.html";
-                    }, 1500);
-                } else {
-                    showMessage(`Login failed: ${result.message}`, 'error');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Login';
-                }
-            } catch (error) {
-                console.error('Login error:', error);
-                showMessage('Could not connect to the server. Please try again.', 'error');
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Login';
+        } catch (error) {
+            console.error('Login error:', error);
+            messageEl.textContent = 'Could not connect to server. Please try again.';
+            messageEl.className = 'message-area message-error';
+        }
+    });
+    
+    // ========== REGISTER FORM ==========
+    document.getElementById('fetchLocationBtn').addEventListener('click', () => {
+        const statusEl = document.getElementById('locationStatus');
+        statusEl.textContent = 'Getting location...';
+        statusEl.style.color = 'var(--info)';
+        
+        if (!navigator.geolocation) {
+            statusEl.textContent = 'Geolocation not supported';
+            statusEl.style.color = 'var(--error)';
+            return;
+        }
+        
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                document.getElementById('regLatitude').value = position.coords.latitude;
+                document.getElementById('regLongitude').value = position.coords.longitude;
+                statusEl.textContent = `✓ Location captured (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`;
+                statusEl.style.color = 'var(--success)';
+            },
+            (error) => {
+                statusEl.textContent = 'Location access denied. We\'ll use pincode.';
+                statusEl.style.color = 'var(--warning)';
             }
-        });
+        );
+    });
+    
+    document.getElementById('hospitalRegisterForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const hospitalName = document.getElementById('regHospitalName').value.trim();
+        const address = document.getElementById('regAddress').value.trim();
+        const pincode = document.getElementById('regPincode').value.trim();
+        const phoneNumber = document.getElementById('regPhone').value.trim();
+        const password = document.getElementById('regPassword').value;
+        const latitude = document.getElementById('regLatitude').value;
+        const longitude = document.getElementById('regLongitude').value;
+        
+        const messageEl = document.getElementById('register-message');
+        
+        messageEl.textContent = 'Registering hospital...';
+        messageEl.className = 'message-area message-info';
+        messageEl.style.display = 'block';
+        
+        try {
+            const response = await fetch('/api/server/hospital-register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    hospitalName,
+                    address,
+                    pincode,
+                    phoneNumber,
+                    password,
+                    latitude: latitude || null,
+                    longitude: longitude || null
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                messageEl.textContent = `${result.message} Your Hospital ID: ${result.hospital.hospital_id}`;
+                messageEl.className = 'message-area message-success';
+                
+                alert(`Registration Successful!\n\nYour Hospital ID: ${result.hospital.hospital_id}\nPlease save this ID for login.`);
+                
+                // Switch to login tab
+                setTimeout(() => {
+                    document.querySelector('[data-tab="login"]').click();
+                    document.getElementById('hospitalId').value = result.hospital.hospital_id;
+                }, 2000);
+            } else {
+                messageEl.textContent = result.message;
+                messageEl.className = 'message-area message-error';
+            }
+        } catch (error) {
+            console.error('Register error:', error);
+            messageEl.textContent = 'Could not connect to server. Please try again.';
+            messageEl.className = 'message-area message-error';
+        }
+    });
     </script>
-
+    
+    <style>
+        .message-area {
+            display: none;
+            padding: var(--space-4);
+            border-radius: var(--radius-lg);
+            border: 1px solid;
+        }
+        .message-area.message-success {
+            display: block;
+            background: var(--success-light);
+            color: var(--success);
+            border-color: var(--success);
+        }
+        .message-area.message-error {
+            display: block;
+            background: var(--error-light);
+            color: var(--error);
+            border-color: var(--error);
+        }
+        .message-area.message-info {
+            display: block;
+            background: var(--info-light);
+            color: var(--info);
+            border-color: var(--info);
+        }
+    </style>
 </body>
 </html>
