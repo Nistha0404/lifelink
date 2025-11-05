@@ -135,6 +135,7 @@
             border-radius: var(--radius-lg);
             margin-bottom: var(--space-4);
             border: 1px solid var(--success);
+            font-weight: 500;
         }
         
         .message-error {
@@ -144,6 +145,7 @@
             border-radius: var(--radius-lg);
             margin-bottom: var(--space-4);
             border: 1px solid var(--error);
+            font-weight: 500;
         }
         
         .auth-footer {
@@ -156,6 +158,16 @@
         .auth-footer a {
             color: var(--primary-600);
             font-weight: var(--font-medium);
+        }
+
+        .access-code-note {
+            font-size: var(--text-xs);
+            color: var(--neutral-600);
+            margin-top: var(--space-2);
+            padding: var(--space-2);
+            background: var(--neutral-100);
+            border-radius: var(--radius-md);
+            border-left: 3px solid var(--primary-600);
         }
         
         @media (max-width: 1024px) {
@@ -202,8 +214,8 @@
                     <span>LifeLink</span>
                 </a>
                 
-                <h1 class="auth-title">Coordinator / Admin Portal</h1>
-                <p class="auth-subtitle">Access your administrative dashboard</p>
+                <h1 class="auth-title">Admin Portal</h1>
+                <p class="auth-subtitle">Secure access to administrative dashboard</p>
             </div>
             
             <!-- Tabs -->
@@ -223,7 +235,7 @@
                             type="tel" 
                             id="loginPhone" 
                             class="form-input" 
-                            placeholder="Enter your registered phone number"
+                            placeholder="10-digit mobile number"
                             maxlength="10"
                             required
                         >
@@ -274,6 +286,7 @@
                             class="form-input" 
                             placeholder="Enter your pincode"
                             maxlength="6"
+                            pattern="[0-9]{6}"
                             required
                         >
                     </div>
@@ -288,6 +301,7 @@
                             class="form-input" 
                             placeholder="10-digit mobile number"
                             maxlength="10"
+                            pattern="[0-9]{10}"
                             required
                         >
                     </div>
@@ -306,8 +320,24 @@
                         >
                     </div>
                     
+                    <div class="form-group">
+                        <label class="form-label" for="accessCode">
+                            Admin Access Code <span class="required">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="accessCode" 
+                            class="form-input" 
+                            placeholder="Enter the admin access code"
+                            required
+                        >
+                        <p class="access-code-note">
+                            🔒 Only authorized personnel with the valid access code can register as admin.
+                        </p>
+                    </div>
+                    
                     <button type="submit" class="btn btn-primary" style="width: 100%;">
-                        Register
+                        Register as Admin
                     </button>
                 </form>
             </div>
@@ -327,6 +357,11 @@
         const registerForm = document.getElementById("adminRegisterForm");
         const messageEl = document.getElementById("message");
 
+        // Check if already logged in
+        if (sessionStorage.getItem('adminToken')) {
+            window.location.href = 'admin-dashboard.html';
+        }
+
         function showTab(tabName) {
             document.getElementById('login-tab').style.display = tabName === 'login' ? 'block' : 'none';
             document.getElementById('register-tab').style.display = tabName === 'register' ? 'block' : 'none';
@@ -340,6 +375,13 @@
             messageEl.textContent = text;
             messageEl.className = type === 'success' ? 'message-success' : 'message-error';
             messageEl.style.display = 'block';
+            
+            // Auto-hide success messages after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageEl.style.display = 'none';
+                }, 5000);
+            }
         }
 
         // Registration Handler
@@ -350,8 +392,9 @@
             const pincode = document.getElementById("registerPincode").value.trim();
             const phoneNumber = document.getElementById("registerPhone").value.trim();
             const password = document.getElementById("registerPassword").value;
+            const accessCode = document.getElementById("accessCode").value.trim();
 
-            // Validation
+            // Client-side validation
             if (!/^\d{10}$/.test(phoneNumber)) {
                 showMessage('Please enter a valid 10-digit phone number', 'error');
                 return;
@@ -367,6 +410,11 @@
                 return;
             }
 
+            if (!accessCode) {
+                showMessage('Admin access code is required', 'error');
+                return;
+            }
+
             const submitBtn = registerForm.querySelector('button[type="submit"]');
             submitBtn.disabled = true;
             submitBtn.textContent = 'Registering...';
@@ -375,24 +423,26 @@
                 const response = await fetch('/api/server/register/admin', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ fullName, pincode, phoneNumber, password })
+                    body: JSON.stringify({ fullName, pincode, phoneNumber, password, accessCode })
                 });
                 
                 const result = await response.json();
 
                 if (result.success) {
-                    showMessage(`${result.message} You can now log in.`, 'success');
-                    setTimeout(() => showTab('login'), 2000);
-                    registerForm.reset();
+                    showMessage(`✅ ${result.message} You can now log in.`, 'success');
+                    setTimeout(() => {
+                        registerForm.reset();
+                        showTab('login');
+                    }, 2000);
                 } else {
-                    showMessage(`Registration failed: ${result.message}`, 'error');
+                    showMessage(`❌ ${result.message}`, 'error');
                 }
             } catch (error) {
                 console.error('Registration error:', error);
-                showMessage('Could not connect to the server. Please try again.', 'error');
+                showMessage('❌ Could not connect to the server. Please try again.', 'error');
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Register';
+                submitBtn.textContent = 'Register as Admin';
             }
         });
 
@@ -403,9 +453,14 @@
             const phoneNumber = document.getElementById("loginPhone").value.trim();
             const password = document.getElementById("password").value;
 
-            // Validation
+            // Client-side validation
             if (!/^\d{10}$/.test(phoneNumber)) {
                 showMessage('Please enter a valid 10-digit phone number', 'error');
+                return;
+            }
+
+            if (!password) {
+                showMessage('Password is required', 'error');
                 return;
             }
 
@@ -423,17 +478,22 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    sessionStorage.setItem('currentAdminName', result.user.fullName);
-                    showMessage('Login successful! Redirecting...', 'success');
+                    // Store authentication data securely
+                    sessionStorage.setItem('adminToken', result.token || 'authenticated');
+                    sessionStorage.setItem('adminName', result.user.fullName);
+                    sessionStorage.setItem('adminPhone', result.user.phoneNumber);
+                    
+                    showMessage('✅ Login successful! Redirecting...', 'success');
+                    
                     setTimeout(() => {
                         window.location.href = "admin-dashboard.html";
                     }, 1500);
                 } else {
-                    showMessage(`Login failed: ${result.message}`, 'error');
+                    showMessage(`❌ ${result.message}`, 'error');
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                showMessage('Could not connect to the server. Please try again.', 'error');
+                showMessage('❌ Could not connect to the server. Please try again.', 'error');
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Login';

@@ -22,12 +22,12 @@
             padding: var(--space-1);
             border-radius: var(--radius-lg);
             margin-bottom: var(--space-8);
-            overflow-x: auto; /* For mobile */
+            overflow-x: auto;
         }
         
         .dashboard-tab {
             flex: 1;
-            min-width: 100px; /* For mobile */
+            min-width: 100px;
             padding: var(--space-3) var(--space-4);
             background: transparent;
             border: none;
@@ -54,6 +54,33 @@
         /* Welcome Header */
         .dashboard-header {
             margin-bottom: var(--space-8);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: var(--space-4);
+        }
+        
+        .admin-info {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-3) var(--space-4);
+            background: var(--neutral-100);
+            border-radius: var(--radius-lg);
+        }
+        
+        .admin-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-full);
+            background: var(--primary-600);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: var(--font-bold);
+            font-size: var(--text-lg);
         }
         
         /* Data Item Lists */
@@ -67,7 +94,7 @@
         }
         .data-list-item:last-child { border-bottom: none; }
         
-        /* Approval Card (specific to this dashboard) */
+        /* Approval Card */
         .approval-card.card {
             border-left: 4px solid var(--warning);
             margin-bottom: var(--space-4);
@@ -90,7 +117,7 @@
         }
         .setting-row:last-child { border-bottom: none; }
         
-        /* Toggle Switch (Restyled with variables) */
+        /* Toggle Switch */
         .toggle-switch {
             position: relative;
             display: inline-block;
@@ -167,9 +194,29 @@
             padding: var(--space-8);
             color: var(--neutral-500);
         }
+        
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
     </style>
 </head>
 <body>
+
+<!-- Loading Screen -->
+<div id="loadingScreen" class="loading-screen">
+    <div class="loading">
+        <h3>Verifying authentication...</h3>
+    </div>
+</div>
 
 <header id="main-header">
     <div class="header-container">
@@ -188,11 +235,23 @@
     </div>
 </header>
 
-<main>
+<main id="mainContent" style="display: none;">
     <section class="section" style="background: white;">
         <div class="section-container">
             <div class="dashboard-header">
-                <h2 id="welcome-message" style="margin: 0;">Admin Dashboard</h2>
+                <div>
+                    <h2 id="welcome-message" style="margin: 0;">Admin Dashboard</h2>
+                    <p style="color: var(--neutral-600); margin-top: var(--space-2);">
+                        Welcome back, <span id="adminNameDisplay">Admin</span>
+                    </p>
+                </div>
+                <div class="admin-info">
+                    <div class="admin-avatar" id="adminAvatar">A</div>
+                    <div>
+                        <div style="font-weight: var(--font-semibold);" id="adminFullName">Admin</div>
+                        <div style="font-size: var(--text-sm); color: var(--neutral-600);" id="adminPhoneDisplay">+91 XXXXXXXXXX</div>
+                    </div>
+                </div>
             </div>
 
             <div class="dashboard-tabs">
@@ -201,349 +260,345 @@
                 <button class="dashboard-tab" onclick="showTab('settings', event)">Settings</button>
                 <button class="dashboard-tab" onclick="showTab('questionnaire', event)">Questionnaire</button>
                 <button class="dashboard-tab" onclick="showTab('playbooks', event)">Playbooks</button>
-                <button class="dashboard-tab" onclick="showTab('monitor', event)">SOS Monitor</button>
+                <button class="dashboard-tab" onclick="showTab('sos-monitor', event)">SOS Monitor</button>
             </div>
 
-            <div id="tab-overview" class="tab-content active">
-                <div class="grid grid-cols-4">
-                    <div class="card card-glass text-center">
-                        <h3 id="stat-requests" style="font-size: var(--text-4xl); color: var(--primary-600); margin-bottom: var(--space-2);">0</h3>
-                        <p style="color: var(--neutral-600); margin: 0;">Active Requests</p>
-                    </div>
-                    <div class="card card-glass text-center">
-                        <h3 id="stat-hospitals" style="font-size: var(--text-4xl); color: var(--primary-600); margin-bottom: var(--space-2);">0</h3>
-                        <p style="color: var(--neutral-600); margin: 0;">Registered Hospitals</p>
-                    </div>
-                    <div class="card card-glass text-center">
-                        <h3 id="stat-donors" style="font-size: var(--text-4xl); color: var(--primary-600); margin-bottom: var(--space-2);">0</h3>
-                        <p style="color: var(--neutral-600); margin: 0;">Registered Donors</p>
-                    </div>
-                    <div class="card card-glass text-center">
-                        <h3 id="stat-drives" style="font-size: var(--text-4xl); color: var(--primary-600); margin-bottom: var(--space-2);">0</h3>
-                        <p style="color: var(--neutral-600); margin: 0;">Upcoming Drives</p>
-                    </div>
-                </div>
-                
-                <div class="card" style="margin-top: var(--space-8);">
-                    <h4 class="card-title">Recent Activity</h4>
-                    <div class="card-body" id="recent-activity" style="padding: 0;">
-                        <div class="loading">Loading...</div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="tab-approvals" class="tab-content">
-                <p style="color: var(--neutral-600); margin-bottom: var(--space-6); font-size: var(--text-lg);">
-                    Review and approve new hospital and NGO registrations.
-                </p>
-                <div class="grid grid-cols-2">
+            <!-- TAB 1: OVERVIEW -->
+            <div id="overview" class="tab-content active">
+                <div class="grid grid-cols-1 grid-cols-md-2 grid-cols-lg-3 gap-6">
                     <div class="card">
-                        <h4 class="card-title">Pending Hospitals</h4>
-                        <div id="hospital-approvals" class="card-body" style="padding: 0;">
-                            <div class="loading">Loading...</div>
+                        <div class="card-body">
+                            <h3 class="card-title">Total Users</h3>
+                            <p style="font-size: var(--text-4xl); font-weight: var(--font-bold); color: var(--primary-600); margin: var(--space-4) 0;">
+                                <span id="totalUsers">0</span>
+                            </p>
+                            <p style="color: var(--neutral-600); font-size: var(--text-sm);">Registered in the system</p>
                         </div>
                     </div>
                     <div class="card">
-                        <h4 class="card-title">Pending NGOs</h4>
-                        <div id="ngo-approvals" class="card-body" style="padding: 0;">
-                            <div class="loading">Loading...</div>
+                        <div class="card-body">
+                            <h3 class="card-title">Active Requests</h3>
+                            <p style="font-size: var(--text-4xl); font-weight: var(--font-bold); color: var(--warning); margin: var(--space-4) 0;">
+                                <span id="activeRequests">0</span>
+                            </p>
+                            <p style="color: var(--neutral-600); font-size: var(--text-sm);">Pending blood requests</p>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h3 class="card-title">System Status</h3>
+                            <p style="font-size: var(--text-2xl); font-weight: var(--font-bold); color: var(--success); margin: var(--space-4) 0;">
+                                ✓ Operational
+                            </p>
+                            <p style="color: var(--neutral-600); font-size: var(--text-sm);">All systems running</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div id="tab-settings" class="tab-content">
-                <div class="card" style="max-width: 800px;">
-                    <h3 class="card-title">System Settings</h3>
-                    <div class="card-body" style="padding: 0;">
+            <!-- TAB 2: APPROVALS -->
+            <div id="approvals" class="tab-content">
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title">Pending Approvals</h3>
+                        <div id="approvals-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: SETTINGS -->
+            <div id="settings" class="tab-content">
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title">System Settings</h3>
                         <div class="setting-row">
                             <div>
-                                <strong>Auto-Approve Hospital SOS</strong><br>
-                                <small style="color: var(--neutral-600);">When enabled, hospital SOS requests broadcast immediately.</small>
+                                <strong>Auto-approve SOS requests</strong>
+                                <p style="font-size: var(--text-sm); color: var(--neutral-600); margin-top: 5px;">
+                                    Automatically approve eligible blood donation requests
+                                </p>
                             </div>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="auto-approve-toggle" onchange="updateAutoApprove()">
                                 <span class="slider"></span>
                             </label>
                         </div>
+                        
                         <div class="setting-row">
                             <div>
-                                <strong>SOS Escalation Time</strong><br>
-                                <small style="color: var(--neutral-600);">Time before escalating to donors.</small>
+                                <strong>Escalation Time (minutes)</strong>
+                                <p style="font-size: var(--text-sm); color: var(--neutral-600); margin-top: 5px;">
+                                    Time before escalating to all donors
+                                </p>
                             </div>
-                            <select id="escalation-time" class="form-select" style="max-width: 150px;">
-                                <option value="5">5 minutes</option>
-                                <option value="10" selected>10 minutes</option>
-                                <option value="15">15 minutes</option>
-                                <option value="20">20 minutes</option>
-                            </select>
+                            <input 
+                                type="number" 
+                                id="escalation-time" 
+                                class="form-input" 
+                                style="width: 100px;"
+                                min="5"
+                                max="60"
+                            >
                         </div>
+                        
                         <div class="setting-row">
                             <div>
-                                <strong>Donor Search Radius</strong><br>
-                                <small style="color: var(--neutral-600);">Maximum distance for donor matching.</small>
+                                <strong>Donor Search Radius (km)</strong>
+                                <p style="font-size: var(--text-sm); color: var(--neutral-600); margin-top: 5px;">
+                                    Maximum distance to search for donors
+                                </p>
                             </div>
-                            <select id="donor-radius" class="form-select" style="max-width: 150px;">
-                                <option value="10">10 km</option>
-                                <option value="15" selected>15 km</option>
-                                <option value="20">20 km</option>
-                                <option value="25">25 km</option>
-                            </select>
+                            <input 
+                                type="number" 
+                                id="donor-radius" 
+                                class="form-input" 
+                                style="width: 100px;"
+                                min="5"
+                                max="100"
+                            >
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div id="tab-questionnaire" class="tab-content">
-                <div class="card" style="max-width: 800px;">
-                    <h3 class="card-title">Donor Eligibility Questionnaire</h3>
-                    <p style="color: var(--neutral-600); margin-bottom: var(--space-4);">
-                        Select which questions are visible and required for donors.
-                    </p>
-                    <div id="questions-list" class="card-body" style="padding: 0;">
-                        </div>
-                </div>
-            </div>
-
-            <div id="tab-playbooks" class="tab-content">
-                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
-                    <h3 style="margin: 0;">Manage Playbooks</h3>
-                    <button onclick="showCreatePlaybook()" class="btn btn-primary">+ New Playbook</button>
-                </div>
-                
-                <div id="create-playbook-form" class="card" style="display: none;">
-                    <h4 class="card-title">Create New Playbook</h4>
+            <!-- TAB 4: QUESTIONNAIRE -->
+            <div id="questionnaire" class="tab-content">
+                <div class="card">
                     <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label" for="pb-title">Title</label>
-                            <input type="text" id="pb-title" class="form-input" placeholder="Enter playbook title">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="pb-category">Category</label>
-                            <select id="pb-category" class="form-select">
-                                <option value="Rare Blood">Rare Blood Groups</option>
-                                <option value="Apheresis">Apheresis Procedures</option>
-                                <option value="Escalation">Escalation Protocols</option>
-                                <option value="Emergency">Emergency Procedures</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="pb-content">Content</label>
-                            <textarea id="pb-content" class="form-textarea" placeholder="Enter playbook content" rows="5"></textarea>
-                        </div>
-                        <div id="playbook-message" class="message-area"></div>
-                        <div style="display: flex; gap: var(--space-4); margin-top: var(--space-4);">
-                            <button onclick="saveAdminPlaybook()" class="btn btn-primary">Save Playbook</button>
-                            <button type="button" onclick="hideCreatePlaybook()" class="btn btn-outline">Cancel</button>
-                        </div>
+                        <h3 class="card-title">Eligibility Questions</h3>
+                        <p style="color: var(--neutral-600); margin-bottom: var(--space-4);">
+                            Toggle questions to show/hide them in the donor eligibility form
+                        </p>
+                        <div id="questions-list"></div>
                     </div>
                 </div>
-                
-                <div id="playbooks-list" class="grid grid-cols-3">
-                    </div>
             </div>
 
-            <div id="tab-monitor" class="tab-content">
-                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
-                    <h3 style="margin: 0;">Live SOS Monitor</h3>
-                    <button onclick="refreshSOSMonitor()" class="btn btn-outline btn-sm">🔄 Refresh</button>
-                </div>
-                <div id="sos-monitor-list" class="grid grid-cols-2">
-                    <div class="loading">Loading...</div>
+            <!-- TAB 5: PLAYBOOKS -->
+            <div id="playbooks" class="tab-content">
+                <div class="card">
+                    <div class="card-body">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                            <h3 class="card-title" style="margin: 0;">Hospital Playbooks</h3>
+                            <button class="btn btn-primary btn-sm" onclick="showCreatePlaybook()">+ Create New</button>
+                        </div>
+                        
+                        <div id="create-playbook-form" style="display: none; margin-bottom: var(--space-6); padding: var(--space-4); background: var(--neutral-50); border-radius: var(--radius-lg);">
+                            <h4 style="margin-bottom: var(--space-4);">Create New Playbook</h4>
+                            <div class="form-group">
+                                <label class="form-label">Title</label>
+                                <input type="text" id="pb-title" class="form-input" placeholder="Playbook title">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Category</label>
+                                <select id="pb-category" class="form-input">
+                                    <option value="Emergency">Emergency</option>
+                                    <option value="Rare Blood">Rare Blood</option>
+                                    <option value="Apheresis">Apheresis</option>
+                                    <option value="General">General</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Content</label>
+                                <textarea id="pb-content" class="form-input" rows="6" placeholder="Playbook content..."></textarea>
+                            </div>
+                            <div style="display: flex; gap: var(--space-2);">
+                                <button class="btn btn-primary btn-sm" onclick="saveAdminPlaybook()">Save Playbook</button>
+                                <button class="btn btn-outline btn-sm" onclick="hideCreatePlaybook()">Cancel</button>
+                            </div>
+                            <div id="playbook-message" class="message-area"></div>
+                        </div>
+                        
+                        <div id="playbooks-list"></div>
+                    </div>
                 </div>
             </div>
+
+            <!-- TAB 6: SOS MONITOR -->
+            <div id="sos-monitor" class="tab-content">
+                <div class="card">
+                    <div class="card-body">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                            <h3 class="card-title" style="margin: 0;">Live SOS Requests</h3>
+                            <button class="btn btn-outline btn-sm" onclick="refreshSOSMonitor()">🔄 Refresh</button>
+                        </div>
+                        <div id="sos-monitor-list"></div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </section>
 </main>
 
-<footer>
-    <div class="footer-container">
-        <div class="footer-bottom">
-            <p>© 2025 LifeLink. All rights reserved. Saving lives through technology.</p>
-        </div>
-    </div>
-</footer>
-
 <script>
-let admin = null;
+// ============================================================================
+// AUTHENTICATION & SESSION MANAGEMENT
+// ============================================================================
 
-// ============================================================================
-// INITIALIZATION
-// ============================================================================
-document.addEventListener('DOMContentLoaded', () => {
-    // Check authentication
-    const adminName = sessionStorage.getItem('currentAdminName');
-    if (!adminName) {
+let currentAdminData = null;
+
+// Check authentication on page load
+async function checkAuthentication() {
+    const token = sessionStorage.getItem('adminToken');
+    const adminName = sessionStorage.getItem('adminName');
+    const adminPhone = sessionStorage.getItem('adminPhone');
+    
+    if (!token) {
+        console.log('No auth token found, redirecting to login...');
         window.location.href = 'admin-login.html';
-        return;
+        return false;
     }
+    
+    // Store admin data
+    currentAdminData = {
+        name: adminName,
+        phone: adminPhone
+    };
+    
+    // Update UI with admin info
+    updateAdminDisplay();
+    
+    // Hide loading screen and show content
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+    
+    return true;
+}
 
-    admin = { fullName: adminName };
-    document.getElementById('welcome-message').textContent = `Admin Dashboard - ${adminName}`;
+function updateAdminDisplay() {
+    if (!currentAdminData) return;
     
-    // Load all data
-    loadOverview();
-    loadApprovals();
-    loadSettings();
-    loadQuestions();
-    loadPlaybooks();
-    refreshSOSMonitor();
+    const adminName = currentAdminData.name || 'Admin';
+    const adminPhone = currentAdminData.phone || '';
     
-    // Auto-refresh monitor every 15 seconds
-    setInterval(refreshSOSMonitor, 15000);
+    // Update name displays
+    document.getElementById('adminNameDisplay').textContent = adminName;
+    document.getElementById('adminFullName').textContent = adminName;
     
-    // Logout handler
-    document.getElementById('logoutBtn').addEventListener('click', (e) => {
-        e.preventDefault();
-        sessionStorage.clear();
+    // Update phone display
+    if (adminPhone) {
+        document.getElementById('adminPhoneDisplay').textContent = `+91 ${adminPhone}`;
+    }
+    
+    // Update avatar with first letter
+    const firstLetter = adminName.charAt(0).toUpperCase();
+    document.getElementById('adminAvatar').textContent = firstLetter;
+}
+
+// Logout functionality
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+    if (confirm('Are you sure you want to logout?')) {
+        try {
+            const token = sessionStorage.getItem('adminToken');
+            
+            // Call logout API
+            await fetch('/api/server/logout/admin', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+        
+        // Clear session data
+        sessionStorage.removeItem('adminToken');
+        sessionStorage.removeItem('adminName');
+        sessionStorage.removeItem('adminPhone');
+        
+        // Redirect to login
         window.location.href = 'admin-login.html';
-    });
-    
-    // Mobile Menu
-    const menuToggle = document.querySelector('.mobile-menu-toggle');
-    const nav = document.getElementById('main-nav');
-    if (menuToggle) {
-        menuToggle.addEventListener('click', () => {
-            nav.classList.toggle('open');
-            menuToggle.classList.toggle('active');
-        });
     }
 });
 
+// Run authentication check
+checkAuthentication();
+
 // ============================================================================
-// HELPERS (Tabs, Messages)
+// TAB MANAGEMENT
 // ============================================================================
 
 function showTab(tabName, event) {
-    document.querySelectorAll('.dashboard-tab').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    
     if (event) {
+        document.querySelectorAll('.dashboard-tab').forEach(t => t.classList.remove('active'));
         event.target.classList.add('active');
-    } else {
-        document.querySelector(`.dashboard-tab[onclick*="'${tabName}'"]`).classList.add('active');
     }
-    document.getElementById(`tab-${tabName}`).classList.add('active');
     
-    // Reload data for specific tabs
-    if (tabName === 'monitor') refreshSOSMonitor();
-    if (tabName === 'approvals') loadApprovals();
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(tabName).classList.add('active');
+    
+    // Load data when tab is shown
     if (tabName === 'overview') loadOverview();
+    if (tabName === 'approvals') loadApprovals();
+    if (tabName === 'settings') loadSettings();
+    if (tabName === 'questionnaire') loadQuestions();
+    if (tabName === 'playbooks') loadPlaybooks();
+    if (tabName === 'sos-monitor') refreshSOSMonitor();
 }
 
 function showMessage(elementId, text, type) {
-    const messageEl = document.getElementById(elementId);
-    if (!messageEl) return;
-    
-    messageEl.textContent = text;
-    messageEl.className = `message-area message-${type}`;
-    messageEl.style.display = 'block';
-    
-    // Hide message after 3 seconds
-    setTimeout(() => {
-        messageEl.style.display = 'none';
-    }, 3000);
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.textContent = text;
+    el.className = `message-area message-${type}`;
 }
 
 // ============================================================================
 // TAB 1: OVERVIEW
 // ============================================================================
 
-async function loadOverview() {
-    try {
-        // MOCK API CALLS
-        const requests = [{ request_id: 'R123', blood_type_needed: 'O+', patient_name: 'A. Kumar', status: 'pending' }];
-        const drives = [{ id: 1 }, { id: 2 }];
-        const hospitals = [{ id: 1 }, { id: 2 }, {id: 3}];
-        const donors = [{ id: 1 }, { id: 2 }, {id: 3}, {id: 4}];
-        
-        document.getElementById('stat-requests').textContent = requests.length;
-        document.getElementById('stat-hospitals').textContent = hospitals.length;
-        document.getElementById('stat-donors').textContent = donors.length;
-        document.getElementById('stat-drives').textContent = drives.length;
-        
-        // Display recent activity
-        const activityDiv = document.getElementById('recent-activity');
-        if (requests.length === 0) {
-            activityDiv.innerHTML = '<p class="empty-state">No recent activity</p>';
-        } else {
-            activityDiv.innerHTML = requests.slice(0, 5).map(r => `
-                <div class="data-list-item">
-                    <div>
-                        <strong>${r.blood_type_needed}</strong> requested by ${r.patient_name || 'Patient'}<br>
-                        <small style="color: var(--neutral-500);">Request ID: ${r.request_id}</small>
-                    </div>
-                    ${getStatusBadge(r.status)}
-                </div>
-            `).join('');
-        }
-    } catch (error) {
-        console.error('Error loading overview:', error);
-        document.getElementById('recent-activity').innerHTML = '<p class="empty-state" style="color: var(--error);">Error loading data</p>';
-    }
+function loadOverview() {
+    // MOCK: In production, fetch real stats from API
+    document.getElementById('totalUsers').textContent = '1,234';
+    document.getElementById('activeRequests').textContent = '12';
 }
 
 // ============================================================================
 // TAB 2: APPROVALS
 // ============================================================================
 
-async function loadApprovals() {
-    // MOCK DATA
-    const mockHospitals = [
-        { id: 'H101', name: 'New City Hospital', phone: '...1234', address: '123 Main St' }
+function loadApprovals() {
+    const container = document.getElementById('approvals-list');
+    
+    // MOCK: In production, fetch from backend
+    const approvals = [
+        { id: 1, type: 'Donor', name: 'John Doe', detail: 'First-time donor' },
+        { id: 2, type: 'Hospital', name: 'City Hospital', detail: 'New registration' }
     ];
-    const mockNGOs = [
-        { id: 'N501', name: 'SaveLife Foundation', phone: '...5678', regId: 'NGO/2024/123' }
-    ];
-
-    const hospitalContainer = document.getElementById('hospital-approvals');
-    hospitalContainer.innerHTML = '';
-    if (mockHospitals.length === 0) {
-        hospitalContainer.innerHTML = '<p class="empty-state">No pending hospital approvals</p>';
-    } else {
-        mockHospitals.forEach(h => {
-            hospitalContainer.innerHTML += `
-                <div class="card approval-card">
-                    <div class="card-body">
-                        <h4 class="card-title">${h.name}</h4>
-                        <p style="margin: 0; color: var(--neutral-600);"><small>ID: ${h.id} | Phone: ${h.phone} | Address: ${h.address}</small></p>
-                        <div class="approval-actions">
-                            <button class="btn btn-success btn-sm" onclick="handleApproval('hospital', ${h.id}, true)">Approve</button>
-                            <button class="btn btn-danger btn-sm" onclick="handleApproval('hospital', ${h.id}, false)">Reject</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
+    
+    if (approvals.length === 0) {
+        container.innerHTML = '<p class="empty-state">No pending approvals</p>';
+        return;
     }
     
-    const ngoContainer = document.getElementById('ngo-approvals');
-    ngoContainer.innerHTML = '';
-    if (mockNGOs.length === 0) {
-        ngoContainer.innerHTML = '<p class="empty-state">No pending NGO approvals</p>';
-    } else {
-        mockNGOs.forEach(n => {
-            ngoContainer.innerHTML += `
-                <div class="card approval-card">
-                    <div class="card-body">
-                        <h4 class="card-title">${n.name}</h4>
-                        <p style="margin: 0; color: var(--neutral-600);"><small>Reg ID: ${n.regId} | Phone: ${n.phone}</small></p>
-                        <div class="approval-actions">
-                            <button class="btn btn-success btn-sm" onclick="handleApproval('ngo', ${n.id}, true)">Approve</button>
-                            <button class="btn btn-danger btn-sm" onclick="handleApproval('ngo', ${n.id}, false)">Reject</button>
-                        </div>
-                    </div>
+    container.innerHTML = '';
+    approvals.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'approval-card card';
+        div.innerHTML = `
+            <div class="card-body">
+                <h4 class="card-title">${item.type}: ${item.name}</h4>
+                <p style="color: var(--neutral-600);">${item.detail}</p>
+                <div class="approval-actions">
+                    <button class="btn btn-success btn-sm" onclick="handleApproval('${item.type}', ${item.id}, true)">
+                        ✓ Approve
+                    </button>
+                    <button class="btn btn-error btn-sm" onclick="handleApproval('${item.type}', ${item.id}, false)">
+                        ✗ Reject
+                    </button>
                 </div>
-            `;
-        });
-    }
+            </div>
+        `;
+        container.appendChild(div);
+    });
 }
 
 function handleApproval(type, id, isApproved) {
-    // MOCK: In a real app, send this to the backend
     console.log(`Handling approval for ${type} ${id}: ${isApproved}`);
     alert(`${type} ${isApproved ? 'Approved' : 'Rejected'}! (Demo)`);
-    // Reload the list
     loadApprovals();
 }
 
@@ -568,7 +623,6 @@ function updateAutoApprove() {
     alert(`Auto-approve ${isEnabled ? 'ENABLED' : 'DISABLED'}.`);
 }
 
-// Save other settings (attached via DOMContentLoaded in the original, but safer to do it here)
 document.getElementById('escalation-time')?.addEventListener('change', (e) => {
     localStorage.setItem('escalationTime', e.target.value);
     alert(`Escalation time updated to ${e.target.value} minutes`);
@@ -584,7 +638,6 @@ document.getElementById('donor-radius')?.addEventListener('change', (e) => {
 // ============================================================================
 
 function loadQuestions() {
-    // MOCK: This would come from a DB
     const questions = [
         { id: 1, text: 'Are you 18 years or older?', visible: true, required: true },
         { id: 2, text: 'Have you had any infections in the past 2 weeks?', visible: true, required: true },
@@ -616,7 +669,6 @@ function loadQuestions() {
 }
 
 function toggleQuestion(qId) {
-    // MOCK: In a real app, send this update to the DB
     console.log(`Toggle question ${qId}`);
     alert(`Question ${qId} visibility toggled (Demo)`);
 }
@@ -645,7 +697,6 @@ async function saveAdminPlaybook() {
         return;
     }
     
-    // MOCK: In a real app, save to DB
     console.log('Saving playbook:', { title, category, content });
     showMessage('playbook-message', 'Playbook saved successfully!', 'success');
     
@@ -655,7 +706,6 @@ async function saveAdminPlaybook() {
 
 function loadPlaybooks() {
     const container = document.getElementById('playbooks-list');
-    // MOCK: In a real app, load from DB
     const playbooks = [
         { id: 1, title: 'Emergency Blood Shortage Protocol', category: 'Emergency' },
         { id: 2, title: 'Rare Blood Type Handling (Bombay)', category: 'Rare Blood' },
@@ -669,7 +719,7 @@ function loadPlaybooks() {
                 <div class="card-body">
                     <span class="badge badge-info">${pb.category}</span>
                     <h4 class="card-title" style="margin-top: var(--space-2);">${pb.title}</h4>
-                    <button class="btn btn-outline btn-sm" onclick="alert('Edit functionality would open a form to edit this playbook')">Edit</button>
+                    <button class="btn btn-outline btn-sm" onclick="alert('Edit functionality would open a form')">Edit</button>
                 </div>
             </div>
         `;
@@ -685,8 +735,7 @@ async function refreshSOSMonitor() {
     container.innerHTML = '<div class="loading">Loading...</div>';
     
     try {
-        // MOCK API CALL
-        // const response = await fetch('/api/server/requests/live');
+        // MOCK DATA - In production, fetch from API
         const requests = [
             { request_id: 'R123', blood_type_needed: 'O+', patient_name: 'A. Kumar', status: 'pending', hospital_name: 'Pending', created_at: new Date() },
             { request_id: 'R124', blood_type_needed: 'A-', patient_name: 'S. Verma', status: 'accepted', hospital_name: 'City Hospital', created_at: new Date(Date.now() - 300000) }
@@ -732,6 +781,11 @@ function getStatusBadge(status) {
     };
     return badges[status] || status;
 }
+
+// Initialize on load
+window.addEventListener('DOMContentLoaded', () => {
+    loadOverview();
+});
 
 </script>
 
