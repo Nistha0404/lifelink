@@ -213,6 +213,8 @@
                 <button class="auth-tab" id="register-tab-btn" onclick="showTab('register')">Register</button>
             </div>
             
+            <div id="message"></div>
+            
             <!-- Login Form -->
             <div id="login-tab" class="auth-form">
                 <form id="hospitalLoginForm">
@@ -341,8 +343,6 @@
                 </form>
             </div>
             
-            <div id="message"></div>
-            
             <div class="auth-footer">
                 <p>
                     <a href="index.html">← Back to Home</a>
@@ -352,19 +352,19 @@
     </div>
     
     <script>
+        const API_BASE = window.location.origin;
         const loginForm = document.getElementById("hospitalLoginForm");
         const registerForm = document.getElementById("hospitalRegisterForm");
         const messageEl = document.getElementById("message");
 
-        // CRITICAL FIX: Check if already logged in BEFORE rendering page
-        const existingToken = sessionStorage.getItem('hospitalToken');
-        if (existingToken) {
-            // Already logged in, redirect immediately
-            console.log('Already logged in, redirecting to dashboard...');
-            window.location.replace('hospital-dashboard.html');
-            // Prevent further script execution
-            throw new Error('Redirecting to dashboard');
-        }
+        // CRITICAL: Check if already logged in on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const existingToken = sessionStorage.getItem('hospitalToken');
+            if (existingToken) {
+                console.log('✅ Already logged in, redirecting...');
+                window.location.replace('hospital-dashboard.html');
+            }
+        });
 
         function showTab(tabName) {
             document.getElementById('login-tab').style.display = tabName === 'login' ? 'block' : 'none';
@@ -418,7 +418,7 @@
             submitBtn.textContent = 'Registering...';
 
             try {
-                const response = await fetch('/api/server/register/hospital', {
+                const response = await fetch(`${API_BASE}/api/server/register/hospital`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ hospitalName, phoneNumber, password, address, pincode, email })
@@ -444,7 +444,7 @@
             }
         });
 
-        // Login Handler - CRITICAL FIX: Proper redirect
+        // Login Handler - FIXED to prevent redirect loop
         loginForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             
@@ -466,7 +466,7 @@
             submitBtn.textContent = 'Logging in...';
 
             try {
-                const response = await fetch('/api/server/login/hospital', {
+                const response = await fetch(`${API_BASE}/api/server/login/hospital`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phoneNumber, password })
@@ -474,8 +474,8 @@
                 
                 const result = await response.json();
 
-                if (result.success) {
-                    // Store authentication data
+                if (result.success && result.token) {
+                    // Store all authentication data
                     sessionStorage.setItem('hospitalToken', result.token);
                     sessionStorage.setItem('hospitalId', result.hospital.hospital_id);
                     sessionStorage.setItem('hospitalName', result.hospital.hospitalName);
@@ -485,12 +485,14 @@
                     
                     showMessage('✅ Login successful! Redirecting...', 'success');
                     
-                    // CRITICAL: Use replace() instead of href to prevent back button issues
+                    console.log('✅ Login data stored, redirecting to dashboard...');
+                    
+                    // Use replace() to prevent back button issues
                     setTimeout(() => {
                         window.location.replace('hospital-dashboard.html');
                     }, 1000);
                 } else {
-                    showMessage(`❌ ${result.message}`, 'error');
+                    showMessage(`❌ ${result.message || 'Login failed'}`, 'error');
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Login to Hospital Portal';
                 }
