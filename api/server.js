@@ -398,12 +398,12 @@ app.get('/api/server/request-status/:requestId', async (req, res) => {
       patient_phone: request.patient_phone_number
     };
     
-    if (request.status === 'accepted' && request.hospital_name) {
+    if (request.status === 'accepted' && request.accepted_by_hospital_id) {
       response.hospital = {
         name: request.hospital_name,
-        address: request.hospital_address,
+        phone: request.hospital_phone,
         pincode: request.hospital_pincode,
-        phone: request.hospital_phone
+        address: request.hospital_address
       };
     }
     
@@ -417,7 +417,13 @@ app.get('/api/server/request-status/:requestId', async (req, res) => {
 app.get('/api/server/requests/history/:patientId', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT br.request_id, br.blood_type_needed, br.status, br.created_at, br.patient_token, h.hospital_name
+      `SELECT 
+        br.request_id,
+        br.blood_type_needed,
+        br.status,
+        br.patient_token,
+        br.created_at,
+        h.hospital_name
        FROM blood_requests br
        LEFT JOIN hospitals h ON br.accepted_by_hospital_id = h.hospital_id
        WHERE br.patient_id = $1
@@ -434,7 +440,7 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
 });
 
 // ============================================================================
-// HOSPITAL AUTHENTICATION & MANAGEMENT - FIXED
+// HOSPITAL AUTHENTICATION & MANAGEMENT
 // ============================================================================
 
 app.post('/api/server/hospital-login', async (req, res) => {
@@ -479,7 +485,7 @@ app.post('/api/server/hospital-login', async (req, res) => {
   }
 });
 
-// HOSPITAL REGISTRATION - NEW
+// HOSPITAL REGISTRATION
 app.post('/api/server/hospital-register', async (req, res) => {
   const { hospitalName, address, pincode, phoneNumber, password, latitude, longitude } = req.body;
   
@@ -522,7 +528,7 @@ app.post('/api/server/hospital-register', async (req, res) => {
     if (e.code === '23505') { // Unique violation
       return res.status(409).json({ success: false, message: 'Phone number already registered.' });
     }
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
   }
 });
 
@@ -636,87 +642,7 @@ app.post('/api/server/hospital-response', async (req, res) => {
   }
 });
 
-// HOSPITAL SOS BROADCAST - NEW (Hospital-to-Hospital)
-app.post('/api/server/hospital-sos', async (req, res) => {
-  const { hospitalId, component, bloodType, units, urgency } = req.body;
-  
-  if (!hospitalId || !component || !bloodType || !units) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
-  }
-  
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    
-    // Get broadcasting hospital's location
-    const { rows: hospRows } = await client.query(
-      'SELECT latitude, longitude FROM hospitals WHERE hospital_id = $1',
-      [hospitalId]
-    );
-    
-    if (!hospRows.length) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Hospital not found.' });
-    }
-    
-    const { latitude, longitude } = hospRows[0];
-    
-    // Create a special hospital-to-hospital request
-    const patientToken = await generateUniquePatientToken(client);
-    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-    
-    const { rows } = await client.query(
-      `INSERT INTO blood_requests 
-       (creator_hospital_id, blood_type_needed, component_needed, urgency, latitude, longitude, status, patient_token, deadline) 
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $8) 
-       RETURNING request_id`,
-      [hospitalId, bloodType, component, urgency || 'urgent', latitude, longitude, patientToken, deadline]
-    );
-    
-    const requestId = rows[0].request_id;
-    
-    // Notify ALL other hospitals
-    const { rows: allHospitals } = await client.query(
-      'SELECT hospital_id, hospital_name, latitude, longitude FROM hospitals WHERE hospital_id != $1 AND latitude IS NOT NULL',
-      [hospitalId]
-    );
-    
-    const alertPromises = [];
-    
-    for (const hospital of allHospitals) {
-      const distance = calculateDistance(
-        latitude, longitude,
-        hospital.latitude, hospital.longitude
-      );
-      
-      alertPromises.push(
-        client.query(
-          'INSERT INTO alert_status (request_id, hospital_id, distance_km, status) VALUES ($1, $2, $3, $4)',
-          [requestId, hospital.hospital_id, distance.toFixed(2), 'sent']
-        )
-      );
-    }
-    
-    await Promise.all(alertPromises);
-    await client.query('COMMIT');
-    
-    console.log(`✅ Hospital SOS broadcast to ${allHospitals.length} hospitals`);
-    
-    res.status(201).json({ 
-      success: true, 
-      message: `SOS broadcast sent to ${allHospitals.length} hospitals!`,
-      requestId
-    });
-  } catch (e) {
-    await client.query('ROLLBACK');
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-// HOSPITAL INVENTORY UPDATE - FIXED
+// Update hospital inventory
 app.post('/api/server/update-inventory', async (req, res) => {
   const { hospitalId, stock } = req.body;
   
@@ -730,28 +656,9 @@ app.post('/api/server/update-inventory', async (req, res) => {
       [JSON.stringify(stock), hospitalId]
     );
     
-    res.json({ success: true, message: 'Inventory updated successfully.' });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-// GET HOSPITAL INVENTORY
-app.get('/api/server/hospital-inventory/:hospitalId', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      'SELECT blood_inventory FROM hospitals WHERE hospital_id = $1',
-      [req.params.hospitalId]
-    );
-    
-    if (!rows.length) {
-      return res.status(404).json({ success: false, message: 'Hospital not found.' });
-    }
-    
     res.json({ 
       success: true, 
-      inventory: rows[0].blood_inventory || {}
+      message: 'Inventory updated successfully!' 
     });
   } catch (e) {
     console.error(e);
@@ -759,79 +666,7 @@ app.get('/api/server/hospital-inventory/:hospitalId', async (req, res) => {
   }
 });
 
-// PLAYBOOKS - CREATE
-app.post('/api/server/playbooks', async (req, res) => {
-  const { hospitalId, title, content, category } = req.body;
-  
-  if (!hospitalId || !title || !content) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
-  }
-  
-  try {
-    const { rows } = await pool.query(
-      `INSERT INTO playbooks (hospital_id, title, content, category, is_active) 
-       VALUES ($1, $2, $3, $4, true) 
-       RETURNING *`,
-      [hospitalId, title, content, category || 'General']
-    );
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Playbook created successfully!',
-      playbook: rows[0]
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-// PLAYBOOKS - GET ALL FOR HOSPITAL
-app.get('/api/server/playbooks/:hospitalId', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      'SELECT * FROM playbooks WHERE hospital_id = $1 ORDER BY created_at DESC',
-      [req.params.hospitalId]
-    );
-    
-    res.json({ success: true, playbooks: rows });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-// DONOR APPOINTMENTS - GET FOR HOSPITAL
-app.get('/api/hospital/appointments/:hospitalId', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT 
-        dc.commitment_id,
-        dc.donor_token,
-        dc.status,
-        dc.created_at,
-        u.full_name as donor_name,
-        u.phone_number as donor_phone,
-        u.blood_type,
-        br.blood_type_needed,
-        br.request_id
-       FROM donation_commitments dc
-       JOIN users u ON dc.donor_id = u.user_id
-       LEFT JOIN blood_requests br ON dc.request_id = br.request_id
-       WHERE dc.hospital_id = $1
-       ORDER BY dc.created_at DESC
-       LIMIT 50`,
-      [req.params.hospitalId]
-    );
-    
-    res.json({ success: true, appointments: rows });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-// TOKEN VERIFICATION - ENHANCED WITH FULL DETAILS
+// TOKEN VERIFICATION
 app.post('/api/server/verify-token', async (req, res) => {
   const { token } = req.body;
   
@@ -863,21 +698,10 @@ app.post('/api/server/verify-token', async (req, res) => {
       return res.json({ 
         valid: true, 
         type: 'patient',
-        details: {
-          name: data.patient_name,
-          phone: data.patient_phone,
-          bloodType: data.blood_type_needed,
-          patientBloodType: data.patient_blood_type,
-          pincode: data.patient_pincode,
-          status: data.status,
-          requestId: data.request_id,
-          createdAt: data.created_at,
-          hospital: data.hospital_name ? {
-            name: data.hospital_name,
-            address: data.hospital_address,
-            pincode: data.hospital_pincode
-          } : null
-        }
+        name: data.patient_name,
+        phone: data.patient_phone,
+        bloodType: data.blood_type_needed,
+        status: data.status
       });
     }
     
@@ -887,17 +711,9 @@ app.post('/api/server/verify-token', async (req, res) => {
         dc.*,
         u.full_name as donor_name,
         u.phone_number as donor_phone,
-        u.blood_type as donor_blood_type,
-        u.pincode as donor_pincode,
-        h.hospital_name,
-        h.address as hospital_address,
-        h.pincode as hospital_pincode,
-        br.blood_type_needed,
-        br.request_id
+        u.blood_type as donor_blood_type
        FROM donation_commitments dc
        JOIN users u ON dc.donor_id = u.user_id
-       LEFT JOIN hospitals h ON dc.hospital_id = h.hospital_id
-       LEFT JOIN blood_requests br ON dc.request_id = br.request_id
        WHERE dc.donor_token = $1`,
       [token]
     );
@@ -907,21 +723,10 @@ app.post('/api/server/verify-token', async (req, res) => {
       return res.json({ 
         valid: true, 
         type: 'donor',
-        details: {
-          name: data.donor_name,
-          phone: data.donor_phone,
-          bloodType: data.donor_blood_type,
-          pincode: data.donor_pincode,
-          status: data.status,
-          bloodTypeNeeded: data.blood_type_needed,
-          requestId: data.request_id,
-          createdAt: data.created_at,
-          hospital: data.hospital_name ? {
-            name: data.hospital_name,
-            address: data.hospital_address,
-            pincode: data.hospital_pincode
-          } : null
-        }
+        name: data.donor_name,
+        phone: data.donor_phone,
+        bloodType: data.donor_blood_type,
+        status: data.status
       });
     }
     
@@ -1231,133 +1036,6 @@ app.post('/api/server/volunteer-login', async (req, res) => {
   }
 });
 
-app.get('/api/volunteer/drives-available', async (req, res) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT 
-        d.drive_id, 
-        d.drive_name, 
-        d.location, 
-        d.start_date, 
-        d.end_date,
-        d.start_time, 
-        d.end_time, 
-        d.target_donors, 
-        d.registered_donors,
-        d.status,
-        u.full_name as organizer_name 
-      FROM donation_drives d 
-      LEFT JOIN users u ON d.organizer_id = u.user_id 
-      WHERE d.start_date >= CURRENT_DATE 
-      ORDER BY d.start_date ASC
-    `);
-    res.json({ success: true, drives: rows });
-  } catch (e) {
-    console.error('Error fetching drives:', e);
-    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
-  }
-});
-
-app.get('/api/volunteer/drive-roles/:driveId', async (req, res) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT 
-        role_id, 
-        role_name, 
-        required_volunteers, 
-        assigned_volunteers 
-      FROM volunteer_roles 
-      WHERE drive_id = $1
-    `, [req.params.driveId]);
-    res.json({ success: true, roles: rows });
-  } catch (e) {
-    console.error('Error fetching roles:', e);
-    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
-  }
-});
-
-app.post('/api/volunteer/drive-create', async (req, res) => {
-  const { organizerId, driveName, location, startDate, endDate, startTime, endTime, targetDonors, roles } = req.body;
-  
-  if (!organizerId || !driveName || !location || !startDate) {
-    return res.status(400).json({ success: false, message: 'Missing fields.' });
-  }
-  
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    
-    const { rows } = await client.query(
-      `INSERT INTO donation_drives (organizer_id, drive_name, location, start_date, end_date, start_time, end_time, target_donors) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING drive_id`,
-      [organizerId, driveName, location, startDate, endDate, startTime, endTime, targetDonors]
-    );
-    
-    const driveId = rows[0].drive_id;
-    
-    if (roles && roles.length) {
-      for (const role of roles) {
-        await client.query(
-          'INSERT INTO volunteer_roles (drive_id, role_name, required_volunteers) VALUES ($1, $2, $3)',
-          [driveId, role.name, role.required]
-        );
-      }
-    }
-    
-    await client.query('COMMIT');
-    res.status(201).json({ success: true, message: 'Drive created', driveId });
-  } catch (e) {
-    await client.query('ROLLBACK');
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-app.post('/api/volunteer/drive-signup', async (req, res) => {
-  const { volunteerId, roleId, shiftStart, shiftEnd } = req.body;
-  
-  if (!volunteerId || !roleId) {
-    return res.status(400).json({ success: false, message: 'Missing fields.' });
-  }
-  
-  try {
-    await pool.query(
-      'INSERT INTO volunteer_assignments (volunteer_id, role_id, shift_start, shift_end) VALUES ($1, $2, $3, $4)',
-      [volunteerId, roleId, shiftStart, shiftEnd]
-    );
-    
-    await pool.query(
-      'UPDATE volunteer_roles SET assigned_volunteers = assigned_volunteers + 1 WHERE role_id = $1',
-      [roleId]
-    );
-    
-    res.json({ success: true, message: 'Signed up successfully!' });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.get('/api/volunteer/my-assignments/:volunteerId', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT va.*, vr.role_name, d.drive_name, d.location, d.start_date 
-       FROM volunteer_assignments va 
-       JOIN volunteer_roles vr ON va.role_id = vr.role_id 
-       JOIN donation_drives d ON vr.drive_id = d.drive_id 
-       WHERE va.volunteer_id = $1 
-       ORDER BY d.start_date DESC`,
-      [req.params.volunteerId]
-    );
-    res.json({ success: true, assignments: rows });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
 // ============================================================================
 // ADMIN AUTHENTICATION
 // ============================================================================
@@ -1365,11 +1043,12 @@ app.get('/api/volunteer/my-assignments/:volunteerId', async (req, res) => {
 app.post('/api/server/admin-login', async (req, res) => {
   const { username, password } = req.body;
   
+  // Hardcoded admin credentials (in production, use database + hashed passwords)
   if (username === 'admin' && password === 'admin123') {
     res.json({ 
       success: true, 
-      message: 'Login successful!',
-      admin: { username: 'admin', role: 'admin' }
+      message: 'Admin login successful!',
+      user: { username: 'admin', role: 'admin' }
     });
   } else {
     res.status(401).json({ success: false, message: 'Invalid credentials.' });
@@ -1377,49 +1056,13 @@ app.post('/api/server/admin-login', async (req, res) => {
 });
 
 // ============================================================================
-// AWARENESS KIT
+// SERVER START
 // ============================================================================
 
-app.post('/api/awareness/generate-material', async (req, res) => {
-  const { createdBy, materialType, title } = req.body;
-  
-  if (!createdBy || !materialType || !title) {
-    return res.status(400).json({ success: false, message: 'Missing fields.' });
-  }
-  
-  try {
-    const qrData = `https://lifelink.app/pledge?ref=${Math.random().toString(36).substr(2, 9)}`;
-    const contentUrl = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect fill="%23fff" width="400" height="600"/><text x="200" y="100" text-anchor="middle" font-size="24" font-weight="bold">${encodeURIComponent(title)}</text><text x="200" y="300" text-anchor="middle" font-size="16">Scan to Pledge</text></svg>`;
-    
-    const { rows } = await pool.query(
-      'INSERT INTO awareness_materials (created_by, material_type, title, content_url, qr_code_data) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [createdBy, materialType, title, contentUrl, qrData]
-    );
-    
-    res.json({ success: true, material: rows[0] });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 LifeLink Server running on port ${PORT}`);
 });
 
-// ============================================================================
-// HEALTH CHECK
-// ============================================================================
-
-app.get('/api/server/health', (req, res) => {
-  res.json({ status: 'ok', message: 'LifeLink server is running!' });
-});
-
-// ============================================================================
-// SERVER STARTUP
-// ============================================================================
-
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
-    console.log(`🚀 LifeLink Server running on port ${PORT}`);
-  });
-}
-
+// Export for Vercel
 module.exports = app;
