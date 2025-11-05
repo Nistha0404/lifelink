@@ -12,7 +12,6 @@
     <link rel="stylesheet" href="style.css">
     
     <style>
-        /* Re-using the auth page styles from admin-login.html */
         .auth-page {
             min-height: 100vh;
             display: grid;
@@ -124,7 +123,7 @@
             box-shadow: var(--shadow-sm);
         }
         
-        .auth-form-container {
+        .auth-form {
             max-width: 400px;
         }
         
@@ -145,7 +144,7 @@
             background: var(--success-light);
             color: var(--success);
             border-radius: var(--radius-lg);
-            margin-top: var(--space-4);
+            margin-bottom: var(--space-4);
             border: 1px solid var(--success);
         }
         
@@ -154,8 +153,27 @@
             background: var(--error-light);
             color: var(--error);
             border-radius: var(--radius-lg);
-            margin-top: var(--space-4);
+            margin-bottom: var(--space-4);
             border: 1px solid var(--error);
+        }
+        
+        .resend-otp-btn {
+            margin-top: var(--space-3);
+            font-size: var(--text-sm);
+            color: var(--primary-600);
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 0;
+            display: block;
+        }
+        .resend-otp-btn:hover {
+            color: var(--primary-700);
+        }
+        .resend-otp-btn:disabled {
+            color: var(--neutral-400);
+            cursor: not-allowed;
         }
         
         @media (max-width: 1024px) {
@@ -182,9 +200,9 @@
                     <span>LifeLink</span>
                 </a>
                 
-                <h2>Join Our Team</h2>
+                <h2>Make an Impact</h2>
                 <p>
-                    Be the vital link between donors and patients. Register as a volunteer or NGO to coordinate drives and save lives.
+                    Join our volunteer network and help organize blood donation drives that save lives.
                 </p>
             </div>
             
@@ -195,7 +213,7 @@
         
         <div class="auth-content">
             <div class="auth-header">
-                <a href="index.html" class="auth-logo hide-desktop">
+                <a href="index.html" class="auth-logo">
                     <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
                     <span>LifeLink</span>
                 </a>
@@ -211,7 +229,7 @@
 
             <div class="auth-form-container">
                 <div id="volunteerFormContainer">
-                    <form id="volunteerLoginForm">
+                    <form id="volunteerLoginForm" class="auth-form">
                         <div class="form-group">
                             <label class="form-label" for="volunteerName">Full Name <span class="required">*</span></label>
                             <input type="text" id="volunteerName" class="form-input" placeholder="Enter your full name" required>
@@ -225,7 +243,7 @@
                 </div>
 
                 <div id="ngoFormContainer" style="display:none;">
-                    <form id="ngoLoginForm">
+                    <form id="ngoLoginForm" class="auth-form">
                         <div class="form-group">
                             <label class="form-label" for="ngoName">Organization Name <span class="required">*</span></label>
                             <input type="text" id="ngoName" class="form-input" placeholder="Enter the organization's name" required>
@@ -243,14 +261,12 @@
                 </div>
                 
                 <div id="otpSection" style="display:none; margin-top: var(--space-6);">
-                    <div class="message-success" style="margin-bottom: var(--space-4); text-align: center;">
-                        ✅ An OTP has been sent to your mobile number.
-                    </div>
                     <div class="form-group">
                         <label class="form-label" for="otp">Enter OTP <span class="required">*</span></label>
-                        <input type="text" id="otp" class="form-input" placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric" required>
+                        <input type="text" id="otp" class="form-input" placeholder="Enter 4-digit OTP" maxlength="4" inputmode="numeric" required>
                     </div>
                     <button type="button" id="verifyBtn" class="btn btn-primary" style="width: 100%;">Verify & Login</button>
+                    <button type="button" id="resendOtpBtn" class="resend-otp-btn">Resend OTP</button>
                 </div>
 
                 <div id="message"></div>
@@ -273,6 +289,8 @@
     const ngoFormContainer = document.getElementById('ngoFormContainer');
     const getVolunteerOtpBtn = document.getElementById('getVolunteerOtpBtn');
     const getNgoOtpBtn = document.getElementById('getNgoOtpBtn');
+    const resendOtpBtn = document.getElementById('resendOtpBtn');
+    const verifyBtn = document.getElementById('verifyBtn');
 
     function showMessage(text, type) {
         messageEl.textContent = text;
@@ -295,23 +313,22 @@
         getNgoOtpBtn.style.display = 'block';
     }
 
-    /**
-     * Handle OTP generation
-     */
+    // Handle OTP generation
     async function handleGetOtp() {
         let phone, btn, formValid = true;
+        let fullName, ngoName, registrationId;
 
         if (currentUserType === 'volunteer') {
-            phone = document.getElementById('volunteerName').value.trim();
-            if (!phone) formValid = false;
+            fullName = document.getElementById('volunteerName').value.trim();
             phone = document.getElementById('volunteerPhone').value.trim();
             btn = getVolunteerOtpBtn;
+            if (!fullName) formValid = false;
         } else {
-            if (!document.getElementById('ngoName').value.trim() || !document.getElementById('ngoRegId').value.trim()) {
-                formValid = false;
-            }
+            ngoName = document.getElementById('ngoName').value.trim();
+            registrationId = document.getElementById('ngoRegId').value.trim();
             phone = document.getElementById('ngoPhone').value.trim();
             btn = getNgoOtpBtn;
+            if (!ngoName || !registrationId) formValid = false;
         }
 
         if (!formValid) {
@@ -323,23 +340,36 @@
             return;
         }
 
-        // Disable button and show loading
         btn.disabled = true;
         btn.textContent = 'Sending OTP...';
         messageEl.style.display = 'none';
 
         try {
-            // MOCK API CALL
-            // const response = await fetch('/api/volunteer/generate-otp', { ... });
-            const result = { success: true, otp: '123456' }; // Mock success
+            const response = await fetch('/api/server/volunteer/send-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phoneNumber: phone })
+            });
+
+            const result = await response.json();
 
             if (result.success) {
-                // Show OTP in console for demo purposes
-                console.log(`(For Demo) Your OTP is: ${result.otp}`);
+                // Show OTP in alert popup
+                alert(`📱 Your OTP is: ${result.otp}\n\n(In production, this will be sent via SMS)`);
+                showMessage('OTP sent! Check the popup alert.', 'success');
                 
-                // Don't use showMessage, the green box in otpSection handles it
                 otpSection.style.display = 'block';
-                btn.style.display = 'none'; // Hide the 'Get OTP' button
+                btn.style.display = 'none';
+                
+                // Disable form inputs
+                if (currentUserType === 'volunteer') {
+                    document.getElementById('volunteerName').disabled = true;
+                    document.getElementById('volunteerPhone').disabled = true;
+                } else {
+                    document.getElementById('ngoName').disabled = true;
+                    document.getElementById('ngoRegId').disabled = true;
+                    document.getElementById('ngoPhone').disabled = true;
+                }
             } else {
                 showMessage(result.message || 'Failed to send OTP', 'error');
                 btn.disabled = false;
@@ -354,93 +384,108 @@
         }
     }
 
-    // Attach OTP button listeners
-    getVolunteerOtpBtn.addEventListener('click', handleGetOtp);
-    getNgoOtpBtn.addEventListener('click', handleGetOtp);
-
-    /**
-     * Handle OTP verification and login
-     */
-    document.getElementById('verifyBtn').addEventListener('click', async () => {
-        const enteredOtp = document.getElementById('otp').value.trim();
-        const btn = document.getElementById('verifyBtn');
-
-        if (enteredOtp.length !== 6) {
-             showMessage("Please enter a 6-digit OTP.", 'error');
-             return;
-        }
-
-        // Build payload
-        let payload = { 
-            type: currentUserType,
-            otp: enteredOtp
-        };
-        let formValid = true;
-
-        if (currentUserType === 'volunteer') {
-            const fullName = document.getElementById('volunteerName').value.trim();
-            const phoneNumber = document.getElementById('volunteerPhone').value.trim();
-            if (!fullName) formValid = false;
-            
-            payload.fullName = fullName;
-            payload.phoneNumber = phoneNumber;
-            payload.role = 'volunteer'; // Add role
-        } else {
-            const ngoName = document.getElementById('ngoName').value.trim();
-            const registrationId = document.getElementById('ngoRegId').value.trim();
-            const phoneNumber = document.getElementById('ngoPhone').value.trim();
-            if (!ngoName || !registrationId) formValid = false;
-            
-            payload.fullName = ngoName; // Use ngoName as fullName for consistency
-            payload.registrationId = registrationId;
-            payload.phoneNumber = phoneNumber;
-            payload.role = 'ngo'; // Add role
-        }
+    // Resend OTP
+    resendOtpBtn.addEventListener('click', async () => {
+        let phone;
         
-        if (!formValid) {
-            showMessage("Please ensure all fields are filled.", 'error');
+        if (currentUserType === 'volunteer') {
+            phone = document.getElementById('volunteerPhone').value.trim();
+        } else {
+            phone = document.getElementById('ngoPhone').value.trim();
+        }
+
+        resendOtpBtn.disabled = true;
+        resendOtpBtn.textContent = 'Resending...';
+
+        try {
+            const response = await fetch('/api/server/volunteer/send-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phoneNumber: phone })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`📱 Your OTP is: ${result.otp}\n\n(In production, this will be sent via SMS)`);
+                showMessage('OTP resent! Check the popup alert.', 'success');
+                resendOtpBtn.disabled = false;
+                resendOtpBtn.textContent = 'Resend OTP';
+            } else {
+                showMessage(result.message || 'Failed to resend OTP', 'error');
+                resendOtpBtn.disabled = false;
+                resendOtpBtn.textContent = 'Resend OTP';
+            }
+        } catch (error) {
+            showMessage('Could not connect to the server.', 'error');
+            resendOtpBtn.disabled = false;
+            resendOtpBtn.textContent = 'Resend OTP';
+        }
+    });
+
+    // Verify and Login
+    verifyBtn.addEventListener('click', async () => {
+        const otp = document.getElementById('otp').value.trim();
+        let phone, fullName, ngoName, registrationId;
+
+        if (otp.length !== 4) {
+            showMessage('Please enter the 4-digit OTP.', 'error');
             return;
         }
 
-        btn.disabled = true;
-        btn.textContent = 'Verifying...';
-        
+        if (currentUserType === 'volunteer') {
+            fullName = document.getElementById('volunteerName').value.trim();
+            phone = document.getElementById('volunteerPhone').value.trim();
+            ngoName = '';
+            registrationId = '';
+        } else {
+            ngoName = document.getElementById('ngoName').value.trim();
+            registrationId = document.getElementById('ngoRegId').value.trim();
+            phone = document.getElementById('ngoPhone').value.trim();
+            fullName = '';
+        }
+
+        verifyBtn.disabled = true;
+        verifyBtn.textContent = 'Verifying...';
+
         try {
-            // MOCK API CALL
-            // const response = await fetch('/api/volunteer/verify-login', { ... });
-            
-            // Mock success response
-            const result = { 
-                success: true, 
-                message: "Login successful!",
-                user: {
-                    user_id: 'V12345',
-                    full_name: payload.fullName,
-                    role: payload.role
-                }
-            };
+            const response = await fetch('/api/server/volunteer-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phoneNumber: phone,
+                    fullName: fullName,
+                    ngoName: ngoName,
+                    registrationId: registrationId,
+                    type: currentUserType,
+                    otp: otp
+                })
+            });
+
+            const result = await response.json();
 
             if (result.success) {
-                // Store user info
-                sessionStorage.setItem('currentUserInfo', JSON.stringify(result.user));
-
-                showMessage(`${result.message} Redirecting...`, 'success');
+                sessionStorage.setItem('currentUser', JSON.stringify(result.user));
+                showMessage('Login successful! Redirecting...', 'success');
                 setTimeout(() => {
-                    window.location.href = "volunteer-dashboard.html"; 
+                    window.location.href = 'volunteer-dashboard.html';
                 }, 1500);
             } else {
                 showMessage(`Login failed: ${result.message}`, 'error');
-                btn.disabled = false;
-                btn.textContent = 'Verify & Login';
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = 'Verify & Login';
             }
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('Verification Error:', error);
             showMessage('Could not connect to the server. Please try again.', 'error');
-            btn.disabled = false;
-            btn.textContent = 'Verify & Login';
+            verifyBtn.disabled = false;
+            verifyBtn.textContent = 'Verify & Login';
         }
     });
-</script>
 
+    // Attach event listeners
+    getVolunteerOtpBtn.addEventListener('click', handleGetOtp);
+    getNgoOtpBtn.addEventListener('click', handleGetOtp);
+    </script>
 </body>
 </html>

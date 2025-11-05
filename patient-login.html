@@ -39,6 +39,23 @@
             color: var(--info);
             border-color: var(--info);
         }
+        .resend-otp-btn {
+            margin-top: var(--space-3);
+            font-size: var(--text-sm);
+            color: var(--primary-600);
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 0;
+        }
+        .resend-otp-btn:hover {
+            color: var(--primary-700);
+        }
+        .resend-otp-btn:disabled {
+            color: var(--neutral-400);
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -99,6 +116,7 @@
                                     <input type="text" id="otp" class="form-input" placeholder="Enter 4-digit OTP" maxlength="4" inputmode="numeric">
                                 </div>
                                 <button type="button" id="verifyBtn" class="btn btn-primary" style="width: 100%;">Verify & Proceed</button>
+                                <button type="button" id="resendOtpBtn" class="resend-otp-btn">Resend OTP</button>
                             </div>
                         </form>
                         
@@ -146,6 +164,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         const getOtpBtn = document.getElementById('getOtpBtn');
         const verifyBtn = document.getElementById('verifyBtn');
+        const resendOtpBtn = document.getElementById('resendOtpBtn');
         const otpSection = document.getElementById('otpSection');
         const messageEl = document.getElementById('message');
         
@@ -155,7 +174,7 @@
         const pincodeInput = document.getElementById('pincode');
 
         // STEP 1: Generate OTP - INTEGRATED WITH BACKEND
-        getOtpBtn.addEventListener('click', async () => {
+        async function sendOTP() {
             const name = nameInput.value.trim();
             const phone = phoneInput.value.trim();
             const pincode = pincodeInput.value.trim();
@@ -181,6 +200,7 @@
             messageEl.className = 'message-area message-info';
             getOtpBtn.disabled = true;
             getOtpBtn.textContent = 'Sending...';
+            resendOtpBtn.disabled = true;
 
             try {
                 // REAL API CALL TO BACKEND
@@ -196,15 +216,16 @@
                     messageEl.className = 'message-area message-success';
                     
                     // Show OTP in popup alert (instead of SMS in development)
-                    alert(`🔐 Your OTP is: ${result.otp}\n\n(In production, this will be sent via SMS)`);
-                    messageEl.textContent = 'OTP generated! Check the popup alert.';
+                    alert(`📱 Your OTP is: ${result.otp}\n\n(In production, this will be sent via SMS)`);
+                    messageEl.textContent = 'OTP sent! Check the popup alert.';
                     
-                    // Show OTP input section and disable main fields
+                    // Show OTP input section and hide get OTP button
                     otpSection.style.display = 'block';
                     getOtpBtn.style.display = 'none';
                     nameInput.disabled = true;
                     phoneInput.disabled = true;
                     pincodeInput.disabled = true;
+                    resendOtpBtn.disabled = false;
                     
                 } else {
                     messageEl.textContent = result.message || 'Failed to generate OTP.';
@@ -218,6 +239,47 @@
                 messageEl.className = 'message-area message-error';
                 getOtpBtn.disabled = false;
                 getOtpBtn.textContent = 'Get OTP';
+            }
+        }
+
+        getOtpBtn.addEventListener('click', sendOTP);
+
+        // Resend OTP button
+        resendOtpBtn.addEventListener('click', async () => {
+            messageEl.textContent = 'Resending OTP...';
+            messageEl.className = 'message-area message-info';
+            resendOtpBtn.disabled = true;
+            resendOtpBtn.textContent = 'Resending...';
+
+            const phone = phoneInput.value.trim();
+
+            try {
+                const response = await fetch('/api/server/send-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber: phone })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`📱 Your OTP is: ${result.otp}\n\n(In production, this will be sent via SMS)`);
+                    messageEl.textContent = 'OTP resent! Check the popup alert.';
+                    messageEl.className = 'message-area message-success';
+                    resendOtpBtn.disabled = false;
+                    resendOtpBtn.textContent = 'Resend OTP';
+                } else {
+                    messageEl.textContent = result.message || 'Failed to resend OTP.';
+                    messageEl.className = 'message-area message-error';
+                    resendOtpBtn.disabled = false;
+                    resendOtpBtn.textContent = 'Resend OTP';
+                }
+            } catch (error) {
+                console.error('Resend OTP Error:', error);
+                messageEl.textContent = 'Could not connect to server.';
+                messageEl.className = 'message-area message-error';
+                resendOtpBtn.disabled = false;
+                resendOtpBtn.textContent = 'Resend OTP';
             }
         });
 
