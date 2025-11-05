@@ -386,7 +386,7 @@
         // --- API Call to Get OTP ---
         getOtpBtn.disabled = true;
         getOtpBtn.textContent = 'Sending...';
-        showMessage('Sending OTP...', 'info');
+        // showMessage('Sending OTP...', 'info'); // <-- This was removed
         
         try {
             const response = await fetch(`${API_BASE_URL}/api/volunteer-login-otp`, {
@@ -401,18 +401,22 @@
             const result = await response.json();
             
             if (result.success) {
-                showMessage(result.message, 'success');
+                // *** THIS IS THE CHANGE ***
+                // Display the successful OTP message as an alert
+                alert(result.message); 
+                // *** END OF CHANGE ***
+                
                 otpGroup.style.display = 'grid'; // Show OTP field and login button
                 phoneInput.disabled = true; // Lock phone input
                 getOtpBtn.textContent = 'OTP Sent';
             } else {
-                showMessage(result.message, 'error');
+                showMessage(result.message, 'error'); // Show errors normally
                 getOtpBtn.disabled = false;
                 getOtpBtn.textContent = 'Get OTP';
             }
         } catch (error) {
             console.error('Get OTP Error:', error);
-            showMessage('Could not connect to the server. Please try again.', 'error');
+            showMessage('Could not connect to the server. Please try again.', 'error'); // Show errors normally
             getOtpBtn.disabled = false;
             getOtpBtn.textContent = 'Get OTP';
         }
