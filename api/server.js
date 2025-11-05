@@ -1091,6 +1091,60 @@ app.post('/api/server/request-blood', async (req, res) => {
   }
 });
 
+
+// ===========================================================================
+// VOLUNTEER MATERIAL GENERATOR
+// ===========================================================================
+
+app.post('/api/generate-material', async (req, res) => {
+  // Note: This is an unprotected endpoint for simplicity.
+  // In a real app, you would verify the 'Authorization' header.
+
+  const { link, title, userId, userType } = req.body;
+
+  if (!link || !title) {
+    return res.status(400).json({
+      success: false,
+      message: 'Missing required fields: link and title'
+    });
+  }
+
+  try {
+    // Use a public API to generate the QR code (as hinted in your frontend)
+    const qrApiBase = 'https://api.qrserver.com/v1/create-qr-code/';
+    const qrData = encodeURIComponent(link); // Make the link URL-safe
+    const qrSize = '200x200';
+    
+    // This is the final, public URL to the generated QR code image
+    const qrImageUrl = `${qrApiBase}?data=${qrData}&size=${qrSize}&format=png`;
+
+    console.log(`✅ Generated QR code for user ${userId} (${userType})`);
+
+    // Send back the response structure your frontend expects
+    res.status(200).json({
+      success: true,
+      message: 'Material generated successfully!',
+      material: {
+        content_url: qrImageUrl,     // The URL to the QR image
+        qr_code_data: link,          // The original link data
+        title: title,
+        user_id: userId,
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating QR material:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while generating material.'
+    });
+  }
+});
+
+// ===========================================================================
+// (Your existing SERVER START code continues below)
+// ===========================================================================
+
 // ============================================================================
 // SERVER START
 // ============================================================================
