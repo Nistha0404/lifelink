@@ -252,7 +252,6 @@
 
             <div class="dashboard-tabs">
                 <button class="dashboard-tab active" onclick="showTab('home', event)">Home</button>
-                <button class="dashboard-tab" onclick="showTab('eligibility', event)">Eligibility</button>
                 <button class="dashboard-tab" onclick="showTab('sos', event)">SOS Alerts</button>
                 <button class="dashboard-tab" onclick="showTab('checkin', event)">Check-In</button>
                 <button class="dashboard-tab" onclick="showTab('schedule', event)">Schedule</button>
@@ -289,63 +288,7 @@
                 </div>
             </div>
 
-            <div id="tab-eligibility" class="tab-content">
-                <div class="card">
-                    <div class="card-body">
-                        <h3 class="card-title">Donor Eligibility Check</h3>
-                        <p class="section-description" style="text-align: left; margin: 0 0 var(--space-6) 0; padding: 0;">
-                            Please answer these questions to confirm your eligibility to donate blood.
-                        </p>
-                        
-                        <form id="eligibility-form">
-                            <div class="questionnaire-item">
-                                <label class="form-label">1. Are you 18 years or older?</label>
-                                <div class="radio-group">
-                                    <label class="form-checkbox"><input type="radio" name="age" value="true" required> Yes</label>
-                                    <label class="form-checkbox"><input type="radio" name="age" value="false"> No</label>
-                                </div>
-                            </div>
-
-                            <div class="questionnaire-item">
-                                <label class="form-label">2. Have you had any infections in the past 2 weeks?</label>
-                                <div class="radio-group">
-                                    <label class="form-checkbox"><input type="radio" name="infection" value="true" required> Yes</label>
-                                    <label class="form-checkbox"><input type="radio" name="infection" value="false"> No</label>
-                                </div>
-                            </div>
-
-                            <div class="questionnaire-item">
-                                <label class="form-label">3. Have you gotten a tattoo or piercing in the past 6 months?</label>
-                                <div class="radio-group">
-                                    <label class="form-checkbox"><input type="radio" name="tattoo" value="true" required> Yes</label>
-                                    <label class="form-checkbox"><input type="radio" name="tattoo" value="false"> No</label>
-                                </div>
-                            </div>
-
-                            <div class="questionnaire-item">
-                                <label class="form-label">4. Have you consumed alcohol in the past 24 hours?</label>
-                                <div class="radio-group">
-                                    <label class="form-checkbox"><input type="radio" name="alcohol" value="true" required> Yes</label>
-                                    <label class="form-checkbox"><input type="radio" name="alcohol" value="false"> No</label>
-                                </div>
-                            </div>
-
-                            <div class="questionnaire-item">
-                                <label class="form-label">5. Are you currently taking any medication?</label>
-                                <div class="radio-group">
-                                    <label class="form-checkbox"><input type="radio" name="medication" value="true" required> Yes</label>
-                                    <label class="form-checkbox"><input type="radio" name="medication" value="false"> No</label>
-                                </div>
-                                <input type="text" id="medication-details" placeholder="If yes, please specify" class="form-input" style="margin-top: var(--space-4);">
-                            </div>
-
-                            <button type="submit" class="btn btn-primary" style="width: 100%;">Check Eligibility</button>
-                        </form>
-                        <div id="eligibility-result" class="message-area"></div>
-                    </div>
-                </div>
-            </div>
-
+           
             <div id="tab-sos" class="tab-content">
                 <div class="sos-card-header">
                     <h3>🚨 Emergency Blood Requests</h3>
