@@ -92,13 +92,11 @@
                             <p>Every donation can save up to 3 lives. Join our community of heroes making a difference!</p>
                         </div>
                         
-                        <!-- Tabs -->
                         <div class="tab-container">
                             <button class="tab-button active" onclick="switchTab('login')">Login</button>
                             <button class="tab-button" onclick="switchTab('register')">Register</button>
                         </div>
                         
-                        <!-- Login Form -->
                         <div id="login-tab" class="tab-content active">
                             <form id="loginForm">
                                 <div class="form-group">
@@ -109,7 +107,7 @@
                                 </div>
                                 
                                 <button type="button" class="btn btn-outline" 
-                                        onclick="sendOTP('login')" 
+                                        onclick="sendOTP('login', this)" 
                                         style="width: 100%; margin-bottom: var(--space-4);">
                                     Send OTP
                                 </button>
@@ -131,7 +129,6 @@
                             </form>
                         </div>
                         
-                        <!-- Register Form -->
                         <div id="register-tab" class="tab-content">
                             <form id="registerForm">
                                 <div class="form-group">
@@ -170,7 +167,7 @@
                                 </div>
                                 
                                 <button type="button" class="btn btn-outline" 
-                                        onclick="sendOTP('register')" 
+                                        onclick="sendOTP('register', this)" 
                                         style="width: 100%; margin-bottom: var(--space-4);">
                                     Send OTP
                                 </button>
@@ -225,7 +222,6 @@
         </div>
     </footer>
 
-    <!-- Include API Client -->
     <script src="lifelink-api.js"></script>
     
     <script>
@@ -243,31 +239,83 @@
             document.querySelectorAll('.form-message').forEach(m => m.textContent = '');
         }
         
-        // Send OTP
-        async function sendOTP(type) {
+        // --- START OF MODIFIED FUNCTION ---
+        // Send OTP (Modified to match patient-login logic)
+        async function sendOTP(type, buttonElement) {
             const phoneInput = document.getElementById(type + '-phone');
             const phone = phoneInput.value.trim();
             
+            // --- Added Pre-validation (from patient-login) ---
+            
+            // 1. Validate Phone
             if (!phone || phone.length !== 10) {
                 showMessage(type, 'Please enter a valid 10-digit phone number', 'error');
                 return;
             }
             
+            // 2. Validate Register fields (if on register tab)
+            if (type === 'register') {
+                const name = document.getElementById('register-name').value.trim();
+                const bloodType = document.getElementById('register-blood-type').value;
+                const pincode = document.getElementById('register-pincode').value.trim();
+                
+                if (!name) {
+                    showMessage(type, 'Please enter your full name', 'error');
+                    return;
+                }
+                if (!bloodType) {
+                    showMessage(type, 'Please select your blood type', 'error');
+                    return;
+                }
+                if (!pincode || pincode.length !== 6) {
+                    showMessage(type, 'Please enter a valid 6-digit pincode', 'error');
+                    return;
+                }
+            }
+            // --- End of Pre-validation ---
+
             try {
                 showMessage(type, 'Sending OTP...', 'info');
+
+                // This assumes LifeLinkAPI.donor.sendOTP(phone) returns
+                // a JSON object like { success: true, otp: '....', message: '...' }
                 const result = await LifeLinkAPI.donor.sendOTP(phone);
                 
                 if (result.success) {
-                    // Show OTP input and submit button
+                    
+                    // --- START: Logic copied from patient-login.html ---
+
+                    // 1. Show the OTP in an alert
+                    if (result.otp) {
+                        alert(`Your OTP is: ${result.otp}`);
+                    } else {
+                        console.warn("API did not return an 'otp' field for the alert.");
+                        alert("OTP sent! Please check your device."); // Fallback
+                    }
+
+                    // 2. Hide the "Send OTP" button
+                    if (buttonElement) {
+                        buttonElement.style.display = 'none';
+                    }
+                    
+                    // --- END: Logic copied from patient-login.html ---
+
+                    // Original logic to show OTP fields
                     document.getElementById(type + '-otp-group').style.display = 'block';
                     document.getElementById(type + '-submit-btn').style.display = 'block';
-                    showMessage(type, 'OTP sent successfully!', 'success');
+                    showMessage(type, result.message || 'OTP sent successfully!', 'success');
+                
+                } else {
+                    // Show specific error message from API if available
+                    showMessage(type, result.message || 'Failed to send OTP', 'error');
                 }
             } catch (error) {
+                // Show catch block error
                 showMessage(type, error.message || 'Failed to send OTP', 'error');
             }
         }
-        
+        // --- END OF MODIFIED FUNCTION ---
+
         // Login form submission
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -363,7 +411,7 @@
             const messageEl = document.getElementById(type + '-message');
             messageEl.textContent = message;
             messageEl.className = 'form-message ' + (status === 'error' ? 'form-error' : 
-                                                     status === 'success' ? 'form-success' : '');
+                                      status === 'success' ? 'form-success' : '');
         }
         
         // Check if already logged in
