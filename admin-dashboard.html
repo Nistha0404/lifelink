@@ -258,7 +258,6 @@
                 <button class="dashboard-tab active" onclick="showTab('overview', event)">Overview</button>
                 <button class="dashboard-tab" onclick="showTab('approvals', event)">Approvals</button>
                 <button class="dashboard-tab" onclick="showTab('settings', event)">Settings</button>
-                <button class="dashboard-tab" onclick="showTab('questionnaire', event)">Questionnaire</button>
                 <button class="dashboard-tab" onclick="showTab('playbooks', event)">Playbooks</button>
                 <button class="dashboard-tab" onclick="showTab('sos-monitor', event)">SOS Monitor</button>
             </div>
@@ -361,18 +360,7 @@
                 </div>
             </div>
 
-            <!-- TAB 4: QUESTIONNAIRE -->
-            <div id="questionnaire" class="tab-content">
-                <div class="card">
-                    <div class="card-body">
-                        <h3 class="card-title">Eligibility Questions</h3>
-                        <p style="color: var(--neutral-600); margin-bottom: var(--space-4);">
-                            Toggle questions to show/hide them in the donor eligibility form
-                        </p>
-                        <div id="questions-list"></div>
-                    </div>
-                </div>
-            </div>
+            
 
             <!-- TAB 5: PLAYBOOKS -->
             <div id="playbooks" class="tab-content">
@@ -534,7 +522,6 @@ function showTab(tabName, event) {
     if (tabName === 'overview') loadOverview();
     if (tabName === 'approvals') loadApprovals();
     if (tabName === 'settings') loadSettings();
-    if (tabName === 'questionnaire') loadQuestions();
     if (tabName === 'playbooks') loadPlaybooks();
     if (tabName === 'sos-monitor') refreshSOSMonitor();
 }
@@ -633,45 +620,6 @@ document.getElementById('donor-radius')?.addEventListener('change', (e) => {
     alert(`Donor search radius updated to ${e.target.value} km`);
 });
 
-// ============================================================================
-// TAB 4: QUESTIONNAIRE
-// ============================================================================
-
-function loadQuestions() {
-    const questions = [
-        { id: 1, text: 'Are you 18 years or older?', visible: true, required: true },
-        { id: 2, text: 'Have you had any infections in the past 2 weeks?', visible: true, required: true },
-        { id: 3, text: 'Have you gotten a tattoo or piercing in the past 6 months?', visible: true, required: true },
-        { id: 4, text: 'Have you consumed alcohol in the past 24 hours?', visible: true, required: true },
-        { id: 5, text: 'Are you currently taking any medication?', visible: true, required: true },
-        { id: 6, text: 'Have you donated blood in the past 3 months?', visible: true, required: false },
-        { id: 7, text: 'Do you have any chronic health conditions?', visible: false, required: false }
-    ];
-    
-    const container = document.getElementById('questions-list');
-    container.innerHTML = '';
-    
-    questions.forEach(q => {
-        const div = document.createElement('div');
-        div.className = 'setting-row';
-        div.innerHTML = `
-            <div>
-                <strong>Q${q.id}:</strong> ${q.text}
-                ${q.required ? '<span style="color: var(--error); margin-left: 5px;">*</span>' : ''}
-            </div>
-            <label class="toggle-switch">
-                <input type="checkbox" ${q.visible ? 'checked' : ''} onchange="toggleQuestion(${q.id})">
-                <span class="slider"></span>
-            </label>
-        `;
-        container.appendChild(div);
-    });
-}
-
-function toggleQuestion(qId) {
-    console.log(`Toggle question ${qId}`);
-    alert(`Question ${qId} visibility toggled (Demo)`);
-}
 
 // ============================================================================
 // TAB 5: PLAYBOOKS
