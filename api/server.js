@@ -747,35 +747,55 @@ app.get('/api/server/camps', async (req, res) => {
  * Send OTP to donor phone
  */
 // Add this helper function to your server file
+// Add this helper function to your server file (you already have this)
 function generateOTP() {
   // Generate a 4-digit OTP
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-// ... rest of your server code ...
-
-// The line 758 (where the error was) will now work:
-// (Your code probably looks something like this)
+/**
+ * Send OTP to donor phone
+ *
+ * THIS IS THE CORRECTED ENDPOINT. USE THIS.
+ */
 app.post('/api/server/donor/send-otp', (req, res) => {
   try {
+    const { phoneNumber } = req.body; // Get phone number from request body
+
+    if (!phoneNumber) {
+        return res.status(400).json({ success: false, message: 'Phone number is required' });
+    }
+
     const otp = generateOTP();
-    // Pass 'res' as an argument
-    sendSMSToUser(otp, res); // <-- CORRECT
+    
+    // !!! IMPORTANT !!!
+    // Store the OTP so you can verify it in the /donor-login route
+    // Assumes you have an 'otpStore' map defined somewhere, like in your login route.
+    const expires = Date.now() + 300000; // 5 minute expiry
+    otpStore.set(phoneNumber, { otp: otp, expires: expires });
+
+    // ---
+    // TODO: Add your *REAL* SMS sending code here
+    // Example: sendSMSService(phoneNumber, `Your OTP is ${otp}`);
+    // ---
+
+    console.log(`OTP for ${phoneNumber} is ${otp}`); // For testing
+
+    // Send the OTP back to the client so the alert() can show it (as requested)
+    res.json({
+      success: true,
+      message: 'OTP sent successfully!',
+      otp: otp // This is for the alert() in your front-end
+    });
+
   } catch (error) {
+    console.error('Error in send-otp:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// Now, your helper function accepts 'res'
-function sendSMSToUser(otp, res) { // <-- CORRECT
-  try {
-    // ... code to send SMS ...
-  } catch (error) {
-    // THIS IS LINE 768: IT WORKS NOW!
-    // 'res' is defined because it was passed as an argument.
-    res.status(500).json({ success: false, message: 'SMS failed' });
-  }
-}
+// DO NOT USE THE OLD CODE
+// function sendSMSToUser(otp, res) { ... } // This helper function was incorrect. Delete it.
   
 /**
  * Donor login/registration
