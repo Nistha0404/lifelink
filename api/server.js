@@ -226,7 +226,7 @@ app.post('/api/server/request-blood', async (req, res) => {
     await Promise.all(alertPromises);
     await client.query('COMMIT');
     
-    console.log(`Notified ${hospitalsNotified} hospitals within 10km`);
+    console.log(`Notified hospitals within 10km`);
 
     setTimeout(() => {
       console.log(`Timer expired for request ${requestId}`);
@@ -235,7 +235,7 @@ app.post('/api/server/request-blood', async (req, res) => {
 
     res.status(201).json({ 
       success: true, 
-      message: `SOS Alert sent to ${hospitalsNotified} nearby hospitals!`, 
+      message: `SOS Alert sent to nearby hospitals!`, 
       requestId, 
       patient_token: rows[0].patient_token
     });
@@ -341,6 +341,60 @@ app.post('/api/server/hospital-login', async (req, res) => {
     res.json({ success: true, hospital: safe });
   } catch (e) {
     console.error(e); res.status(500).json({ success:false, message:'Server error.' });
+  }
+});
+
+
+/**
+ * API ENDPOINT: Get Location by Pincode
+ * --------------------------------------
+ * This endpoint provides a fallback for geolocation.
+ * It queries the database for any existing hospital with the same pincode
+ * and returns its coordinates.
+ */
+app.get('/api/server/location-by-pincode', async (req, res) => {
+  const { pincode } = req.query;
+
+  // Basic validation
+  if (!pincode || pincode.length !== 6) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'A valid 6-digit pincode is required.' 
+    });
+  }
+
+  try {
+    // Find the first hospital with this pincode that has valid coordinates
+    const query = `
+      SELECT latitude, longitude 
+      FROM hospital 
+      WHERE pincode = $1 AND latitude IS NOT NULL AND longitude IS NOT NULL
+      LIMIT 1
+    `;
+    
+    // Assumes your database connection pool is named 'pool'
+    const result = await pool.query(query, [pincode]);
+
+    if (result.rows.length > 0) {
+      // Found a match
+      res.json({
+        success: true,
+        latitude: result.rows[0].latitude,
+        longitude: result.rows[0].longitude
+      });
+    } else {
+      // No hospital with this pincode (or one with coordinates) exists yet
+      res.status(404).json({ 
+        success: false, 
+        message: 'Could not find a location for this pincode. Please try again later.' 
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching location by pincode:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error while fetching location.' 
+    });
   }
 });
 
