@@ -31,15 +31,22 @@
 
 <body style="background: var(--gradient-soft); display: grid; place-items: center; min-height: 100vh;">
     
-    <header>
-        <div class="header-container">
-            <div class="logo">
-                <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40">
-                <span>LifeLink</span>
-            </div>
-            <nav><a href="index.html">Home</a></nav>
-        </div>
-    </header>
+    <header id="main-header">
+    <div class="header-container">
+        <a href="index.html" class="logo">
+            <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+            <span>LifeLink</span>
+        </a>
+        <nav id="main-nav">
+             <button id="logoutBtn" class="btn btn-outline btn-sm">Logout</button>
+        </nav>
+        <button class="mobile-menu-toggle" aria-label="Toggle menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+    </div>
+</header>
     
     <main>
         <section class="card" style="width: 100%; max-width: 480px;">
@@ -82,10 +89,35 @@
         </section>
     </main>
     
+     <!-- Footer -->
     <footer>
         <div class="footer-container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>LifeLink</h4>
+                    <p>Connecting donors, patients, and hospitals to save lives through modern technology.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <p><a href="index.html">Home</a></p>
+                    <p><a href="facts.html">Facts</a></p>
+                    <p><a href="volunteer-login.html">Volunteer</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Get Started</h4>
+                    <p><a href="patient-login.html">Request Blood</a></p>
+                    <p><a href="donor-login.html">Donate Blood</a></p>
+                    <p><a href="hospital-login.html">Hospital Portal</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Support</h4>
+                    <p><a href="admin-login.html">Admin Portal</a></p>
+                    <p><a href="#">Help Center</a></p>
+                    <p><a href="#">Contact Us</a></p>
+                </div>
+            </div>
             <div class="footer-bottom">
-                <p>© 2025 LifeLink</p>
+                <p>© 2025 LifeLink. All rights reserved. Saving lives through technology.</p>
             </div>
         </div>
     </footer>
