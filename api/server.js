@@ -746,24 +746,21 @@ app.get('/api/server/camps', async (req, res) => {
 /**
  * Send OTP to donor phone
  */
-app.post('/api/server/donor/send-otp', async (req, res) => {
-  try {
-    const { phoneNumber } = req.body;
+// Add this helper function to your server file
+function generateOTP() {
+  // Generate a 4-digit OTP
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
 
-    if (!phoneNumber) {
-      return res.status(400).json({ success: false, message: 'Phone number required' });
-    }
+// ... rest of your server code ...
 
-    // Generate OTP
-    const otp = generateOTP();
-    
-    // Store OTP with 5 minute expiry
-    otpStore.set(phoneNumber, {
-      otp,
-      expires: Date.now() + 5 * 60 * 1000
-    });
-
-    console.log(`📱 OTP for ${phoneNumber}: ${otp}`);
+// The line 758 (where the error was) will now work:
+// (Your code probably looks something like this)
+app.post('/api/server/donor/send-otp', (req, res) => {
+    // ...
+    const otp = generateOTP(); // This line will no longer crash
+    // ... send the OTP via SMS ...
+});
 
     // In production, send SMS here
     // await sendSMS(phoneNumber, `Your LifeLink OTP is: ${otp}`);
@@ -773,12 +770,7 @@ app.post('/api/server/donor/send-otp', async (req, res) => {
       message: 'OTP sent successfully',
       otp: otp // Remove in production!
     });
-  } catch (error) {
-    console.error('Error sending OTP:', error);
-    res.status(500).json({ success: false, message: 'Failed to send OTP' });
-  }
-});
-
+  
 /**
  * Donor login/registration
  */
