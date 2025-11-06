@@ -596,67 +596,23 @@ app.get('/api/server/donor/commitments/:donorId', async (req, res) => {
   }
 });
 
-// VOLUNTEER AND NGO AUTHENTICATION
-app.post('/api/volunteer/generate-otp', async (req, res) => {
-  const { phoneNumber } = req.body;
+    
 
-  if (!phoneNumber || !/^\d{10}$/.test(phoneNumber)) {
-    return res.status(400).json({ success: false, message: 'Valid 10-digit phone required.' });
-  }
-
+app.get('/api/volunteer/my-assignments/:volunteerId', async (req, res) => {
   try {
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
-    console.log(`Volunteer/NGO OTP for ${phoneNumber}: ${otp}`);
-    res.json({ success: true, otp: otp, message: 'OTP generated.' });
+    const { rows } = await pool.query(
+      `SELECT va.*, vr.role_name, d.drive_name, d.location, d.start_date 
+       FROM volunteer_assignments va 
+       JOIN volunteer_roles vr ON va.role_id = vr.role_id 
+       JOIN donation_drives d ON vr.drive_id = d.drive_id 
+       WHERE va.volunteer_id = $1 
+       ORDER BY d.start_date DESC`,
+      [req.params.volunteerId]
+    );
+    res.json({ success: true, assignments: rows });
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.post('/api/volunteer/verify-login', async (req, res) => {
-  const { type, fullName, ngoName, registrationId, phoneNumber, otp } = req.body;
-
-  const record = otpStore[phoneNumber];
-  if (!record || record.otp !== otp || Date.now() >= record.expiry) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
-  }
-
-  delete otpStore[phoneNumber];
-
-  try {
-    const { rows } = await pool.query(
-      "SELECT user_id, full_name, phone_number, role, registration_id FROM users WHERE phone_number = $1 AND (role = 'volunteer' OR role = 'ngo')",
-      [phoneNumber]
-    );
-
-    if (rows.length) {
-      const user = rows[0];
-      const updateName = (type === 'volunteer') ? fullName : ngoName;
-      await pool.query(
-        "UPDATE users SET full_name = $1, role = $2, registration_id = $3 WHERE user_id = $4",
-        [updateName, type, (type === 'ngo') ? registrationId : null, user.user_id]
-      );
-      user.full_name = updateName;
-      user.role = type;
-      return res.json({ success: true, message: 'Login successful!', user: user });
-    }
-    
-    let name = (type === 'volunteer') ? fullName : ngoName;
-    let regId = (type === 'ngo') ? registrationId : null;
-
-    const newUser = await pool.query(
-      `INSERT INTO users (full_name, phone_number, role, registration_id)
-       VALUES ($1, $2, $3, $4)
-       RETURNING user_id, full_name, phone_number, role, registration_id`,
-      [name, phoneNumber, type, regId]
-    );
-
-    res.status(201).json({ success: true, message: 'Registration successful!', user: newUser.rows[0] });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Database error.' });
   }
 });
 
