@@ -431,8 +431,8 @@
             return /^\d{6}$/.test(pincode);
         }
 
-        // --- Login OTP ---
-        loginOtpBtn.addEventListener('click', async () => {
+        // --- MODIFIED: Login OTP Generation ---
+        loginOtpBtn.addEventListener('click', () => {
             const phoneNumber = loginPhoneInput.value.trim();
             if (!isValidPhone(phoneNumber)) {
                 showMessage('Please enter a valid 10-digit phone number', 'error');
@@ -442,38 +442,27 @@
             loginOtpBtn.disabled = true;
             loginOtpBtn.textContent = 'Sending OTP...';
 
-            try {
-                // --- MOCK API CALL ---
-                // Replace with your actual API endpoint
-                const response = await fetch('/api/server/otp/generate-login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phoneNumber, type: 'donor-login' })
-                });
-                
-                // const result = await response.json();
-                // Simulating a successful response
-                const result = { success: true, message: 'OTP sent successfully' };
+            // Generate a random 6-digit OTP
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Store it in session storage to verify later
+            sessionStorage.setItem('loginOtp', otp);
+            sessionStorage.setItem('loginPhone', phoneNumber); // Store phone for "session"
 
-                if (result.success) {
-                    showMessage('OTP sent to your mobile number.', 'success');
-                    loginOtpGroup.style.display = 'block';
-                    loginPhoneInput.disabled = true;
-                    loginOtpBtn.style.display = 'none'; // Hide button after sending
-                } else {
-                    showMessage(`Error: ${result.message}`, 'error');
-                    loginOtpBtn.disabled = false;
-                    loginOtpBtn.textContent = 'Generate OTP';
-                }
-            } catch (error) {
-                showMessage('Could not connect to the server. Please try again.', 'error');
-                loginOtpBtn.disabled = false;
-                loginOtpBtn.textContent = 'Generate OTP';
-            }
+            // Simulate API call delay
+            setTimeout(() => {
+                // Show the alert
+                alert(`Your (test) OTP for ${phoneNumber} is: ${otp}`);
+
+                showMessage('OTP sent to your mobile number.', 'success');
+                loginOtpGroup.style.display = 'block';
+                loginPhoneInput.disabled = true;
+                loginOtpBtn.style.display = 'none'; // Hide button after sending
+            }, 500);
         });
 
-        // --- Login Form Submit ---
-        loginForm.addEventListener('submit', async (event) => {
+        // --- MODIFIED: Login Form Submit ---
+        loginForm.addEventListener('submit', (event) => {
             event.preventDefault();
             const phoneNumber = loginPhoneInput.value.trim();
             const otp = document.getElementById('loginOtp').value.trim();
@@ -487,38 +476,36 @@
             submitBtn.disabled = true;
             submitBtn.textContent = 'Logging in...';
 
-            try {
-                // --- MOCK API CALL ---
-                // Replace with your actual API endpoint
-                const response = await fetch('/api/server/login/donor', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phoneNumber, otp })
-                });
+            // Get the correct OTP from session storage
+            const correctOtp = sessionStorage.getItem('loginOtp');
+            const correctPhone = sessionStorage.getItem('loginPhone');
 
-                // Simulating a successful response
-                const result = { success: true, user: { fullName: 'Test Donor' } };
-
-                if (result.success) {
-                    sessionStorage.setItem('currentDonorName', result.user.fullName);
+            // Simulate API check delay
+            setTimeout(() => {
+                if (otp === correctOtp && phoneNumber === correctPhone) {
+                    // SUCCESS
+                    sessionStorage.setItem('currentDonorName', 'Test Donor'); // Mock user name
+                    sessionStorage.setItem('currentDonorPhone', phoneNumber);
                     showMessage('Login successful! Redirecting...', 'success');
+                    
+                    // Clean up
+                    sessionStorage.removeItem('loginOtp');
+                    sessionStorage.removeItem('loginPhone');
+
                     setTimeout(() => {
                         window.location.href = "donor-dashboard.html"; // Redirect to donor dashboard
                     }, 1500);
                 } else {
-                    showMessage(`Login failed: ${result.message}`, 'error');
+                    // FAILURE
+                    showMessage('Login failed: Invalid OTP.', 'error');
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Login';
                 }
-            } catch (error) {
-                showMessage('Could not connect to the server. Please try again.', 'error');
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Login';
-            }
+            }, 500);
         });
 
-        // --- Register OTP ---
-        registerOtpBtn.addEventListener('click', async () => {
+        // --- MODIFIED: Register OTP Generation ---
+        registerOtpBtn.addEventListener('click', () => {
             const fullName = regNameInput.value.trim();
             const phoneNumber = regPhoneInput.value.trim();
             const bloodType = regBloodTypeInput.value;
@@ -540,49 +527,44 @@
             registerOtpBtn.disabled = true;
             registerOtpBtn.textContent = 'Sending OTP...';
 
-            try {
-                // --- MOCK API CALL ---
-                // Replace with your actual API endpoint
-                const response = await fetch('/api/server/otp/generate-register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ fullName, phoneNumber, bloodType, pincode, type: 'donor-register' })
-                });
+            // Generate a random 6-digit OTP
+            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+            
+            // Store it in session storage to verify later
+            sessionStorage.setItem('registerOtp', otp);
+            // Store all form data to "submit" later
+            const registrationData = { fullName, phoneNumber, bloodType, pincode };
+            sessionStorage.setItem('registrationData', JSON.stringify(registrationData));
 
-                // Simulating a successful response
-                const result = { success: true, message: 'OTP sent successfully' };
+            // Simulate API call delay
+            setTimeout(() => {
+                // Show the alert
+                alert(`Your (test) Registration OTP for ${phoneNumber} is: ${otp}`);
 
-                if (result.success) {
-                    showMessage('OTP sent to your mobile number. Please verify to complete registration.', 'success');
-                    registerOtpGroup.style.display = 'block';
-                    // Disable form fields
-                    regNameInput.disabled = true;
-                    regPhoneInput.disabled = true;
-                    regBloodTypeInput.disabled = true;
-                    regPincodeInput.disabled = true;
-                    registerOtpBtn.style.display = 'none'; // Hide button
-                } else {
-                    showMessage(`Error: ${result.message}`, 'error');
-                    registerOtpBtn.disabled = false;
-                    registerOtpBtn.textContent = 'Register & Get OTP';
-                }
-            } catch (error) {
-                showMessage('Could not connect to the server. Please try again.', 'error');
-                registerOtpBtn.disabled = false;
-                registerOtpBtn.textContent = 'Register & Get OTP';
-            }
+                showMessage('OTP sent to your mobile number. Please verify to complete registration.', 'success');
+                registerOtpGroup.style.display = 'block';
+                // Disable form fields
+                regNameInput.disabled = true;
+                regPhoneInput.disabled = true;
+                regBloodTypeInput.disabled = true;
+                regPincodeInput.disabled = true;
+                registerOtpBtn.style.display = 'none'; // Hide button
+            }, 500);
         });
 
-        // --- Register Form Submit ---
-        registerForm.addEventListener('submit', async (event) => {
+        // --- MODIFIED: Register Form Submit ---
+        registerForm.addEventListener('submit', (event) => {
             event.preventDefault();
             const otp = document.getElementById('registerOtp').value.trim();
             
-            // Get data again (or store it)
-            const fullName = regNameInput.value.trim();
-            const phoneNumber = regPhoneInput.value.trim();
-            const bloodType = regBloodTypeInput.value;
-            const pincode = regPincodeInput.value.trim();
+            // Get data from session storage
+            const correctOtp = sessionStorage.getItem('registerOtp');
+            const storedData = JSON.parse(sessionStorage.getItem('registrationData'));
+
+            if (!storedData) {
+                showMessage('Session expired. Please start registration again.', 'error');
+                return;
+            }
 
             if (otp.length !== 6) {
                 showMessage('Please enter the 6-digit OTP.', 'error');
@@ -593,23 +575,19 @@
             submitBtn.disabled = true;
             submitBtn.textContent = 'Confirming...';
 
-            try {
-                // --- MOCK API CALL ---
-                // Replace with your actual API endpoint
-                const response = await fetch('/api/server/register/donor', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ fullName, phoneNumber, bloodType, pincode, otp })
-                });
-                
-                // Simulating a successful response
-                const result = { success: true, message: 'Registration successful' };
-
-                if (result.success) {
+            // Simulate API check delay
+            setTimeout(() => {
+                if (otp === correctOtp) {
+                    // SUCCESS
                     showMessage('Registration successful! You can now log in.', 'success');
+                    
+                    // Clean up session storage
+                    sessionStorage.removeItem('registerOtp');
+                    sessionStorage.removeItem('registrationData');
+                    
                     setTimeout(() => {
                         registerForm.reset();
-                        // Re-enable fields for future use
+                        // Re-enable fields
                         regNameInput.disabled = false;
                         regPhoneInput.disabled = false;
                         regBloodTypeInput.disabled = false;
@@ -621,15 +599,12 @@
                         showTab('login'); // Switch to login tab
                     }, 2000);
                 } else {
-                    showMessage(`Registration failed: ${result.message}`, 'error');
+                    // FAILURE
+                    showMessage('Registration failed: Invalid OTP.', 'error');
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Confirm Registration';
                 }
-            } catch (error) {
-                showMessage('Could not connect to the server. Please try again.', 'error');
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Confirm Registration';
-            }
+            }, 500);
         });
 
     </script>
