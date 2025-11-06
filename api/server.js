@@ -757,19 +757,25 @@ function generateOTP() {
 // The line 758 (where the error was) will now work:
 // (Your code probably looks something like this)
 app.post('/api/server/donor/send-otp', (req, res) => {
-    // ...
-    const otp = generateOTP(); // This line will no longer crash
-    // ... send the OTP via SMS ...
+  try {
+    const otp = generateOTP();
+    // Pass 'res' as an argument
+    sendSMSToUser(otp, res); // <-- CORRECT
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
-    // In production, send SMS here
-    // await sendSMS(phoneNumber, `Your LifeLink OTP is: ${otp}`);
-
-    res.json({
-      success: true,
-      message: 'OTP sent successfully',
-      otp: otp // Remove in production!
-    });
+// Now, your helper function accepts 'res'
+function sendSMSToUser(otp, res) { // <-- CORRECT
+  try {
+    // ... code to send SMS ...
+  } catch (error) {
+    // THIS IS LINE 768: IT WORKS NOW!
+    // 'res' is defined because it was passed as an argument.
+    res.status(500).json({ success: false, message: 'SMS failed' });
+  }
+}
   
 /**
  * Donor login/registration
