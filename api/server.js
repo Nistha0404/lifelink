@@ -758,34 +758,36 @@ function generateOTP() {
  *
  * THIS IS THE CORRECTED ENDPOINT. USE THIS.
  */
+/**
+ * Send OTP to donor phone
+ *
+ * THIS IS THE CORRECTED ENDPOINT FOR USING an OBJECT {}
+ */
 app.post('/api/server/donor/send-otp', (req, res) => {
   try {
-    const { phoneNumber } = req.body; // Get phone number from request body
+    const { phoneNumber } = req.body;
 
     if (!phoneNumber) {
         return res.status(400).json({ success: false, message: 'Phone number is required' });
     }
 
-    const otp = generateOTP();
-    
-    // !!! IMPORTANT !!!
-    // Store the OTP so you can verify it in the /donor-login route
-    // Assumes you have an 'otpStore' map defined somewhere, like in your login route.
+    const otp = generateOTP(); // Assuming you have this function
     const expires = Date.now() + 300000; // 5 minute expiry
-    otpStore.set(phoneNumber, { otp: otp, expires: expires });
 
     // ---
+    // Use object syntax, NOT otpStore.set()
+    otpStore[phoneNumber] = { otp: otp, expires: expires };
+    // ---
+    
     // TODO: Add your *REAL* SMS sending code here
-    // Example: sendSMSService(phoneNumber, `Your OTP is ${otp}`);
-    // ---
+    
+    console.log(`(TESTING) OTP for ${phoneNumber} is ${otp}`); // For testing
 
-    console.log(`OTP for ${phoneNumber} is ${otp}`); // For testing
-
-    // Send the OTP back to the client so the alert() can show it (as requested)
+    // Send the OTP back to the client so the alert() can show it
     res.json({
       success: true,
       message: 'OTP sent successfully!',
-      otp: otp // This is for the alert() in your front-end
+      otp: otp 
     });
 
   } catch (error) {
@@ -800,23 +802,32 @@ app.post('/api/server/donor/send-otp', (req, res) => {
 /**
  * Donor login/registration
  */
+/**
+ * Donor login/registration
+ *
+ * THIS IS THE CORRECTED ENDPOINT FOR USING an OBJECT {}
+ */
 app.post('/api/server/donor-login', async (req, res) => {
   try {
     const { phoneNumber, fullName, bloodType, pincode, otp } = req.body;
 
-    // Validate required fields
     if (!phoneNumber || !otp) {
       return res.status(400).json({ success: false, message: 'Phone number and OTP required' });
     }
 
-    // Verify OTP
-    const storedOTP = otpStore.get(phoneNumber);
+    // ---
+    // Use object syntax, NOT otpStore.get()
+    const storedOTP = otpStore[phoneNumber];
+    // ---
+
     if (!storedOTP || storedOTP.otp !== otp || storedOTP.expires < Date.now()) {
       return res.status(401).json({ success: false, message: 'Invalid or expired OTP' });
     }
 
-    // Clear OTP after successful verification
-    otpStore.delete(phoneNumber);
+    // ---
+    // Use object syntax to delete the key
+    delete otpStore[phoneNumber];
+    // ---
 
     // Check if donor exists
     let donor = await pool.query(
@@ -831,19 +842,9 @@ app.post('/api/server/donor-login', async (req, res) => {
         'UPDATE users SET last_login = NOW() WHERE user_id = $1',
         [donor.user_id]
       );
-
-      // Get donor's location from pincode if not set
-      if (!donor.latitude || !donor.longitude) {
-        const location = await pool.query(
-          'SELECT latitude, longitude FROM pincode_locations WHERE pincode = $1',
-          [donor.pincode]
-        );
-        if (location.rows.length > 0) {
-          donor.latitude = location.rows[0].latitude;
-          donor.longitude = location.rows[0].longitude;
-        }
-      }
-
+      
+      // ... (rest of your login logic is fine) ...
+      
       return res.json({
         success: true,
         message: 'Login successful',
@@ -866,6 +867,47 @@ app.post('/api/server/donor-login', async (req, res) => {
         message: 'Full name, blood type, and pincode required for registration'
       });
     }
+
+    // ... (rest of your registration logic is fine) ...
+    
+    const location = await pool.query(
+        'SELECT latitude, longitude FROM pincode_locations WHERE pincode = $1',
+        [pincode]
+    );
+
+    let latitude = null, longitude = null;
+    if (location.rows.length > 0) {
+        latitude = location.rows[0].latitude;
+        longitude = location.rows[0].longitude;
+    }
+
+    const newDonor = await pool.query(
+      `INSERT INTO users (full_name, phone_number, blood_type, pincode, role, latitude, longitude, last_login, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+       RETURNING user_id, full_name, phone_number, blood_type, pincode, latitude, longitude`,
+      [fullName, phoneNumber, bloodType, pincode, 'donor', latitude, longitude]
+    );
+
+    const createdDonor = newDonor.rows[0];
+
+    res.json({
+      success: true,
+      message: 'Registration successful',
+      donor: {
+        userId: createdDonor.user_id,
+        fullName: createdDonor.full_name,
+        phoneNumber: createdDonor.phone_number,
+        bloodType: createdDonor.blood_type,
+        pincode: createdDonor.pincode,
+        latitude: createdDonor.latitude,
+        longitude: createdDonor.longitude
+      }
+    });
+  } catch (error) {
+    console.error('Error in donor login:', error);
+    res.status(500).json({ success: false, message: 'Login failed' });
+  }
+});
 
     // Get location from pincode
     const location = await pool.query(
@@ -902,11 +944,7 @@ app.post('/api/server/donor-login', async (req, res) => {
         longitude: donor.longitude
       }
     });
-  } catch (error) {
-    console.error('Error in donor login:', error);
-    res.status(500).json({ success: false, message: 'Login failed' });
-  }
-});
+  
 
 /**
  * Get escalated SOS alerts for donor
