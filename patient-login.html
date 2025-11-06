@@ -29,67 +29,71 @@
     </style>
 </head>
 
-<body style="background: var(--gradient-soft); display: grid; place-items: center; min-height: 100vh;">
+<body>
     
     <header id="main-header">
-    <div class="header-container">
-        <a href="index.html" class="logo">
-            <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
-            <span>LifeLink</span>
-        </a>
-        <nav id="main-nav">
-             <button id="logoutBtn" class="btn btn-outline btn-sm">Logout</button>
-        </nav>
-        <button class="mobile-menu-toggle" aria-label="Toggle menu">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
-    </div>
-</header>
+        <div class="header-container">
+            <a href="index.html" class="logo">
+                <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+                <span>LifeLink</span>
+            </a>
+            
+            <nav>
+                <a href="index.html">Home</a>
+            </nav>
+
+            <button class="mobile-menu-toggle" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
     
     <main>
-        <section class="main-card">
-            
-            <div class="card-header">
-                <h2 class="card-title">Patient Portal</h2>
-                <p class="card-description">Sign in or create an account to continue.</p>
-            </div>
-            
-            <div class="card-body">
-                <form id="patientAuthForm">
-                    <div class="form-group">
-                        <label class="form-label" for="name">Full Name</label>
-                        <input class="form-input" type="text" id="name" placeholder="Enter your full name" required>
+        <section class="section" style="background: var(--gradient-soft); min-height: 80vh; padding-top: var(--space-16); padding-bottom: var(--space-16);">
+            <div class="section-container">
+                
+                <div class="card" style="max-width: 480px; margin: 0 auto;">
+                    
+                    <div class="card-header">
+                        <h2 class="card-title">Patient Portal</h2>
+                        <p class="card-description">Sign in or create an account to continue.</p>
                     </div>
                     
-                    <div class="form-group">
-                        <label class="form-label" for="phone">Phone Number</label>
-                        <input class="form-input" type="tel" id="phone" placeholder="Enter 10-digit number" maxlength="10" required>
+                    <div class="card-body">
+                        <form id="patientAuthForm">
+                            <div class="form-group">
+                                <label class="form-label" for="name">Full Name</label>
+                                <input class="form-input" type="text" id="name" placeholder="Enter your full name" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="phone">Phone Number</label>
+                                <input class="form-input" type="tel" id="phone" placeholder="Enter 10-digit number" maxlength="10" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label" for="pincode">Pincode (for location backup)</label>
+                                <input class="form-input" type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
+                            </div>
+                            
+                            <p id="message" class="message-area"></p>
+                            
+                            <button type="button" id="getOtpBtn" class="btn btn-primary" style="width: 100%;">Get OTP</button>
+                            
+                            <div id="otpSection" style="display:none; margin-top: var(--space-5);">
+                                <div class="form-group">
+                                    <label class="form-label" for="otp">Enter OTP</label>
+                                    <input class="form-input" type="text" id="otp" placeholder="Enter 4-digit OTP" maxlength="4" inputmode="numeric">
+                                </div>
+                                <button type="button" id="verifyBtn" class="btn btn-primary" style="width: 100%;">Verify & Proceed</button>
+                            </div>
+                        </form>
                     </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="pincode">Pincode (for location backup)</label>
-                        <input class="form-input" type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
-                    </div>
-                    
-                    <p id="message" class="message-area"></p>
-                    
-                    <button type="button" id="getOtpBtn" class="btn btn-primary" style="width: 100%;">Get OTP</button>
-                    
-                    <div id="otpSection" style="display:none; margin-top: var(--space-5);">
-                        <div class="form-group">
-                            <label class="form-label" for="otp">Enter OTP</label>
-                            <input class="form-input" type="text" id="otp" placeholder="Enter 4-digit OTP" maxlength="4" inputmode="numeric">
-                        </div>
-                        <button type="button" id="verifyBtn" class="btn btn-primary" style="width: 100%;">Verify & Proceed</button>
-                    </div>
-                </form>
-            </div>
-        </section>
-    </main>
+                </div> </div> </section> </main>
     
-     <!-- Footer -->
     <footer>
         <div class="footer-container">
             <div class="footer-content">
