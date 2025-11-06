@@ -4,163 +4,205 @@
     <meta charset="UTF-8">
     <title>Patient Portal - LifeLink</title>
     <link rel="stylesheet" href="style.css">
+    
+    <style>
+      .message-area {
+        font-size: var(--text-sm);
+        margin-top: var(--space-4);
+        padding: var(--space-3) var(--space-4);
+        border-radius: var(--radius-md);
+        border: 1px solid transparent;
+        display: none; /* Hidden by default */
+      }
+      .message-area.message-error {
+        display: block;
+        color: var(--error);
+        background-color: var(--error-light);
+        border-color: var(--error);
+      }
+      .message-area.message-success {
+        display: block;
+        color: var(--success);
+        background-color: var(--success-light);
+        border-color: var(--success);
+      }
+    </style>
 </head>
-<body>
+
+<body style="background: var(--gradient-soft); display: grid; place-items: center; min-height: 100vh;">
+    
     <header>
-        <div class="logo">
-            <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40">
-            <span>LifeLink</span>
+        <div class="header-container">
+            <div class="logo">
+                <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40">
+                <span>LifeLink</span>
+            </div>
+            <nav><a href="index.html">Home</a></nav>
         </div>
-        <nav><a href="index.html">Home</a></nav>
     </header>
     
     <main>
-        <section class="main-card">
-            <h2>Patient Portal</h2>
-            <form id="patientAuthForm">
-                <div class="form-group">
-                    <label for="name">Full Name</label>
-                    <input type="text" id="name" placeholder="Enter your full name" required>
-                </div>
-                <div class="form-group">
-                    <label for="phone">Phone Number</label>
-                    <input type="tel" id="phone" placeholder="Enter 10-digit number" maxlength="10" required>
-                </div>
-                <div class="form-group">
-                    <label for="pincode">Pincode (for location backup)</label>
-                    <input type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
-                </div>
-                <button type="button" id="getOtpBtn" class="btn-primary">Get OTP</button>
-                
-                <div id="otpSection" style="display:none; margin-top:20px;">
+        <section class="card" style="width: 100%; max-width: 480px;">
+            
+            <div class="card-header">
+                <h2 class="card-title">Patient Portal</h2>
+                <p class="card-description">Sign in or create an account to continue.</p>
+            </div>
+            
+            <div class="card-body">
+                <form id="patientAuthForm">
                     <div class="form-group">
-                        <label for="otp">Enter OTP</label>
-                        <input type="text" id="otp" placeholder="Enter 4-digit OTP" maxlength="4" inputmode="numeric">
+                        <label class="form-label" for="name">Full Name</label>
+                        <input class="form-input" type="text" id="name" placeholder="Enter your full name" required>
                     </div>
-                    <button type="button" id="verifyBtn" class="btn-primary">Verify & Proceed</button>
-                </div>
-            </form>
-            <p id="message" class="message-area"></p>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="phone">Phone Number</label>
+                        <input class="form-input" type="tel" id="phone" placeholder="Enter 10-digit number" maxlength="10" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="pincode">Pincode (for location backup)</label>
+                        <input class="form-input" type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
+                    </div>
+                    
+                    <p id="message" class="message-area"></p>
+                    
+                    <button type="button" id="getOtpBtn" class="btn btn-primary" style="width: 100%;">Get OTP</button>
+                    
+                    <div id="otpSection" style="display:none; margin-top: var(--space-5);">
+                        <div class="form-group">
+                            <label class="form-label" for="otp">Enter OTP</label>
+                            <input class="form-input" type="text" id="otp" placeholder="Enter 4-digit OTP" maxlength="4" inputmode="numeric">
+                        </div>
+                        <button type="button" id="verifyBtn" class="btn btn-primary" style="width: 100%;">Verify & Proceed</button>
+                    </div>
+                </form>
+            </div>
         </section>
     </main>
     
+    <footer>
+        <div class="footer-container">
+            <div class="footer-bottom">
+                <p>© 2025 LifeLink</p>
+            </div>
+        </div>
+    </footer>
+    
     <script>
-    document.addEventListener('DOMContentLoaded', () => {
+      document.addEventListener('DOMContentLoaded', () => {
         const getOtpBtn = document.getElementById('getOtpBtn');
         const verifyBtn = document.getElementById('verifyBtn');
         const otpSection = document.getElementById('otpSection');
         const messageEl = document.getElementById('message');
-
+  
         // STEP 1: Generate OTP
         getOtpBtn.addEventListener('click', async () => {
-            const name = document.getElementById('name').value.trim();
-            const phone = document.getElementById('phone').value.trim();
-            const pincode = document.getElementById('pincode').value.trim();
-
-            // Validation
-            if (!name) {
-                messageEl.textContent = 'Please enter your full name.';
-                messageEl.className = 'message-area message-error';
-                return;
+          const name = document.getElementById('name').value.trim();
+          const phone = document.getElementById('phone').value.trim();
+          const pincode = document.getElementById('pincode').value.trim();
+  
+          // Validation
+          if (!name) {
+            messageEl.textContent = 'Please enter your full name.';
+            messageEl.className = 'message-area message-error';
+            return;
+          }
+          if (!phone || phone.length !== 10) {
+            messageEl.textContent = 'Please enter a valid 10-digit phone number.';
+            messageEl.className = 'message-area message-error';
+            return;
+          }
+          if (!pincode || pincode.length !== 6) {
+            messageEl.textContent = 'Please enter a valid 6-digit pincode.';
+            messageEl.className = 'message-area message-error';
+            return;
+          }
+  
+          messageEl.textContent = 'Generating OTP...';
+          messageEl.className = 'message-area'; // Reset state
+  
+          try {
+            const response = await fetch('/api/server/send-otp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ phoneNumber: phone })
+            });
+            const result = await response.json();
+  
+            if (result.success) {
+              messageEl.textContent = result.message || 'OTP sent successfully!';
+              messageEl.className = 'message-area message-success';
+              
+              // Show the OTP in an alert (for demo purposes)
+              alert(`Your OTP is: ${result.otp}`);
+              
+              // Show OTP input section
+              otpSection.style.display = 'block';
+              getOtpBtn.style.display = 'none';
+            } else {
+              messageEl.textContent = result.message || 'Failed to generate OTP.';
+              messageEl.className = 'message-area message-error';
             }
-            if (!phone || phone.length !== 10) {
-                messageEl.textContent = 'Please enter a valid 10-digit phone number.';
-                messageEl.className = 'message-area message-error';
-                return;
-            }
-            if (!pincode || pincode.length !== 6) {
-                messageEl.textContent = 'Please enter a valid 6-digit pincode.';
-                messageEl.className = 'message-area message-error';
-                return;
-            }
-
-            messageEl.textContent = 'Generating OTP...';
-            messageEl.className = 'message-area';
-
-            try {
-                const response = await fetch('/api/server/send-otp', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phoneNumber: phone })
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    messageEl.textContent = result.message || 'OTP sent successfully!';
-                    messageEl.className = 'message-area message-success';
-                    
-                    // Show the OTP in an alert (for demo purposes)
-                    alert(`Your OTP is: ${result.otp}`);
-                    
-                    // Show OTP input section
-                    otpSection.style.display = 'block';
-                    getOtpBtn.style.display = 'none';
-                } else {
-                    messageEl.textContent = result.message || 'Failed to generate OTP.';
-                    messageEl.className = 'message-area message-error';
-                }
-            } catch (error) {
-                console.error('OTP Error:', error);
-                messageEl.textContent = 'Could not connect to server. Please try again.';
-                messageEl.className = 'message-area message-error';
-            }
+          } catch (error) {
+            console.error('OTP Error:', error);
+            messageEl.textContent = 'Could not connect to server. Please try again.';
+            messageEl.className = 'message-area message-error';
+          }
         });
-
+  
         // STEP 2: Verify OTP and Login
         verifyBtn.addEventListener('click', async () => {
-            const name = document.getElementById('name').value.trim();
-            const phone = document.getElementById('phone').value.trim();
-            const pincode = document.getElementById('pincode').value.trim();
-            const otp = document.getElementById('otp').value.trim();
-
-            if (!otp || otp.length !== 4) {
-                messageEl.textContent = 'Please enter the 4-digit OTP.';
-                messageEl.className = 'message-area message-error';
-                return;
+          const name = document.getElementById('name').value.trim();
+          const phone = document.getElementById('phone').value.trim();
+          const pincode = document.getElementById('pincode').value.trim();
+          const otp = document.getElementById('otp').value.trim();
+  
+          if (!otp || otp.length !== 4) {
+            messageEl.textContent = 'Please enter the 4-digit OTP.';
+            messageEl.className = 'message-area message-error';
+            return;
+          }
+  
+          messageEl.textContent = 'Verifying OTP...';
+          messageEl.className = 'message-area';
+  
+          try {
+            const response = await fetch('/api/server/patient-login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                phoneNumber: phone,
+                fullName: name,
+                pincode: pincode,
+                otp: otp
+              })
+            });
+            const result = await response.json();
+  
+            if (result.success) {
+              messageEl.textContent = result.message || 'Login successful! Redirecting...';
+              messageEl.className = 'message-area message-success';
+              
+              // Store user info in sessionStorage
+              sessionStorage.setItem('currentUser', JSON.stringify(result.user));
+              
+              // Redirect to dashboard
+              setTimeout(() => {
+                window.location.href = 'patient-dashboard.html';
+              }, 1500);
+            } else {
+              messageEl.textContent = result.message || 'Invalid OTP or login failed.';
+              messageEl.className = 'message-area message-error';
             }
-
-            messageEl.textContent = 'Verifying OTP...';
-            messageEl.className = 'message-area';
-
-            try {
-                const response = await fetch('/api/server/patient-login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        phoneNumber: phone,
-                        fullName: name,
-                        pincode: pincode,
-                        otp: otp
-                    })
-                });
-                const result = await response.json();
-
-                if (result.success) {
-                    messageEl.textContent = result.message || 'Login successful! Redirecting...';
-                    messageEl.className = 'message-area message-success';
-                    
-                    // Store user info in sessionStorage
-                    sessionStorage.setItem('currentUser', JSON.stringify(result.user));
-                    
-                    // Redirect to dashboard
-                    setTimeout(() => {
-                        window.location.href = 'patient-dashboard.html';
-                    }, 1500);
-                } else {
-                    messageEl.textContent = result.message || 'Invalid OTP or login failed.';
-                    messageEl.className = 'message-area message-error';
-                }
-            } catch (error) {
-                console.error('Login Error:', error);
-                messageEl.textContent = 'Could not connect to server. Please try again.';
-                messageEl.className = 'message-area message-error';
-            }
+          } catch (error) {
+            console.error('Login Error:', error);
+            messageEl.textContent = 'Could not connect to server. Please try again.';
+            messageEl.className = 'message-area message-error';
+          }
         });
-    });
+      });
     </script>
-
-    <footer>
-        <p>© 2025 LifeLink</p>
-    </footer>
 </body>
 </html>
