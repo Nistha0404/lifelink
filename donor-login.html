@@ -222,8 +222,6 @@
         </div>
     </footer>
 
-    <script src="api\server.js"></script>
-    
     <script>
         // Tab switching
         function switchTab(tab) {
@@ -238,14 +236,12 @@
             // Clear messages
             document.querySelectorAll('.form-message').forEach(m => m.textContent = '');
         }
-        
-        // --- START OF MODIFIED FUNCTION ---
-        // Send OTP (Modified to match patient-login logic)
+
+        // --- START OF SCRIPT THAT CALLS YOUR SERVER ---
+        // Send OTP (Modified to call your server endpoint directly)
         async function sendOTP(type, buttonElement) {
             const phoneInput = document.getElementById(type + '-phone');
             const phone = phoneInput.value.trim();
-            
-            // --- Added Pre-validation (from patient-login) ---
             
             // 1. Validate Phone
             if (!phone || phone.length !== 10) {
@@ -272,20 +268,28 @@
                     return;
                 }
             }
-            // --- End of Pre-validation ---
-
+            
             try {
                 showMessage(type, 'Sending OTP...', 'info');
 
-                // This assumes LifeLinkAPI.donor.sendOTP(phone) returns
-                // a JSON object like { success: true, otp: '....', message: '...' }
-                const result = await LifeLinkAPI.donor.sendOTP(phone);
+                // --- THIS CALLS YOUR /api/server/donor/send-otp ENDPOINT ---
+                const response = await fetch('/api/server/donor/send-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber: phone }) // Send phone number in the body
+                });
                 
-                if (result.success) {
-                    
-                    // --- START: Logic copied from patient-login.html ---
+                // This checks for server crashes (like 500 errors)
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.statusText}`);
+                }
+                
+                // Get the JSON response
+                const result = await response.json();
+                // --- END OF API CALL ---
 
-                    // 1. Show the OTP in an alert
+                if (result.success) {
+                    // 1. Show the OTP in an alert (if your server sends it back)
                     if (result.otp) {
                         alert(`Your OTP is: ${result.otp}`);
                     } else {
@@ -298,23 +302,21 @@
                         buttonElement.style.display = 'none';
                     }
                     
-                    // --- END: Logic copied from patient-login.html ---
-
                     // Original logic to show OTP fields
                     document.getElementById(type + '-otp-group').style.display = 'block';
                     document.getElementById(type + '-submit-btn').style.display = 'block';
                     showMessage(type, result.message || 'OTP sent successfully!', 'success');
                 
                 } else {
-                    // Show specific error message from API if available
                     showMessage(type, result.message || 'Failed to send OTP', 'error');
                 }
             } catch (error) {
-                // Show catch block error
-                showMessage(type, error.message || 'Failed to send OTP', 'error');
+                // This will catch JSON parsing errors or network failures
+                console.error('sendOTP Error:', error);
+                showMessage(type, 'Failed to send OTP. Check console.', 'error');
             }
         }
-        // --- END OF MODIFIED FUNCTION ---
+        // --- END OF sendOTP FUNCTION ---
 
         // Login form submission
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -331,29 +333,44 @@
             try {
                 showMessage('login', 'Logging in...', 'info');
                 
-                const result = await LifeLinkAPI.donor.login(
-                    phone, 
-                    null, // fullName not needed for login
-                    null, // bloodType not needed for login
-                    null, // pincode not needed for login
-                    otp
-                );
+                // --- THIS CALLS YOUR /api/server/donor-login ENDPOINT ---
+                const response = await fetch('/api/server/donor-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phoneNumber: phone,
+                        otp: otp,
+                        fullName: null, // Send nulls as required by your server logic for LOGIN
+                        bloodType: null,
+                        pincode: null
+                    })
+                });
+
+                if (!response.ok) {
+                     const errorData = await response.json(); // Get error message from server
+                     throw new Error(errorData.message || 'Login failed');
+                }
+                
+                const result = await response.json();
+                // --- END OF API CALL ---
                 
                 if (result.success) {
-                    // Save user data
-                    LifeLinkAPI.setCurrentUser({
+                    // Save user data to sessionStorage (safer than localStorage for session data)
+                    sessionStorage.setItem('currentUser', JSON.stringify({
                         role: 'donor',
                         ...result.donor
-                    });
+                    }));
                     
                     showMessage('login', 'Login successful! Redirecting...', 'success');
                     
                     setTimeout(() => {
                         window.location.href = 'donor-dashboard.html';
                     }, 1000);
+                } else {
+                    showMessage('login', result.message || 'Login failed', 'error');
                 }
             } catch (error) {
-                showMessage('login', error.message || 'Login failed', 'error');
+                showMessage('login', error.message, 'error');
             }
         });
         
@@ -380,29 +397,44 @@
             try {
                 showMessage('register', 'Registering...', 'info');
                 
-                const result = await LifeLinkAPI.donor.login(
-                    phone,
-                    name,
-                    bloodType,
-                    pincode,
-                    otp
-                );
+                // --- THIS CALLS YOUR /api/server/donor-login ENDPOINT ---
+                const response = await fetch('/api/server/donor-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        phoneNumber: phone,
+                        fullName: name,
+                        bloodType: bloodType,
+                        pincode: pincode,
+                        otp: otp
+                    })
+                });
+
+                if (!response.ok) {
+                     const errorData = await response.json(); // Get error message from server
+                     throw new Error(errorData.message || 'Registration failed');
+                }
+
+                const result = await response.json();
+                // --- END OF API CALL ---
                 
                 if (result.success) {
-                    // Save user data
-                    LifeLinkAPI.setCurrentUser({
+                    // Save user data to sessionStorage
+                    sessionStorage.setItem('currentUser', JSON.stringify({
                         role: 'donor',
                         ...result.donor
-                    });
+                    }));
                     
                     showMessage('register', 'Registration successful! Redirecting...', 'success');
                     
                     setTimeout(() => {
                         window.location.href = 'donor-dashboard.html';
                     }, 1000);
+                } else {
+                    showMessage('register', result.message || 'Registration failed', 'error');
                 }
             } catch (error) {
-                showMessage('register', error.message || 'Registration failed', 'error');
+                showMessage('register', error.message, 'error');
             }
         });
         
@@ -414,9 +446,10 @@
                                       status === 'success' ? 'form-success' : '');
         }
         
-        // Check if already logged in
-        if (LifeLinkAPI.isLoggedIn()) {
-            const user = LifeLinkAPI.getCurrentUser();
+        // Check if already logged in (using sessionStorage)
+        const loggedInUser = sessionStorage.getItem('currentUser');
+        if (loggedInUser) {
+            const user = JSON.parse(loggedInUser);
             if (user.role === 'donor') {
                 window.location.href = 'donor-dashboard.html';
             }
