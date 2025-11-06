@@ -375,19 +375,46 @@ app.post('/api/server/hospital-register', async (req, res) => {
     }
 });
 
+/**
+ * API ENDPOINT: Hospital Login
+ * --------------------------------------
+ * UPDATED: Compares plain text passwords.
+ */
 app.post('/api/server/hospital-login', async (req, res) => {
-  const { hospitalId, password } = req.body;
-  if (!hospitalId || !password) return res.status(400).json({ success: false, message: 'Hospital ID and password are required.' });
-  try {
-    const { rows } = await pool.query('SELECT * FROM hospitals WHERE hospital_id = $1', [hospitalId.toUpperCase()]);
-    if (!rows.length) return res.status(404).json({ success: false, message: 'Hospital ID not found.' });
-    const hospital = rows[0];
-    if (password !== hospital.password_hash) return res.status(401).json({ success: false, message: 'Invalid password.' });
-    const { password_hash, ...safe } = hospital;
-    res.json({ success: true, hospital: safe });
-  } catch (e) {
-    console.error(e); res.status(500).json({ success:false, message:'Server error.' });
-  }
+    const { hospitalId, password } = req.body;
+
+    try {
+        // Find the hospital by its ID
+        const query = 'SELECT * FROM hospital WHERE hospital_id = $1';
+        const result = await pool.query(query, [hospitalId]);
+
+        if (result.rows.length === 0) {
+            // No hospital found with that ID
+            return res.status(401).json({ success: false, message: 'Invalid Hospital ID or password' });
+        }
+
+        const hospital = result.rows[0];
+
+        // --- PASSWORD CHECK ---
+        // Direct string comparison instead of bcrypt.compare
+        if (password === hospital.password_hash) {
+            // Passwords match
+            // Remove sensitive data before sending back
+            delete hospital.password_hash; 
+            
+            res.json({ 
+              success: true, 
+              hospital: hospital 
+            });
+        } else {
+            // Passwords do not match
+            res.status(401).json({ success: false, message: 'Invalid Hospital ID or password' });
+        }
+        
+    } catch (error) {
+        console.error('Hospital login error:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
 });
 
 
