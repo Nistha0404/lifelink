@@ -739,564 +739,257 @@ app.get('/api/server/camps', async (req, res) => {
   }
 });
 
+
 // ============================================================================
-// DONOR ENDPOINTS
+// DONOR AUTHENTICATION & MANAGEMENT
 // ============================================================================
 
 /**
- * Send OTP to donor phone
+ * Send OTP to donor
  */
-// Add this helper function to your server file
-// Add this helper function to your server file (you already have this)
-function generateOTP() {
-  // Generate a 4-digit OTP
-  return Math.floor(1000 + Math.random() * 9000).toString();
-}
-
-/**
- * Send OTP to donor phone
- *
- * THIS IS THE CORRECTED ENDPOINT. USE THIS.
- */
-/**
- * Send OTP to donor phone
- *
- * THIS IS THE CORRECTED ENDPOINT FOR USING an OBJECT {}
- */
-app.post('/api/server/donor/send-otp', (req, res) => {
+app.post('/api/server/donor/send-otp', async (req, res) => {
+  const { phoneNumber } = req.body;
+  
+  if (!phoneNumber) {
+    return res.status(400).json({ success: false, message: 'Phone number required.' });
+  }
+  
   try {
-    const { phoneNumber } = req.body;
-
-    if (!phoneNumber) {
-        return res.status(400).json({ success: false, message: 'Phone number is required' });
-    }
-
-    const otp = generateOTP(); // Assuming you have this function
-    const expires = Date.now() + 300000; // 5 minute expiry
-
-    // ---
-    // Use object syntax, NOT otpStore.set()
-    otpStore[phoneNumber] = { otp: otp, expires: expires };
-    // ---
+    const otp = generateOTP();
+    otpStore[phoneNumber] = { 
+      otp, 
+      expiry: Date.now() + 300000 
+    };
     
-    // TODO: Add your *REAL* SMS sending code here
+    console.log(`📱 Donor OTP for ${phoneNumber}: ${otp}`);
     
-    console.log(`(TESTING) OTP for ${phoneNumber} is ${otp}`); // For testing
-
-    // Send the OTP back to the client so the alert() can show it
-    res.json({
-      success: true,
-      message: 'OTP sent successfully!',
-      otp: otp 
+    res.json({ 
+      success: true, 
+      otp, 
+      message: `OTP generated: ${otp}` 
     });
-
-  } catch (error) {
-    console.error('Error in send-otp:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
-// DO NOT USE THE OLD CODE
-// function sendSMSToUser(otp, res) { ... } // This helper function was incorrect. Delete it.
-  
 /**
- * Donor login/registration
- */
-/**
- * Donor login/registration
- *
- * THIS IS THE CORRECTED ENDPOINT FOR USING an OBJECT {}
+ * Donor login/register with OTP
  */
 app.post('/api/server/donor-login', async (req, res) => {
+  const { phoneNumber, fullName, bloodType, pincode, otp } = req.body;
+  
+  const record = otpStore[phoneNumber];
+  if (!record || record.otp !== otp || Date.now() >= record.expiry) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
+  }
+  
+  delete otpStore[phoneNumber];
+  
   try {
-    const { phoneNumber, fullName, bloodType, pincode, otp } = req.body;
-
-    if (!phoneNumber || !otp) {
-      return res.status(400).json({ success: false, message: 'Phone number and OTP required' });
-    }
-
-    // ---
-    // Use object syntax, NOT otpStore.get()
-    const storedOTP = otpStore[phoneNumber];
-    // ---
-
-    if (!storedOTP || storedOTP.otp !== otp || storedOTP.expires < Date.now()) {
-      return res.status(401).json({ success: false, message: 'Invalid or expired OTP' });
-    }
-
-    // ---
-    // Use object syntax to delete the key
-    delete otpStore[phoneNumber];
-    // ---
-
-    // Check if donor exists
-    let donor = await pool.query(
-      'SELECT * FROM users WHERE phone_number = $1 AND role = $2',
-      [phoneNumber, 'donor']
+    const existing = await pool.query(
+      "SELECT * FROM users WHERE phone_number = $1 AND role = 'donor'",
+      [phoneNumber]
     );
-
-    if (donor.rows.length > 0) {
-      // Existing donor - update last login
-      donor = donor.rows[0];
-      await pool.query(
-        'UPDATE users SET last_login = NOW() WHERE user_id = $1',
-        [donor.user_id]
-      );
-      
-      // ... (rest of your login logic is fine) ...
-      
-      return res.json({
-        success: true,
-        message: 'Login successful',
-        donor: {
-          userId: donor.user_id,
-          fullName: donor.full_name,
-          phoneNumber: donor.phone_number,
-          bloodType: donor.blood_type,
-          pincode: donor.pincode,
-          latitude: donor.latitude,
-          longitude: donor.longitude
-        }
-      });
-    }
-
-    // New donor - registration required
-    if (!fullName || !bloodType || !pincode) {
-      return res.status(400).json({
-        success: false,
-        message: 'Full name, blood type, and pincode required for registration'
-      });
-    }
-
-    // ... (rest of your registration logic is fine) ...
     
-    const location = await pool.query(
-        'SELECT latitude, longitude FROM pincode_locations WHERE pincode = $1',
-        [pincode]
-    );
-
-    let latitude = null, longitude = null;
-    if (location.rows.length > 0) {
-        latitude = location.rows[0].latitude;
-        longitude = location.rows[0].longitude;
+    if (existing.rows.length) {
+      const { rows } = await pool.query(
+        "UPDATE users SET full_name = $1, blood_type = $2, pincode = $3, last_login = NOW() WHERE phone_number = $4 AND role = 'donor' RETURNING *",
+        [fullName, bloodType, pincode, phoneNumber]
+      );
+      return res.json({ 
+        success: true, 
+        message: 'Login successful!', 
+        user: rows[0] 
+      });
     }
-
-    const newDonor = await pool.query(
-      `INSERT INTO users (full_name, phone_number, blood_type, pincode, role, latitude, longitude, last_login, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-       RETURNING user_id, full_name, phone_number, blood_type, pincode, latitude, longitude`,
-      [fullName, phoneNumber, bloodType, pincode, 'donor', latitude, longitude]
+    
+    if (!fullName || !bloodType || !pincode) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'All fields required for registration.' 
+      });
+    }
+    
+    const { rows } = await pool.query(
+      "INSERT INTO users (full_name, phone_number, role, blood_type, pincode) VALUES ($1, $2, 'donor', $3, $4) RETURNING *",
+      [fullName, phoneNumber, bloodType, pincode]
     );
-
-    const createdDonor = newDonor.rows[0];
-
-    res.json({
-      success: true,
-      message: 'Registration successful',
-      donor: {
-        userId: createdDonor.user_id,
-        fullName: createdDonor.full_name,
-        phoneNumber: createdDonor.phone_number,
-        bloodType: createdDonor.blood_type,
-        pincode: createdDonor.pincode,
-        latitude: createdDonor.latitude,
-        longitude: createdDonor.longitude
-      }
+    
+    res.status(201).json({ 
+      success: true, 
+      message: 'Registration successful!', 
+      user: rows[0] 
     });
-  } catch (error) {
-    console.error('Error in donor login:', error);
-    res.status(500).json({ success: false, message: 'Login failed' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Database error.' });
   }
 });
 
-    // Get location from pincode
-    const location = await pool.query(
-      'SELECT latitude, longitude FROM pincode_locations WHERE pincode = $1',
-      [pincode]
-    );
-
-    let latitude = null, longitude = null;
-    if (location.rows.length > 0) {
-      latitude = location.rows[0].latitude;
-      longitude = location.rows[0].longitude;
-    }
-
-    // Register new donor
-    const newDonor = await pool.query(
-      `INSERT INTO users (full_name, phone_number, blood_type, pincode, role, latitude, longitude, last_login, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-       RETURNING user_id, full_name, phone_number, blood_type, pincode, latitude, longitude`,
-      [fullName, phoneNumber, bloodType, pincode, 'donor', latitude, longitude]
-    );
-
-    const donors = newDonor.rows[0];
-
-    res.json({
-      success: true,
-      message: 'Registration successful',
-      donor: {
-        userId: donor.user_id,
-        fullName: donor.full_name,
-        phoneNumber: donor.phone_number,
-        bloodType: donor.blood_type,
-        pincode: donor.pincode,
-        latitude: donor.latitude,
-        longitude: donor.longitude
-      }
-    });
-  
-
 /**
- * Get escalated SOS alerts for donor
- * Shows requests where no hospital accepted within deadline
+ * Get SOS alerts for donor (escalated requests)
  */
 app.get('/api/server/donor/sos-alerts/:donorId', async (req, res) => {
   try {
-    const { donorId } = req.params;
-
-    // Get donor's info including location and blood type
-    const donor = await pool.query(
-      'SELECT * FROM users WHERE user_id = $1 AND role = $2',
-      [donorId, 'donor']
+    // Get donor's blood type
+    const donorResult = await pool.query(
+      'SELECT blood_type, latitude, longitude FROM users WHERE user_id = $1',
+      [req.params.donorId]
     );
-
-    if (donor.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Donor not found' });
+    
+    if (!donorResult.rows.length) {
+      return res.status(404).json({ success: false, message: 'Donor not found.' });
     }
-
-    const donorData = donor.rows[0];
-
-    // Get requests that:
-    // 1. Match donor's blood type (or compatible types)
-    // 2. Have passed their deadline without hospital acceptance
-    // 3. Are still in 'pending' status
-    // 4. Donor hasn't already committed to
-    const alerts = await pool.query(
+    
+    const donor = donorResult.rows[0];
+    
+    // Get escalated requests matching donor's blood type
+    const { rows } = await pool.query(
       `SELECT 
         br.request_id,
         br.blood_type_needed,
         br.latitude,
         br.longitude,
-        br.pincode,
-        br.status,
-        br.deadline,
         br.created_at,
-        u.full_name as patient_name,
-        u.phone_number as patient_phone,
-        CASE 
-          WHEN br.latitude IS NOT NULL AND br.longitude IS NOT NULL AND $2 IS NOT NULL AND $3 IS NOT NULL
-          THEN ROUND(
-            (6371 * acos(
-              cos(radians($2)) * cos(radians(br.latitude)) * 
-              cos(radians(br.longitude) - radians($3)) + 
-              sin(radians($2)) * sin(radians(br.latitude))
-            ))::numeric, 2
-          )
-          ELSE NULL
-        END as distance_km
-      FROM blood_requests br
-      JOIN users u ON br.patient_id = u.user_id
-      WHERE br.status = 'pending'
-        AND br.deadline < NOW()
-        AND br.accepted_by_hospital_id IS NULL
-        AND br.blood_type_needed = $4
-        AND NOT EXISTS (
-          SELECT 1 FROM donation_commitments dc 
-          WHERE dc.request_id = br.request_id 
-          AND dc.donor_id = $1
-        )
-      ORDER BY br.created_at DESC
-      LIMIT 10`,
-      [donorId, donorData.latitude, donorData.longitude, donorData.blood_type]
+        br.deadline,
+        u.full_name as patient_name
+       FROM blood_requests br
+       LEFT JOIN users u ON br.patient_id = u.user_id
+       WHERE br.status = 'escalated' 
+         AND br.blood_type_needed = $1
+       ORDER BY br.created_at DESC`,
+      [donor.blood_type]
     );
-
-    res.json({
-      success: true,
-      alerts: alerts.rows
-    });
-  } catch (error) {
-    console.error('Error fetching donor alerts:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch alerts' });
+    
+    // Calculate distances if donor has location
+    const alertsWithDistance = rows.map(alert => ({
+      ...alert,
+      distance_km: donor.latitude && donor.longitude && alert.latitude && alert.longitude
+        ? calculateDistance(donor.latitude, donor.longitude, alert.latitude, alert.longitude).toFixed(2)
+        : null
+    }));
+    
+    res.json({ success: true, alerts: alertsWithDistance });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
 /**
- * Donor accepts SOS request
+ * Donor accepts SOS alert
  */
 app.post('/api/server/donor/accept-sos', async (req, res) => {
-  const client = await pool.connect();
+  const { donorId, requestId, donorLatitude, donorLongitude } = req.body;
   
+  if (!donorId || !requestId) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+  
+  const client = await pool.connect();
   try {
-    const { donorId, requestId, donorLatitude, donorLongitude } = req.body;
-
     await client.query('BEGIN');
-
-    // Check if request is still available
-    const request = await client.query(
-      `SELECT br.*, u.full_name as patient_name 
-       FROM blood_requests br
-       JOIN users u ON br.patient_id = u.user_id
-       WHERE br.request_id = $1 AND br.status = 'pending'`,
+    
+    // Check if request is still escalated
+    const reqCheck = await client.query(
+      "SELECT status FROM blood_requests WHERE request_id = $1 FOR UPDATE",
       [requestId]
     );
-
-    if (request.rows.length === 0) {
+    
+    if (!reqCheck.rows.length) {
       await client.query('ROLLBACK');
-      return res.status(404).json({ 
+      return res.status(404).json({ success: false, message: 'Request not found.' });
+    }
+    
+    if (reqCheck.rows[0].status !== 'escalated') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ 
         success: false, 
-        message: 'Request no longer available' 
+        message: 'Request no longer available.' 
       });
     }
-
-    const requestData = request.rows[0];
-
-    // Find nearest hospital with blood available
-    const nearestHospital = await client.query(
-      `SELECT 
-        h.hospital_id,
-        h.hospital_name,
-        h.address,
-        h.pincode,
-        h.phone_number,
-        h.latitude,
-        h.longitude,
-        ROUND(
-          (6371 * acos(
-            cos(radians($1)) * cos(radians(h.latitude)) * 
-            cos(radians(h.longitude) - radians($2)) + 
-            sin(radians($1)) * sin(radians(h.latitude))
-          ))::numeric, 2
-        ) as distance_km
-      FROM hospitals h
-      WHERE h.latitude IS NOT NULL 
-        AND h.longitude IS NOT NULL
-      ORDER BY distance_km
-      LIMIT 1`,
-      [donorLatitude, donorLongitude]
-    );
-
-    if (nearestHospital.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ 
-        success: false, 
-        message: 'No hospitals found nearby' 
-      });
-    }
-
-    const hospital = nearestHospital.rows[0];
-
+    
     // Generate donor token
-    const donorToken = generateToken(12);
-
-    // Create commitment
+    const donorToken = await generateUniqueDonorToken(client);
+    
+    // Find nearest hospital
+    const { rows: hospitals } = await client.query(
+      'SELECT hospital_id, hospital_name, address, pincode, latitude, longitude FROM hospitals ORDER BY hospital_id LIMIT 1'
+    );
+    
+    const hospital = hospitals[0];
+    
+    // Create donation commitment
     await client.query(
       `INSERT INTO donation_commitments 
-        (request_id, donor_id, donor_token, hospital_id, status, donor_lat_on_accept, donor_lon_on_accept, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-      [requestId, donorId, donorToken, hospital.hospital_id, 'committed', donorLatitude, donorLongitude]
+       (request_id, donor_id, donor_token, hospital_id, donor_lat_on_accept, donor_lon_on_accept, status) 
+       VALUES ($1, $2, $3, $4, $5, $6, 'committed')`,
+      [requestId, donorId, donorToken, hospital.hospital_id, donorLatitude, donorLongitude]
     );
-
+    
     // Update request status
     await client.query(
-      `UPDATE blood_requests 
-       SET status = 'donor_assigned', accepted_by_hospital_id = $1
-       WHERE request_id = $2`,
+      "UPDATE blood_requests SET status = 'donor_assigned', assigned_hospital_id = $1 WHERE request_id = $2",
       [hospital.hospital_id, requestId]
     );
-
+    
     await client.query('COMMIT');
-
-    res.json({
-      success: true,
-      message: 'SOS request accepted successfully',
+    
+    console.log(`✅ Donor ${donorId} accepted request ${requestId}`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Request accepted!',
       donor_token: donorToken,
       hospital: {
-        id: hospital.hospital_id,
         name: hospital.hospital_name,
         address: hospital.address,
-        pincode: hospital.pincode,
-        phone: hospital.phone_number,
-        distance: hospital.distance_km
-      },
-      patient_name: requestData.patient_name
+        pincode: hospital.pincode
+      }
     });
-  } catch (error) {
+  } catch (e) {
     await client.query('ROLLBACK');
-    console.error('Error accepting SOS:', error);
-    res.status(500).json({ success: false, message: 'Failed to accept request' });
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
   } finally {
     client.release();
   }
 });
 
 /**
- * Get donor's commitments and appointments
+ * Get donor's accepted commitments
  */
 app.get('/api/server/donor/commitments/:donorId', async (req, res) => {
   try {
-    const { donorId } = req.params;
-
-    const commitments = await pool.query(
+    const { rows } = await pool.query(
       `SELECT 
         dc.commitment_id,
         dc.donor_token,
         dc.status,
         dc.created_at,
         br.blood_type_needed,
-        br.status as request_status,
         h.hospital_name,
         h.address,
-        h.pincode,
-        h.phone_number,
-        u.full_name as patient_name
-      FROM donation_commitments dc
-      JOIN blood_requests br ON dc.request_id = br.request_id
-      JOIN hospitals h ON dc.hospital_id = h.hospital_id
-      JOIN users u ON br.patient_id = u.user_id
-      WHERE dc.donor_id = $1
-      ORDER BY dc.created_at DESC
-      LIMIT 20`,
-      [donorId]
+        h.pincode
+       FROM donation_commitments dc
+       JOIN blood_requests br ON dc.request_id = br.request_id
+       LEFT JOIN hospitals h ON dc.hospital_id = h.hospital_id
+       WHERE dc.donor_id = $1
+       ORDER BY dc.created_at DESC
+       LIMIT 20`,
+      [req.params.donorId]
     );
-
-    res.json({
-      success: true,
-      commitments: commitments.rows
-    });
-  } catch (error) {
-    console.error('Error fetching commitments:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch commitments' });
+    
+    res.json({ success: true, commitments: rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
-/**
- * Schedule a donation (non-emergency)
- */
-app.post('/api/server/donor/schedule-donation', async (req, res) => {
-  try {
-    const { donorId, hospitalId, scheduledDate, donationType } = req.body;
 
-    if (!donorId || !hospitalId || !scheduledDate) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Donor ID, hospital ID, and scheduled date are required' 
-      });
-    }
-
-    // Verify donor exists
-    const donor = await pool.query(
-      'SELECT * FROM users WHERE user_id = $1 AND role = $2',
-      [donorId, 'donor']
-    );
-
-    if (donor.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Donor not found' });
-    }
-
-    // Verify hospital exists
-    const hospital = await pool.query(
-      'SELECT * FROM hospitals WHERE hospital_id = $1',
-      [hospitalId]
-    );
-
-    if (hospital.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Hospital not found' });
-    }
-
-    // Generate token for appointment
-    const token = generateToken(12);
-
-    // Create donation appointment
-    const appointment = await pool.query(
-      `INSERT INTO donations 
-        (donor_id, hospital_id, donation_type, scheduled_date, status, qr_data, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW())
-       RETURNING donation_id, qr_data`,
-      [donorId, hospitalId, donationType || 'scheduled', scheduledDate, 'scheduled', token]
-    );
-
-    res.json({
-      success: true,
-      message: 'Donation scheduled successfully',
-      appointment: {
-        appointmentId: appointment.rows[0].donation_id,
-        token: appointment.rows[0].qr_data,
-        hospital: hospital.rows[0].hospital_name,
-        scheduledDate: scheduledDate
-      }
-    });
-  } catch (error) {
-    console.error('Error scheduling donation:', error);
-    res.status(500).json({ success: false, message: 'Failed to schedule donation' });
-  }
-});
-
-/**
- * Get nearby hospitals for scheduling
- */
-app.get('/api/server/donor/nearby-hospitals/:donorId', async (req, res) => {
-  try {
-    const { donorId } = req.params;
-    const { radius = 50 } = req.query; // Default 50km radius
-
-    // Get donor location
-    const donor = await pool.query(
-      'SELECT latitude, longitude FROM users WHERE user_id = $1',
-      [donorId]
-    );
-
-    if (donor.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'Donor not found' });
-    }
-
-    const { latitude, longitude } = donor.rows[0];
-
-    if (!latitude || !longitude) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Donor location not available' 
-      });
-    }
-
-    // Find nearby hospitals
-    const hospitals = await pool.query(
-      `SELECT 
-        h.hospital_id,
-        h.hospital_name,
-        h.address,
-        h.pincode,
-        h.phone_number,
-        h.latitude,
-        h.longitude,
-        ROUND(
-          (6371 * acos(
-            cos(radians($1)) * cos(radians(h.latitude)) * 
-            cos(radians(h.longitude) - radians($2)) + 
-            sin(radians($1)) * sin(radians(h.latitude))
-          ))::numeric, 2
-        ) as distance_km
-      FROM hospitals h
-      WHERE h.latitude IS NOT NULL 
-        AND h.longitude IS NOT NULL
-        AND (6371 * acos(
-          cos(radians($1)) * cos(radians(h.latitude)) * 
-          cos(radians(h.longitude) - radians($2)) + 
-          sin(radians($1)) * sin(radians(h.latitude))
-        )) <= $3
-      ORDER BY distance_km
-      LIMIT 20`,
-      [latitude, longitude, radius]
-    );
-
-    res.json({
-      success: true,
-      hospitals: hospitals.rows
-    });
-  } catch (error) {
-    console.error('Error fetching nearby hospitals:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch hospitals' });
-  }
-});
 
 // SERVER START
 const PORT = process.env.PORT || 3000;

@@ -11,716 +11,806 @@
     
     <link rel="stylesheet" href="style.css">
     
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    
     <style>
-        .dashboard-header {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            color: white;
-            padding: var(--space-8) 0;
+        /* These styles bridge the gap between the design system and 
+          dashboard-specific components, using the system's variables.
+        */
+        
+        /* Tab Navigation */
+        .dashboard-tabs {
+            display: flex;
+            gap: var(--space-2);
+            background: var(--neutral-100);
+            padding: var(--space-1);
+            border-radius: var(--radius-lg);
             margin-bottom: var(--space-8);
+            overflow-x: auto; /* For mobile */
         }
         
-        .welcome-section {
+        .dashboard-tab {
+            flex: 1;
+            min-width: 100px; /* For mobile */
+            padding: var(--space-3) var(--space-4);
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            color: var(--neutral-600);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            white-space: nowrap;
+        }
+        
+        .dashboard-tab.active {
+            background: white;
+            color: var(--primary-600);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Welcome Header */
+        .dashboard-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: var(--space-4);
-        }
-        
-        .welcome-text h1 {
-            margin: 0 0 var(--space-2) 0;
-            font-size: var(--text-3xl);
-        }
-        
-        .welcome-text p {
-            margin: 0;
-            opacity: 0.9;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: var(--space-4);
             margin-bottom: var(--space-8);
         }
-        
-        .stat-card {
-            background: white;
-            padding: var(--space-5);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-sm);
-            text-align: center;
-        }
-        
-        .stat-value {
-            font-size: var(--text-3xl);
+
+        /* Reliability Badge */
+        .reliability-badge {
+            display: inline-block;
+            padding: var(--space-3) var(--space-5);
+            border-radius: var(--radius-full);
+            font-size: var(--text-2xl);
             font-weight: var(--font-bold);
-            color: var(--primary);
-            margin: var(--space-2) 0;
-        }
-        
-        .stat-label {
-            color: var(--neutral-600);
-            font-size: var(--text-sm);
-        }
-        
-        .sos-alert {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
             color: white;
-            padding: var(--space-5);
-            border-radius: var(--radius-lg);
-            margin-bottom: var(--space-4);
-            animation: pulse 2s infinite;
+            line-height: 1;
         }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-        }
-        
-        .sos-alert h3 {
-            margin: 0 0 var(--space-2) 0;
-            display: flex;
-            align-items: center;
-            gap: var(--space-2);
-        }
-        
-        .sos-details {
+        .score-excellent { background: var(--success); }
+        .score-good { background: #8bc34a; } /* Custom green */
+        .score-average { background: var(--warning); }
+        .score-poor { background: var(--error); }
+
+        /* Stats Grid */
+        .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: var(--space-3);
-            margin: var(--space-4) 0;
-        }
-        
-        .sos-detail {
-            background: rgba(255, 255, 255, 0.2);
-            padding: var(--space-3);
-            border-radius: var(--radius-md);
-        }
-        
-        .sos-detail-label {
-            font-size: var(--text-xs);
-            opacity: 0.9;
-        }
-        
-        .sos-detail-value {
-            font-size: var(--text-lg);
-            font-weight: var(--font-bold);
-            margin-top: var(--space-1);
-        }
-        
-        .no-alerts {
-            background: var(--success-light);
-            color: var(--success);
-            padding: var(--space-5);
-            border-radius: var(--radius-lg);
+            gap: var(--space-6);
             text-align: center;
-            border: 1px solid var(--success);
         }
-        
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: var(--space-4);
+        .stats-item h4 {
+            font-size: var(--text-3xl);
+            color: var(--primary-600);
+            margin-bottom: var(--space-2);
         }
-        
-        .section-header h2 {
+        .stats-item p {
+            font-size: var(--text-sm);
+            color: var(--neutral-600);
             margin: 0;
         }
-        
-        .appointment-card {
-            background: white;
-            padding: var(--space-5);
+
+        /* Eligibility Form */
+        .questionnaire-item {
+            padding: var(--space-4);
+            border: 1px solid var(--neutral-200);
             border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-sm);
             margin-bottom: var(--space-4);
-            border-left: 4px solid var(--primary);
         }
-        
-        .appointment-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: start;
-            margin-bottom: var(--space-3);
-        }
-        
-        .appointment-status {
-            padding: var(--space-1) var(--space-3);
-            border-radius: var(--radius-full);
-            font-size: var(--text-xs);
+        .questionnaire-item .form-label {
+            font-size: var(--text-base);
             font-weight: var(--font-semibold);
+            color: var(--neutral-800);
         }
-        
-        .status-committed {
-            background: var(--warning-light);
-            color: var(--warning);
+        .radio-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-4);
+            margin-top: var(--space-3);
         }
-        
-        .status-scheduled {
-            background: var(--info-light);
-            color: var(--info);
+
+        /* SOS Alert Cards */
+        .sos-card-header {
+            background: var(--error-light);
+            border: 2px solid var(--error);
+            padding: var(--space-6);
+            border-radius: var(--radius-xl);
+            margin-bottom: var(--space-6);
         }
-        
-        .status-completed {
-            background: var(--success-light);
-            color: var(--success);
+        .sos-card-header h3 {
+            color: var(--error);
+            margin: 0 0 var(--space-2) 0;
         }
-        
-        .empty-state {
-            text-align: center;
-            padding: var(--space-10);
-            color: var(--neutral-500);
+        .sos-card-header p {
+            color: var(--neutral-700);
+            margin: 0 0 var(--space-4) 0;
         }
-        
-        .empty-state-icon {
-            font-size: 4rem;
+        .sos-request-item.card {
+            border-left: 5px solid var(--error);
             margin-bottom: var(--space-4);
         }
-        
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
+        .sos-request-item .card-title {
+            color: var(--error);
+        }
+
+        /* QR Code Display */
+        .qr-display {
+            width: 200px;
+            height: 200px;
+            margin: var(--space-6) auto var(--space-4);
+            padding: var(--space-4);
+            background: white;
+            border: 2px solid var(--primary-500);
+            border-radius: var(--radius-lg);
+            display: flex;
             align-items: center;
             justify-content: center;
         }
-        
-        .modal.active {
-            display: flex;
-        }
-        
-        .modal-content {
-            background: white;
+        .qr-display-container {
+            text-align: center;
             padding: var(--space-6);
-            border-radius: var(--radius-lg);
-            max-width: 500px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
         }
-        
-        .modal-header {
+        .qr-display-container p {
+            margin-bottom: var(--space-2);
+        }
+
+        /* Confirmation Modal */
+        .confirmation-modal {
+            display: none;
+            position: fixed;
+            z-index: var(--z-modal);
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin-bottom: var(--space-4);
+            justify-content: center;
+            padding: var(--space-4);
         }
         
-        .modal-close {
-            background: none;
+        .confirmation-modal .card {
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            animation: fadeInUp 0.3s ease-out;
             border: none;
-            font-size: var(--text-2xl);
-            cursor: pointer;
-            color: var(--neutral-500);
+            box-shadow: var(--shadow-2xl);
         }
+
+        .confirmation-modal .card-title {
+            color: var(--error);
+        }
+        
+        .confirmation-buttons {
+            display: flex;
+            gap: var(--space-4);
+            justify-content: center;
+            margin-top: var(--space-6);
+        }
+        
+        /* Message Area */
+        .message-area {
+            margin-top: var(--space-4);
+            padding: var(--space-4);
+            border-radius: var(--radius-lg);
+            display: none;
+        }
+        .message-area.message-success {
+            display: block;
+            background: var(--success-light);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+        .message-area.message-error {
+            display: block;
+            background: var(--error-light);
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+
     </style>
 </head>
 <body>
-    <!-- Dashboard Header -->
-    <div class="dashboard-header">
+
+<header id="main-header">
+    <div class="header-container">
+        <a href="index.html" class="logo">
+            <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+            <span>LifeLink</span>
+        </a>
+        <nav id="main-nav">
+             <button id="logoutBtn" class="btn btn-outline btn-sm">Logout</button>
+        </nav>
+        <button class="mobile-menu-toggle" aria-label="Toggle menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+    </div>
+</header>
+
+<main>
+    <section class="section" style="background: white;">
         <div class="section-container">
-            <div class="welcome-section">
-                <div class="welcome-text">
-                    <h1>Welcome, <span id="donor-name">Donor</span>! 🩸</h1>
-                    <p>Thank you for being a life-saving hero</p>
-                </div>
-                <div>
-                    <button class="btn btn-outline" style="color: white; border-color: white;" onclick="LifeLinkAPI.logout()">
-                        Logout
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <main>
-        <!-- Stats Section -->
-        <section class="section">
-            <div class="section-container">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-label">Blood Type</div>
-                        <div class="stat-value" id="blood-type">-</div>
+            <div class="dashboard-header">
+                <h2 id="welcome-message" style="margin: 0;">Welcome, Donor!</h2>
+                <div id="reliability-display">
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Total Donations</div>
-                        <div class="stat-value" id="total-donations">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Lives Saved</div>
-                        <div class="stat-value" id="lives-saved">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Active Requests</div>
-                        <div class="stat-value" id="active-requests">0</div>
-                    </div>
-                </div>
             </div>
-        </section>
 
-        <!-- SOS Monitor Section -->
-        <section class="section" style="background: var(--neutral-50);">
-            <div class="section-container">
-                <div class="section-header">
-                    <h2>🚨 Urgent Blood Requests</h2>
-                    <button class="btn btn-outline" onclick="refreshAlerts()">
-                        <span id="refresh-icon">🔄</span> Refresh
-                    </button>
-                </div>
-                
-                <div id="sos-alerts-container">
-                    <!-- SOS alerts will be loaded here -->
-                    <div class="empty-state">
-                        <div class="empty-state-icon">⏳</div>
-                        <p>Loading urgent requests...</p>
-                    </div>
-                </div>
+            <div class="dashboard-tabs">
+                <button class="dashboard-tab active" onclick="showTab('home', event)">Home</button>
+                <button class="dashboard-tab" onclick="showTab('eligibility', event)">Eligibility</button>
+                <button class="dashboard-tab" onclick="showTab('sos', event)">SOS Alerts</button>
+                <button class="dashboard-tab" onclick="showTab('checkin', event)">Check-In</button>
+                <button class="dashboard-tab" onclick="showTab('schedule', event)">Schedule</button>
             </div>
-        </section>
 
-        <!-- Appointments Section -->
-        <section class="section">
-            <div class="section-container">
-                <div class="section-header">
-                    <h2>📅 My Appointments</h2>
-                    <button class="btn btn-primary" onclick="openScheduleModal()">
-                        Schedule Donation
-                    </button>
-                </div>
-                
-                <div id="appointments-container">
-                    <!-- Appointments will be loaded here -->
-                    <div class="empty-state">
-                        <div class="empty-state-icon">⏳</div>
-                        <p>Loading appointments...</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <!-- Schedule Donation Modal -->
-    <div id="schedule-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Schedule a Donation</h3>
-                <button class="modal-close" onclick="closeScheduleModal()">×</button>
-            </div>
-            
-            <form id="schedule-form">
-                <div class="form-group">
-                    <label class="form-label">Select Hospital</label>
-                    <select class="form-input" id="hospital-select" required>
-                        <option value="">Loading hospitals...</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Donation Date</label>
-                    <input type="date" class="form-input" id="donation-date" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Donation Type</label>
-                    <select class="form-input" id="donation-type">
-                        <option value="whole_blood">Whole Blood</option>
-                        <option value="platelets">Platelets</option>
-                        <option value="plasma">Plasma</option>
-                    </select>
-                </div>
-                
-                <div id="schedule-message" class="form-message"></div>
-                
-                <div style="display: flex; gap: var(--space-3); margin-top: var(--space-4);">
-                    <button type="button" class="btn btn-outline" onclick="closeScheduleModal()" style="flex: 1;">
-                        Cancel
-                    </button>
-                    <button type="submit" class="btn btn-primary" style="flex: 1;">
-                        Schedule
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <footer>
-        <div class="footer-container">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h4>LifeLink</h4>
-                    <p>Saving lives through blood donation.</p>
-                </div>
-                <div class="footer-section">
-                    <h4>Quick Links</h4>
-                    <p><a href="index.html">Home</a></p>
-                    <p><a href="donor-questionnaire.html">Eligibility</a></p>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>© 2025 LifeLink. All rights reserved.</p>
-            </div>
-        </div>
-    </footer>
-
-    <!-- Include API Client -->
-    <script src="lifelink-api.js"></script>
-    
-    <script>
-        let currentUser = null;
-        let alertsRefreshInterval = null;
-
-        // Initialize dashboard
-        async function initDashboard() {
-            // Check authentication
-            LifeLinkAPI.requireAuth('donor-login.html');
-            
-            currentUser = LifeLinkAPI.getCurrentUser();
-            
-            if (!currentUser || currentUser.role !== 'donor') {
-                window.location.href = 'donor-login.html';
-                return;
-            }
-            
-            // Display user info
-            document.getElementById('donor-name').textContent = currentUser.fullName || 'Donor';
-            document.getElementById('blood-type').textContent = currentUser.bloodType || '-';
-            
-            // Load data
-            await Promise.all([
-                loadAlerts(),
-                loadAppointments()
-            ]);
-            
-            // Auto-refresh alerts every 30 seconds
-            alertsRefreshInterval = setInterval(loadAlerts, 30000);
-        }
-        
-        // Load SOS alerts
-        async function loadAlerts() {
-            const container = document.getElementById('sos-alerts-container');
-            
-            try {
-                const alerts = await LifeLinkAPI.donor.getAlerts(currentUser.userId);
-                
-                if (!alerts || alerts.length === 0) {
-                    container.innerHTML = `
-                        <div class="no-alerts">
-                            <h3 style="margin: 0 0 var(--space-2) 0;">✅ No Urgent Requests</h3>
-                            <p style="margin: 0;">Great! There are no urgent blood requests at the moment.</p>
+            <div id="tab-home" class="tab-content active">
+                <div class="grid grid-cols-2">
+                    <div class="card">
+                        <h3 class="card-title">Your Reliability Score</h3>
+                        <div class="card-body" id="reliability-details">
+                            <p>Loading score...</p>
                         </div>
-                    `;
-                    document.getElementById('active-requests').textContent = '0';
-                    return;
-                }
-                
-                // Display alerts
-                container.innerHTML = alerts.map(alert => `
-                    <div class="sos-alert">
-                        <h3>
-                            <span>🚨</span>
-                            <span>URGENT: ${alert.blood_type_needed} Blood Needed</span>
-                        </h3>
-                        <p style="margin: 0 0 var(--space-3) 0; opacity: 0.9;">
-                            Patient: ${alert.patient_name || 'Anonymous'} • ${alert.distance_km || '?'} km away
+                    </div>
+                    
+                    <div class="card">
+                        <h3 class="card-title">Quick Stats</h3>
+                        <div class="card-body" id="quick-stats">
+                             <div class="stats-grid">
+                                <div class="stats-item">
+                                    <h4 id="stat-donations">0</h4>
+                                    <p>Total Donations</p>
+                                </div>
+                                <div class="stats-item">
+                                    <h4 id="stat-lives-saved">0</h4>
+                                    <p>Lives Saved</p>
+                                </div>
+                                <div class="stats-item">
+                                    <h4 id="stat-next-eligible">--</h4>
+                                    <p>Next Eligible On</p>
+                                </div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-eligibility" class="tab-content">
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title">Donor Eligibility Check</h3>
+                        <p class="section-description" style="text-align: left; margin: 0 0 var(--space-6) 0; padding: 0;">
+                            Please answer these questions to confirm your eligibility to donate blood.
                         </p>
                         
-                        <div class="sos-details">
-                            <div class="sos-detail">
-                                <div class="sos-detail-label">Blood Type</div>
-                                <div class="sos-detail-value">${alert.blood_type_needed}</div>
+                        <form id="eligibility-form">
+                            <div class="questionnaire-item">
+                                <label class="form-label">1. Are you 18 years or older?</label>
+                                <div class="radio-group">
+                                    <label class="form-checkbox"><input type="radio" name="age" value="true" required> Yes</label>
+                                    <label class="form-checkbox"><input type="radio" name="age" value="false"> No</label>
+                                </div>
                             </div>
-                            <div class="sos-detail">
-                                <div class="sos-detail-label">Distance</div>
-                                <div class="sos-detail-value">${alert.distance_km || '?'} km</div>
+
+                            <div class="questionnaire-item">
+                                <label class="form-label">2. Have you had any infections in the past 2 weeks?</label>
+                                <div class="radio-group">
+                                    <label class="form-checkbox"><input type="radio" name="infection" value="true" required> Yes</label>
+                                    <label class="form-checkbox"><input type="radio" name="infection" value="false"> No</label>
+                                </div>
                             </div>
-                            <div class="sos-detail">
-                                <div class="sos-detail-label">Location</div>
-                                <div class="sos-detail-value">${alert.pincode || 'N/A'}</div>
+
+                            <div class="questionnaire-item">
+                                <label class="form-label">3. Have you gotten a tattoo or piercing in the past 6 months?</label>
+                                <div class="radio-group">
+                                    <label class="form-checkbox"><input type="radio" name="tattoo" value="true" required> Yes</label>
+                                    <label class="form-checkbox"><input type="radio" name="tattoo" value="false"> No</label>
+                                </div>
                             </div>
-                            <div class="sos-detail">
-                                <div class="sos-detail-label">Time</div>
-                                <div class="sos-detail-value">${formatTime(alert.created_at)}</div>
+
+                            <div class="questionnaire-item">
+                                <label class="form-label">4. Have you consumed alcohol in the past 24 hours?</label>
+                                <div class="radio-group">
+                                    <label class="form-checkbox"><input type="radio" name="alcohol" value="true" required> Yes</label>
+                                    <label class="form-checkbox"><input type="radio" name="alcohol" value="false"> No</label>
+                                </div>
                             </div>
-                        </div>
-                        
-                        <button class="btn" 
-                                style="background: white; color: var(--error); width: 100%; font-weight: var(--font-bold);"
-                                onclick="acceptSOS(${alert.request_id})">
-                            Accept & Help Save a Life
-                        </button>
+
+                            <div class="questionnaire-item">
+                                <label class="form-label">5. Are you currently taking any medication?</label>
+                                <div class="radio-group">
+                                    <label class="form-checkbox"><input type="radio" name="medication" value="true" required> Yes</label>
+                                    <label class="form-checkbox"><input type="radio" name="medication" value="false"> No</label>
+                                </div>
+                                <input type="text" id="medication-details" placeholder="If yes, please specify" class="form-input" style="margin-top: var(--space-4);">
+                            </div>
+
+                            <button type="submit" class="btn btn-primary" style="width: 100%;">Check Eligibility</button>
+                        </form>
+                        <div id="eligibility-result" class="message-area"></div>
                     </div>
-                `).join('');
+                </div>
+            </div>
+
+            <div id="tab-sos" class="tab-content">
+                <div class="sos-card-header">
+                    <h3>🚨 Emergency Blood Requests</h3>
+                    <p>These patients need your blood type urgently!</p>
+                    <button onclick="refreshSOSAlerts()" class="btn btn-outline" style="background: white; border-color: var(--error); color: var(--error);">
+                        🔄 Refresh
+                    </button>
+                </div>
                 
-                document.getElementById('active-requests').textContent = alerts.length;
-            } catch (error) {
-                console.error('Error loading alerts:', error);
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">⚠️</div>
-                        <p style="color: var(--error);">Failed to load alerts. Please try again.</p>
-                        <button class="btn btn-primary" onclick="loadAlerts()">Retry</button>
+                <div id="sos-alerts-list">
                     </div>
-                `;
-            }
-        }
-        
-        // Accept SOS request
-        async function acceptSOS(requestId) {
-            if (!confirm('Are you sure you want to accept this blood donation request?')) {
-                return;
-            }
-            
-            try {
-                const result = await LifeLinkAPI.donor.acceptSOS(currentUser.userId, requestId);
-                
-                if (result.success) {
-                    // Reload data
-                    await Promise.all([
-                        loadAlerts(),
-                        loadAppointments()
-                    ]);
-                }
-            } catch (error) {
-                alert('Error: ' + (error.message || 'Failed to accept request'));
-            }
-        }
-        
-        // Load appointments
-        async function loadAppointments() {
-            const container = document.getElementById('appointments-container');
-            
-            try {
-                const commitments = await LifeLinkAPI.donor.getCommitments(currentUser.userId);
-                
-                if (!commitments || commitments.length === 0) {
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">📭</div>
-                            <p>No appointments yet</p>
-                            <button class="btn btn-primary" onclick="openScheduleModal()">
-                                Schedule Your First Donation
-                            </button>
-                        </div>
-                    `;
-                    document.getElementById('total-donations').textContent = '0';
-                    document.getElementById('lives-saved').textContent = '0';
-                    return;
-                }
-                
-                // Display appointments
-                container.innerHTML = commitments.map(appointment => `
-                    <div class="appointment-card">
-                        <div class="appointment-header">
-                            <div>
-                                <h4 style="margin: 0 0 var(--space-1) 0;">${appointment.hospital_name}</h4>
-                                <p style="margin: 0; color: var(--neutral-600); font-size: var(--text-sm);">
-                                    ${appointment.address}, ${appointment.pincode}
-                                </p>
-                            </div>
-                            <span class="appointment-status status-${appointment.status}">
-                                ${appointment.status.toUpperCase()}
-                            </span>
-                        </div>
-                        
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); margin-top: var(--space-3);">
-                            <div>
-                                <div style="font-size: var(--text-xs); color: var(--neutral-600);">Blood Type Needed</div>
-                                <div style="font-weight: var(--font-semibold); margin-top: var(--space-1);">${appointment.blood_type_needed}</div>
-                            </div>
-                            <div>
-                                <div style="font-size: var(--text-xs); color: var(--neutral-600);">Your Token</div>
-                                <div style="font-weight: var(--font-semibold); margin-top: var(--space-1); font-family: monospace;">${appointment.donor_token}</div>
-                            </div>
-                            <div>
-                                <div style="font-size: var(--text-xs); color: var(--neutral-600);">Patient</div>
-                                <div style="font-weight: var(--font-semibold); margin-top: var(--space-1);">${appointment.patient_name || 'Anonymous'}</div>
-                            </div>
-                            <div>
-                                <div style="font-size: var(--text-xs); color: var(--neutral-600);">Scheduled</div>
-                                <div style="font-weight: var(--font-semibold); margin-top: var(--space-1);">${formatDate(appointment.created_at)}</div>
-                            </div>
-                        </div>
-                        
-                        ${appointment.status === 'committed' ? `
-                            <div style="margin-top: var(--space-3); padding: var(--space-3); background: var(--warning-light); border-radius: var(--radius-md);">
-                                <p style="margin: 0; color: var(--warning); font-size: var(--text-sm); font-weight: var(--font-semibold);">
-                                    ⏰ Please arrive at the hospital soon with your token: ${appointment.donor_token}
-                                </p>
-                            </div>
-                        ` : ''}
-                        
-                        <div style="margin-top: var(--space-3); display: flex; gap: var(--space-2);">
-                            <a href="tel:${appointment.phone_number}" class="btn btn-outline" style="flex: 1;">
-                                📞 Call Hospital
-                            </a>
-                            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(appointment.address)}" 
-                               target="_blank" class="btn btn-outline" style="flex: 1;">
-                                🗺️ Get Directions
-                            </a>
-                        </div>
+            </div>
+
+            <div id="tab-checkin" class="tab-content">
+                <div class="card">
+                    <h3 class="card-title" style="text-align: center;">Hospital Check-In</h3>
+                    <div id="checkin-display">
+                        <p style="text-align: center; color: var(--neutral-500); padding: var(--space-8);">No active appointment</p>
                     </div>
-                `).join('');
-                
-                // Update stats
-                const completedCount = commitments.filter(c => c.status === 'completed').length;
-                document.getElementById('total-donations').textContent = completedCount;
-                document.getElementById('lives-saved').textContent = completedCount * 3; // Each donation saves ~3 lives
-            } catch (error) {
-                console.error('Error loading appointments:', error);
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">⚠️</div>
-                        <p style="color: var(--error);">Failed to load appointments</p>
-                        <button class="btn btn-primary" onclick="loadAppointments()">Retry</button>
+                </div>
+            </div>
+
+            <div id="tab-schedule" class="tab-content">
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title">Schedule a Casual Donation</h3>
+                        <form id="schedule-form">
+                            <div class="form-group">
+                                <label class="form-label" for="schedule-pincode">Pincode (Optional)</label>
+                                <input type="text" id="schedule-pincode" class="form-input" placeholder="Enter 6-digit pincode" maxlength="6">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="schedule-date">Preferred Date</label>
+                                <input type="date" id="schedule-date" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="schedule-time">Time Slot</label>
+                                <select id="schedule-time" class="form-select">
+                                    <option>Morning (9am-12pm)</option>
+                                    <option>Afternoon (1pm-4pm)</option>
+                                    <option>Evening (5pm-8pm)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="width: 100%;">Find Nearest Hospital</button>
+                        </form>
+                        <div id="schedule-message" class="message-area"></div>
+                        <div id="schedule-result"></div>
                     </div>
-                `;
-            }
-        }
-        
-        // Open schedule modal
-        async function openScheduleModal() {
-            const modal = document.getElementById('schedule-modal');
-            modal.classList.add('active');
-            
-            // Load nearby hospitals
-            try {
-                const result = await LifeLinkAPI.donor.getNearbyHospitals(currentUser.userId);
-                const select = document.getElementById('hospital-select');
-                
-                if (result.success && result.hospitals.length > 0) {
-                    select.innerHTML = '<option value="">Select a hospital</option>' +
-                        result.hospitals.map(h => `
-                            <option value="${h.hospital_id}">
-                                ${h.hospital_name} - ${h.distance_km} km away
-                            </option>
-                        `).join('');
-                } else {
-                    select.innerHTML = '<option value="">No hospitals found nearby</option>';
-                }
-            } catch (error) {
-                document.getElementById('hospital-select').innerHTML = 
-                    '<option value="">Error loading hospitals</option>';
-            }
-            
-            // Set minimum date to today
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('donation-date').min = today;
-            document.getElementById('donation-date').value = today;
-        }
-        
-        // Close schedule modal
-        function closeScheduleModal() {
-            document.getElementById('schedule-modal').classList.remove('active');
-            document.getElementById('schedule-form').reset();
-            document.getElementById('schedule-message').textContent = '';
-        }
-        
-        // Handle schedule form submission
-        document.getElementById('schedule-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const hospitalId = document.getElementById('hospital-select').value;
-            const date = document.getElementById('donation-date').value;
-            const type = document.getElementById('donation-type').value;
-            const messageEl = document.getElementById('schedule-message');
-            
-            if (!hospitalId) {
-                messageEl.textContent = 'Please select a hospital';
-                messageEl.className = 'form-message form-error';
-                return;
-            }
-            
-            try {
-                messageEl.textContent = 'Scheduling donation...';
-                messageEl.className = 'form-message';
-                
-                const result = await LifeLinkAPI.donor.scheduleDonation(
-                    currentUser.userId,
-                    hospitalId,
-                    date,
-                    type
-                );
-                
-                if (result.success) {
-                    messageEl.textContent = 'Donation scheduled successfully!';
-                    messageEl.className = 'form-message form-success';
-                    
-                    setTimeout(() => {
-                        closeScheduleModal();
-                        loadAppointments();
-                    }, 1500);
-                }
-            } catch (error) {
-                messageEl.textContent = error.message || 'Failed to schedule donation';
-                messageEl.className = 'form-message form-error';
-            }
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<div id="confirmation-modal" class="confirmation-modal" style="display: none;">
+    <div class="card">
+        <h3 class="card-title" id="confirmation-title">Confirm SOS Acceptance</h3>
+        <div class="card-body">
+            <p id="confirmation-text" style="white-space: pre-wrap;"></p>
+        </div>
+        <div class="confirmation-buttons" id="confirmation-buttons">
+            </div>
+    </div>
+</div>
+
+<footer>
+    <div class="footer-container">
+        <div class="footer-bottom">
+            <p>© 2025 LifeLink. All rights reserved. Saving lives through technology.</p>
+        </div>
+    </div>
+</footer>
+
+<script>
+let donor = null;
+let currentSOSRequest = null;
+let confirmationStep = 0;
+
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Session/Auth Check ---
+    // Use the name set during login
+    const donorName = sessionStorage.getItem('currentDonorName'); 
+    if (!donorName) {
+        window.location.href = 'donor-login.html';
+        return;
+    }
+    
+    // Mock donor object based on login. 
+    // In a real app, you'd fetch this from /api/donor/me
+    donor = {
+        full_name: donorName,
+        user_id: sessionStorage.getItem('currentDonorId') || 'D12345', // Mock ID if not set
+        blood_type: sessionStorage.getItem('currentDonorBloodType') || 'O+' // Mock type
+    };
+
+    document.getElementById('welcome-message').textContent = `Welcome, ${donor.full_name}!`;
+    
+    // --- Page Setup ---
+    // Set min date for scheduling
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('schedule-date').setAttribute('min', today);
+    
+    // --- Load Initial Data ---
+    loadReliabilityScore();
+    loadQuickStats(); // Added this function
+    refreshSOSAlerts();
+    loadCheckInQR();
+    
+    // --- Form Listeners ---
+    document.getElementById('eligibility-form').addEventListener('submit', checkEligibility);
+    document.getElementById('schedule-form').addEventListener('submit', scheduleDonation);
+    
+    // --- Logout ---
+    document.getElementById('logoutBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        sessionStorage.clear();
+        window.location.href = 'donor-login.html';
+    });
+    
+    // --- Mobile Menu (from index.html) ---
+    const menuToggle = document.querySelector('.mobile-menu-toggle');
+    const nav = document.getElementById('main-nav');
+    if (menuToggle) {
+        menuToggle.addEventListener('click', () => {
+            nav.classList.toggle('open');
+            menuToggle.classList.toggle('active');
         });
+    }
+});
+
+function showTab(tabName, event) {
+    document.querySelectorAll('.dashboard-tab').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    if (event) {
+        event.target.classList.add('active');
+    } else {
+        // Fallback if called without an event
+        document.querySelector(`.dashboard-tab[onclick*="'${tabName}'"]`).classList.add('active');
+    }
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+}
+
+// ============================================================================
+// DATA LOADING FUNCTIONS
+// ============================================================================
+
+async function loadReliabilityScore() {
+    // --- MOCK FUNCTION ---
+    // In a real app: await fetch(`/api/donor/reliability-score/${donor.user_id}`);
+    const data = {
+        success: true,
+        score: 92.5,
+        total: 8,
+        successful: 7,
+        noShows: 1,
+        strikes: 1
+    };
+    
+    if (data.success) {
+        const score = data.score;
+        let badgeClass = 'score-excellent';
+        if (score < 70) badgeClass = 'score-poor';
+        else if (score < 85) badgeClass = 'score-average';
+        else if (score < 95) badgeClass = 'score-good';
         
-        // Refresh alerts manually
-        async function refreshAlerts() {
-            const icon = document.getElementById('refresh-icon');
-            icon.style.animation = 'spin 1s linear';
-            await loadAlerts();
-            setTimeout(() => {
-                icon.style.animation = '';
-            }, 1000);
-        }
-        
-        // Format time helper
-        function formatTime(dateString) {
-            const date = new Date(dateString);
-            const now = new Date();
-            const diffMs = now - date;
-            const diffMins = Math.floor(diffMs / 60000);
-            
-            if (diffMins < 1) return 'Just now';
-            if (diffMins < 60) return `${diffMins}m ago`;
-            if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-            return `${Math.floor(diffMins / 1440)}d ago`;
-        }
-        
-        // Format date helper
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric',
-                year: 'numeric'
-            });
-        }
-        
-        // Close modal on outside click
-        window.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal')) {
-                e.target.classList.remove('active');
-            }
-        });
-        
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            if (alertsRefreshInterval) {
-                clearInterval(alertsRefreshInterval);
-            }
-        });
-        
-        // Add spin animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes spin {
-                from { transform: rotate(0deg); }
-                to { transform: rotate(360deg); }
-            }
+        document.getElementById('reliability-display').innerHTML = `
+            <span class="reliability-badge ${badgeClass}">${score.toFixed(1)}%</span>
         `;
-        document.head.appendChild(style);
         
-        // Initialize dashboard on page load
-        initDashboard();
-    </script>
+        document.getElementById('reliability-details').innerHTML = `
+            <p><strong>Overall Score:</strong> ${score.toFixed(1)}%</p>
+            <p><strong>Total Commitments:</strong> ${data.total}</p>
+            <p><strong>Successful Check-ins:</strong> ${data.successful}</p>
+            <p><strong>No-shows:</strong> ${data.noShows}</p>
+            <p><strong>Strikes:</strong> ${data.strikes}/3</p>
+            <small>A 'no-show' after committing to an SOS alert adds 1 strike.</small>
+        `;
+    }
+}
+
+async function loadQuickStats() {
+    // --- MOCK FUNCTION ---
+    // In a real app: await fetch(`/api/donor/stats/${donor.user_id}`);
+    const data = {
+        success: true,
+        totalDonations: 7,
+        livesSaved: 21,
+        nextEligibleDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toLocaleDateString() // 45 days from now
+    };
+
+    if (data.success) {
+        document.getElementById('stat-donations').textContent = data.totalDonations;
+        document.getElementById('stat-lives-saved').textContent = data.livesSaved;
+        document.getElementById('stat-next-eligible').textContent = data.nextEligibleDate;
+    }
+}
+
+async function refreshSOSAlerts() {
+    // --- MOCK FUNCTION ---
+    // In a real app: await fetch(`/api/sos/active/${donor.user_id}?bloodType=${donor.blood_type}`);
+    const data = {
+        success: true,
+        requests: [
+            { request_id: 'SOS789', blood_type_needed: 'O+', patient_name: 'R. Sharma', hospital: 'City Hospital', distance: '2.5 km' },
+            { request_id: 'SOS790', blood_type_needed: 'O+', patient_name: 'A. Khan', hospital: 'Metro Health', distance: '7.1 km' }
+        ]
+    };
+    
+    const container = document.getElementById('sos-alerts-list');
+    
+    if (!data.success || !data.requests.length) {
+        container.innerHTML = '<div class="card"><div class="card-body" style="text-align: center; color: var(--neutral-500);">No emergency requests for your blood type right now.</div></div>';
+        return;
+    }
+    
+    container.innerHTML = '';
+    data.requests.forEach(req => {
+        const div = document.createElement('div');
+        div.className = 'card sos-request-item';
+        div.innerHTML = `
+            <div class="card-body">
+                <h4 class="card-title">🆘 ${req.blood_type_needed} Needed at ${req.hospital}</h4>
+                <p><strong>Patient:</strong> ${req.patient_name}</p>
+                <p><strong>Distance:</strong> Approx. ${req.distance}</p>
+                <button class="btn btn-danger" style="width: 100%;" onclick="initiateTwoTapConfirmation(${req.request_id}, '${req.patient_name}', '${req.blood_type_needed}', '${req.hospital}')">Accept & Help</button>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+async function loadCheckInQR() {
+    // --- MOCK FUNCTION ---
+    // In a real app: await fetch(`/api/donor/qr-token/${donor.user_id}`);
+    const data = {
+        success: false // Set to true to test the QR code display
+        // success: true,
+        // qrToken: 'DONOR-D12345-HOSP789-123456789',
+        // hospital: 'City Hospital',
+        // expectedTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
+        // status: 'CONFIRMED'
+    };
+    
+    const display = document.getElementById('checkin-display');
+    
+    if (!data.success) {
+        display.innerHTML = '<p style="text-align: center; color: var(--neutral-500); padding: var(--space-8);">No active appointment</p>';
+        return;
+    }
+    
+    display.innerHTML = `
+        <div class="qr-display-container">
+            <h4>Your Check-In Token</h4>
+            <div class="qr-display" id="qr-container"></div>
+            <p><strong>Token:</strong> ${data.qrToken}</p>
+            <p><strong>Hospital:</strong> ${data.hospital}</p>
+            <p><strong>Expected Time:</strong> ${new Date(data.expectedTime).toLocaleString()}</p>
+            <p><strong>Status:</strong> <strong style="color: var(--success);">${data.status}</strong></p>
+            <small>Show this QR code at the hospital reception.</small>
+        </div>
+    `;
+    
+    // Generate the QR code
+    new QRCode(document.getElementById('qr-container'), {
+        text: data.qrToken,
+        width: 160,
+        height: 160,
+        colorDark : "#0d3230", // var(--primary-800)
+        colorLight : "#ffffff"
+    });
+}
+
+
+// ============================================================================
+// FORM & ACTION HANDLERS
+// ============================================================================
+
+async function checkEligibility(e) {
+    e.preventDefault();
+    const resultEl = document.getElementById('eligibility-result');
+    resultEl.textContent = 'Checking eligibility...';
+    resultEl.className = 'message-area';
+    
+    const formData = new FormData(e.target);
+    const isAbove18 = formData.get('age') === 'true';
+    const hasRecentInfection = formData.get('infection') === 'true';
+    const hasRecentTattoo = formData.get('tattoo') === 'true';
+    const consumedAlcohol24h = formData.get('alcohol') === 'true';
+    const onMedication = formData.get('medication') === 'true';
+    const medicationDetails = document.getElementById('medication-details').value;
+
+    // --- MOCK API CALL ---
+    // In a real app: await fetch('/api/donor/eligibility-check', { ... });
+    const isEligible = isAbove18 && !hasRecentInfection && !hasRecentTattoo && !consumedAlcohol24h;
+    const result = {
+        success: true,
+        eligible: isEligible
+    };
+    
+    // Simulate network delay
+    setTimeout(() => {
+        if (result.success) {
+            if (result.eligible) {
+                resultEl.textContent = '✅ Congratulations! You are eligible to donate blood. This eligibility check is valid for today.';
+                resultEl.className = 'message-area message-success';
+            } else {
+                resultEl.textContent = '❌ Sorry, you are currently not eligible to donate based on your answers. Please contact a medical professional for more details.';
+                resultEl.className = 'message-area message-error';
+            }
+        } else {
+            resultEl.textContent = '❌ Error checking eligibility.';
+            resultEl.className = 'message-area message-error';
+        }
+    }, 500);
+}
+
+// --- TWO-TAP SOS CONFIRMATION ---
+
+function initiateTwoTapConfirmation(requestId, patientName, bloodType, hospital) {
+    currentSOSRequest = { requestId, patientName, bloodType, hospital };
+    confirmationStep = 1;
+    showConfirmationModal();
+}
+
+function showConfirmationModal() {
+    const modal = document.getElementById('confirmation-modal');
+    const title = document.getElementById('confirmation-title');
+    const text = document.getElementById('confirmation-text');
+    const buttons = document.getElementById('confirmation-buttons');
+    
+    if (confirmationStep === 1) {
+        title.textContent = 'First Confirmation';
+        text.textContent = `Are you sure you want to accept this urgent request?\n\nPatient: ${currentSOSRequest.patientName}\nHospital: ${currentSOSRequest.hospital}`;
+        buttons.innerHTML = `
+            <button class="btn btn-outline" onclick="closeConfirmationModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="handleConfirmation(true)">Yes, I Can Help</button>
+        `;
+    } else if (confirmationStep === 2) {
+        title.textContent = 'Final Commitment';
+        text.textContent = `This is your FINAL confirmation.\n\nBy proceeding, you commit to donating. We will request your location to provide an ETA. A no-show will affect your reliability score.`;
+        buttons.innerHTML = `
+            <button class="btn btn-outline" onclick="closeConfirmationModal()">Cancel</button>
+            <button class="btn btn-danger" onclick="handleConfirmation(true)">I Commit - Get My Location</button>
+        `;
+    }
+    
+    modal.style.display = 'flex';
+}
+
+function closeConfirmationModal() {
+    document.getElementById('confirmation-modal').style.display = 'none';
+    confirmationStep = 0;
+    currentSOSRequest = null;
+}
+
+function handleConfirmation(confirmed) {
+    if (!confirmed) {
+        closeConfirmationModal();
+        return;
+    }
+    
+    if (confirmationStep === 1) {
+        confirmationStep = 2;
+        showConfirmationModal();
+    } else if (confirmationStep === 2) {
+        closeConfirmationModal();
+        requestLocationAndConfirm();
+    }
+}
+
+function requestLocationAndConfirm() {
+    if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser. Please enable it to proceed.');
+        return;
+    }
+    
+    // Show a temporary loading message
+    const sosList = document.getElementById('sos-alerts-list');
+    sosList.innerHTML = `<div class="card"><div class="card-body" style="text-align: center;">Getting your location and confirming with hospital...</div></div>` + sosList.innerHTML;
+
+    navigator.geolocation.getCurrentPosition(
+        async (position) => {
+            const { latitude, longitude } = position.coords;
+            await confirmSOSWithLocation(latitude, longitude);
+        },
+        (error) => {
+            alert('Location access denied. Cannot proceed without location.');
+            console.error(error);
+            refreshSOSAlerts(); // Refresh to show the button again
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
+}
+
+async function confirmSOSWithLocation(latitude, longitude) {
+    // --- MOCK API CALL ---
+    // In a real app: await fetch('/api/donor/confirm-sos', { ... });
+    const result = {
+        success: true,
+        hospital: { name: currentSOSRequest.hospital, address: '123 Main St, City' },
+        distance: '5.2 km',
+        etaMinutes: 15,
+        donorToken: `DONOR-${donor.user_id}-SOS${currentSOSRequest.requestId}`
+    };
+
+    if (result.success) {
+        alert(`✅ Confirmed!\n\nHospital: ${result.hospital.name}\nAddress: ${result.hospital.address}\nDistance: ${result.distance}\nETA: ${result.etaMinutes} minutes\n\nYour Token: ${result.donorToken}`);
+        loadCheckInQR(); // Update the QR code tab
+        refreshSOSAlerts(); // Remove the alert from the list
+        showTab('checkin'); // Switch to the checkin tab
+    } else {
+        alert(`❌ Confirmation failed: ${result.message}`);
+        refreshSOSAlerts();
+    }
+}
+
+// --- SCHEDULE DONATION ---
+
+async function scheduleDonation(e) {
+    e.preventDefault();
+    const messageEl = document.getElementById('schedule-message');
+    messageEl.textContent = 'Getting your location...';
+    messageEl.className = 'message-area message-success'; // Use success for in-progress
+    
+    navigator.geolocation.getCurrentPosition(
+        async (position) => {
+            const { latitude, longitude } = position.coords;
+            const pincode = document.getElementById('schedule-pincode').value;
+            const date = document.getElementById('schedule-date').value;
+            const timeSlot = document.getElementById('schedule-time').value;
+            
+            messageEl.textContent = 'Finding nearest hospital and scheduling...';
+            
+            // --- MOCK API CALL ---
+            // In a real app: await fetch('/api/donor/schedule-casual-donation', { ... });
+            const result = {
+                success: true,
+                hospital: { hospital_name: 'Regional Blood Center', address: '456 Park Ave' },
+                appointment: {
+                    token: `DONOR-${donor.user_id}-CASUAL-987`,
+                    time: `${date} ${timeSlot}`
+                }
+            };
+            
+            setTimeout(() => { // Simulate delay
+                if (result.success) {
+                    messageEl.textContent = `✅ Appointment scheduled at ${result.hospital.hospital_name}! See the 'Check-In' tab for your QR code.`;
+                    messageEl.className = 'message-area message-success';
+                    loadCheckInQR(); // Update QR tab
+                    e.target.reset(); // Clear the form
+                } else {
+                    messageEl.textContent = `❌ ${result.message || 'Could not schedule appointment.'}`;
+                    messageEl.className = 'message-area message-error';
+                }
+            }, 1000);
+        },
+        (error) => {
+            messageEl.textContent = '❌ Location access is required to find nearby hospitals.';
+            messageEl.className = 'message-area message-error';
+        }
+    );
+}
+
+</script>
+
 </body>
 </html>
