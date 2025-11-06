@@ -309,83 +309,38 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
 // HOSPITAL AUTHENTICATION
 app.post('/api/server/hospital-register', async (req, res) => {
   const { hospitalName, address, pincode, phoneNumber, password } = req.body;
-  
-  if (!hospitalName || !pincode || !phoneNumber || !password || !address) {
-    return res.status(400).json({ success: false, message: 'All fields required.' });
+  if (!hospitalName || !pincode || !phoneNumber || !password) {
+    return res.status(400).json({ success: false, message: 'All fields are required.' });
   }
-
-  let latitude = null;
-  let longitude = null;
-  
-  try {
-    const fullAddress = `${address}, ${pincode}`;
-    const geoResponse = await axios.get('https://api.opencagedata.com/geocode/v1/json', {
-      params: {
-        q: fullAddress,
-        key: OPENCAGE_API_KEY,
-        limit: 1,
-        countrycode: 'in'
-      }
-    });
-
-    if (geoResponse.data && geoResponse.data.results.length > 0) {
-      const { lat, lng } = geoResponse.data.results[0].geometry;
-      latitude = lat;
-      longitude = lng;
-    } else {
-      throw new Error('Could not geocode address.');
-    }
-  } catch (geoError) {
-    console.error("Geocoding Error:", geoError.message);
-    return res.status(400).json({ success: false, message: 'Could not validate address.' });
-  }
-
   try {
     const existing = await pool.query('SELECT 1 FROM hospitals WHERE phone_number = $1', [phoneNumber]);
-    if (existing.rows.length) {
-      return res.status(409).json({ success: false, message: 'Phone already registered.' });
-    }
+    if (existing.rows.length) return res.status(409).json({ success: false, message: 'Phone number already registered.' });
 
     const last = await pool.query('SELECT hospital_id FROM hospitals ORDER BY hospital_id DESC LIMIT 1');
     const nextNum = last.rows.length ? parseInt(last.rows[0].hospital_id.replace('HOS','')) + 1 : 101;
     const newId = `HOS${nextNum}`;
-
-    const insertQuery = `
-      INSERT INTO hospitals (hospital_id, hospital_name, address, pincode, phone_number, password_hash, blood_inventory, latitude, longitude)
-      VALUES ($1, $2, $3, $4, $5, $6, '{}', $7, $8) 
-      RETURNING hospital_id`;
-    
-    const { rows } = await pool.query(insertQuery, [newId, hospitalName, address, pincode, phoneNumber, password, latitude, longitude]);
-
+    const ins = `
+      INSERT INTO hospitals (hospital_id, hospital_name, address, pincode, phone_number, password_hash, blood_inventory)
+      VALUES ($1,$2,$3,$4,$5,$6,'{}') RETURNING hospital_id`;
+    const { rows } = await pool.query(ins, [newId, hospitalName, address, pincode, phoneNumber, password]);
     res.status(201).json({ success: true, hospitalId: rows[0].hospital_id });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    console.error(e); res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
 app.post('/api/server/hospital-login', async (req, res) => {
   const { hospitalId, password } = req.body;
-  if (!hospitalId || !password) {
-    return res.status(400).json({ success: false, message: 'Hospital ID and password required.' });
-  }
-  
+  if (!hospitalId || !password) return res.status(400).json({ success: false, message: 'Hospital ID and password are required.' });
   try {
     const { rows } = await pool.query('SELECT * FROM hospitals WHERE hospital_id = $1', [hospitalId.toUpperCase()]);
-    if (!rows.length) {
-      return res.status(404).json({ success: false, message: 'Hospital not found.' });
-    }
-    
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Hospital ID not found.' });
     const hospital = rows[0];
-    if (password !== hospital.password_hash) {
-      return res.status(401).json({ success: false, message: 'Invalid password.' });
-    }
-    
-    const { password_hash, ...safeHospital } = hospital;
-    res.json({ success: true, hospital: safeHospital });
+    if (password !== hospital.password_hash) return res.status(401).json({ success: false, message: 'Invalid password.' });
+    const { password_hash, ...safe } = hospital;
+    res.json({ success: true, hospital: safe });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    console.error(e); res.status(500).json({ success:false, message:'Server error.' });
   }
 });
 
