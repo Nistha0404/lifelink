@@ -307,114 +307,41 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
 });
 
 // HOSPITAL AUTHENTICATION
-/**
- * API ENDPOINT: Register a New Hospital
- * --------------------------------------
- * UPDATED: Stores the password in plain text, as requested.
- * Saves latitude and longitude to the database.
- */
 app.post('/api/server/hospital-register', async (req, res) => {
-    
-    // Get all data from the request body
-    const { 
-      hospitalName, 
-      address, 
-      pincode, 
-      phoneNumber, 
-      password, // This is the plain text password
-      latitude, 
-      longitude 
-    } = req.body;
+  const { hospitalName, address, pincode, phoneNumber, password } = req.body;
+  if (!hospitalName || !pincode || !phoneNumber || !password) {
+    return res.status(400).json({ success: false, message: 'All fields are required.' });
+  }
+  try {
+    const existing = await pool.query('SELECT 1 FROM hospitals WHERE phone_number = $1', [phoneNumber]);
+    if (existing.rows.length) return res.status(409).json({ success: false, message: 'Phone number already registered.' });
 
-    // Validate that we actually received location data
-    if (latitude === undefined || longitude === undefined) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Location data (latitude, longitude) is missing. Registration failed.' 
-      });
-    }
-
-    try {
-        const newHospitalId = await generateUniqueHospitalId(); // Assumes this function exists
-        
-        // --- UPDATED SQL QUERY ---
-        // 'password_hash' column will now store the plain text password
-        const query = `
-            INSERT INTO hospital (
-              hospital_id, hospital_name, address, pincode, 
-              phone_number, password_hash, latitude, longitude
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING hospital_id;
-        `;
-        
-        // --- UPDATED VALUES ARRAY ---
-        // Using the 'password' variable directly instead of a hashed password
-        const values = [
-          newHospitalId, 
-          hospitalName, 
-          address, 
-          pincode, 
-          phoneNumber, 
-          password, // Storing plain text password
-          latitude, 
-          longitude
-        ];
-        
-        // Assumes your database connection pool is named 'pool'
-        const result = await pool.query(query, values);
-        
-        res.status(201).json({ 
-          success: true, 
-          hospitalId: result.rows[0].hospital_id 
-        });
-
-    } catch (error) {
-        console.error('Hospital registration error:', error);
-        res.status(500).json({ success: false, message: 'Internal server error' });
-    }
+    const last = await pool.query('SELECT hospital_id FROM hospitals ORDER BY hospital_id DESC LIMIT 1');
+    const nextNum = last.rows.length ? parseInt(last.rows[0].hospital_id.replace('HOS','')) + 1 : 101;
+    const newId = `HOS${nextNum}`;
+    const ins = `
+      INSERT INTO hospitals (hospital_id, hospital_name, address, pincode, phone_number, password_hash, blood_inventory)
+      VALUES ($1,$2,$3,$4,$5,$6,'{}') RETURNING hospital_id`;
+    const { rows } = await pool.query(ins, [newId, hospitalName, address, pincode, phoneNumber, password]);
+    res.status(201).json({ success: true, hospitalId: rows[0].hospital_id });
+  } catch (e) {
+    console.error(e); res.status(500).json({ success: false, message: 'Server error.' });
+  }
 });
 
-/**
- * API ENDPOINT: Hospital Login
- * --------------------------------------
- * UPDATED: Compares plain text passwords.
- */
 app.post('/api/server/hospital-login', async (req, res) => {
-    const { hospitalId, password } = req.body;
-
-    try {
-        // Find the hospital by its ID
-        const query = 'SELECT * FROM hospital WHERE hospital_id = $1';
-        const result = await pool.query(query, [hospitalId]);
-
-        if (result.rows.length === 0) {
-            // No hospital found with that ID
-            return res.status(401).json({ success: false, message: 'Invalid Hospital ID or password' });
-        }
-
-        const hospital = result.rows[0];
-
-        // --- PASSWORD CHECK ---
-        // Direct string comparison instead of bcrypt.compare
-        if (password === hospital.password_hash) {
-            // Passwords match
-            // Remove sensitive data before sending back
-            delete hospital.password_hash; 
-            
-            res.json({ 
-              success: true, 
-              hospital: hospital 
-            });
-        } else {
-            // Passwords do not match
-            res.status(401).json({ success: false, message: 'Invalid Hospital ID or password' });
-        }
-        
-    } catch (error) {
-        console.error('Hospital login error:', error);
-        res.status(500).json({ success: false, message: 'Internal server error' });
-    }
+  const { hospitalId, password } = req.body;
+  if (!hospitalId || !password) return res.status(400).json({ success: false, message: 'Hospital ID and password are required.' });
+  try {
+    const { rows } = await pool.query('SELECT * FROM hospitals WHERE hospital_id = $1', [hospitalId.toUpperCase()]);
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Hospital ID not found.' });
+    const hospital = rows[0];
+    if (password !== hospital.password_hash) return res.status(401).json({ success: false, message: 'Invalid password.' });
+    const { password_hash, ...safe } = hospital;
+    res.json({ success: true, hospital: safe });
+  } catch (e) {
+    console.error(e); res.status(500).json({ success:false, message:'Server error.' });
+  }
 });
 
 
