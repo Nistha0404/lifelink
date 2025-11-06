@@ -179,12 +179,13 @@ function authenticateHospital(req, res, next) {
 app.post('/api/server/register/hospital', async (req, res) => {
   const { hospitalName, phoneNumber, password, address, pincode, email } = req.body;
   
-  console.log('🏥 Hospital registration attempt:', { hospitalName, phoneNumber });
+  console.log('🏥 Hospital registration attempt:', { hospitalName, phoneNumber, pincode });
   
+  // Validation
   if (!hospitalName || !phoneNumber || !password || !address || !pincode) {
     return res.status(400).json({ 
       success: false, 
-      message: 'All fields are required.' 
+      message: 'All fields are required (hospital name, phone, password, address, pincode).' 
     });
   }
   
@@ -209,8 +210,17 @@ app.post('/api/server/register/hospital', async (req, res) => {
     });
   }
   
+  let client;
   try {
-    const existing = await pool.query(
+    // Check database connection
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    // Check if phone exists
+    const existing = await client.query(
       "SELECT hospital_id FROM hospitals WHERE phone_number = $1",
       [phoneNumber]
     );
@@ -222,26 +232,35 @@ app.post('/api/server/register/hospital', async (req, res) => {
       });
     }
     
-    // Get coordinates for pincode
+    // Get coordinates
     const coords = await getCoordsFromPincode(pincode);
+    console.log('📍 Coordinates for pincode', pincode, ':', coords);
     
-    const { rows } = await pool.query(
-      `INSERT INTO hospitals (hospital_name, phone_number, password_hash, address, pincode, email, latitude, longitude, created_at, last_login) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()) 
+    // Insert hospital
+    const { rows } = await client.query(
+      `INSERT INTO hospitals (hospital_name, phone_number, password_hash, address, pincode, email, latitude, longitude, created_at) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) 
        RETURNING hospital_id, hospital_name, phone_number, address, pincode, email`,
-      [hospitalName, phoneNumber, password, address, pincode, email, coords.lat, coords.lon]
+      [hospitalName, phoneNumber, password, address, pincode, email || null, coords.lat, coords.lon]
     );
     
-    console.log(`✅ Hospital registered successfully: ${rows[0].hospital_id}`);
+    console.log('✅ Hospital registered successfully:', rows[0].hospital_id);
     
     res.status(201).json({ 
       success: true, 
       message: 'Hospital registered successfully!',
       hospital: rows[0]
     });
+    
   } catch (e) {
     console.error('❌ Hospital registration error:', e);
+    console.error('Error details:', {
+      message: e.message,
+      code: e.code,
+      detail: e.detail
+    });
     
+    // Handle specific database errors
     if (e.code === '23505') {
       return res.status(409).json({ 
         success: false, 
@@ -249,10 +268,33 @@ app.post('/api/server/register/hospital', async (req, res) => {
       });
     }
     
+    if (e.code === '42P01') {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Database table "hospitals" does not exist. Please run database migrations.' 
+      });
+    }
+    
+    if (e.code === '42703') {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Database column missing. Error: ' + e.message 
+      });
+    }
+    
+    if (e.message.includes('connection')) {
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Database connection error. Please check if POSTGRES_URL is set correctly.' 
+      });
+    }
+    
     res.status(500).json({ 
       success: false, 
-      message: 'Database error. Please try again.' 
+      message: 'Registration failed: ' + e.message 
     });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -275,8 +317,15 @@ app.post('/api/server/login/hospital', async (req, res) => {
     });
   }
   
+  let client;
   try {
-    const { rows } = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    const { rows } = await client.query(
       "SELECT hospital_id, hospital_name, phone_number, address, pincode, email, password_hash FROM hospitals WHERE phone_number = $1",
       [phoneNumber]
     );
@@ -306,7 +355,7 @@ app.post('/api/server/login/hospital', async (req, res) => {
       createdAt: Date.now()
     });
     
-    await pool.query(
+    await client.query(
       "UPDATE hospitals SET last_login = NOW() WHERE hospital_id = $1",
       [hospital.hospital_id]
     );
@@ -330,8 +379,10 @@ app.post('/api/server/login/hospital', async (req, res) => {
     console.error('❌ Hospital login error:', e);
     res.status(500).json({ 
       success: false, 
-      message: 'Database error. Please try again.' 
+      message: 'Login failed: ' + e.message 
     });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -349,8 +400,15 @@ app.post('/api/server/logout/hospital', authenticateHospital, async (req, res) =
 });
 
 app.get('/api/server/verify/hospital', authenticateHospital, async (req, res) => {
+  let client;
   try {
-    const { rows } = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    const { rows } = await client.query(
       "SELECT hospital_id, hospital_name, phone_number, address, pincode, email FROM hospitals WHERE hospital_id = $1",
       [req.hospitalId]
     );
@@ -377,8 +435,10 @@ app.get('/api/server/verify/hospital', authenticateHospital, async (req, res) =>
     console.error('❌ Hospital verification error:', e);
     res.status(500).json({ 
       success: false, 
-      message: 'Server error.' 
+      message: 'Verification failed: ' + e.message 
     });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -387,8 +447,15 @@ app.get('/api/server/verify/hospital', authenticateHospital, async (req, res) =>
 // ============================================================================
 
 app.get('/api/hospital/inventory', authenticateHospital, async (req, res) => {
+  let client;
   try {
-    const { rows } = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    const { rows } = await client.query(
       `SELECT blood_type, units_available, confidence_level, last_updated 
        FROM blood_inventory 
        WHERE hospital_id = $1 
@@ -399,7 +466,12 @@ app.get('/api/hospital/inventory', authenticateHospital, async (req, res) => {
     res.json({ success: true, inventory: rows });
   } catch (e) {
     console.error('❌ Get inventory error:', e);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to load inventory: ' + e.message 
+    });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -428,8 +500,15 @@ app.post('/api/hospital/inventory/update', authenticateHospital, async (req, res
     });
   }
   
+  let client;
   try {
-    const { rows } = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    const { rows } = await client.query(
       `INSERT INTO blood_inventory (hospital_id, blood_type, units_available, confidence_level, last_updated)
        VALUES ($1, $2, $3, $4, NOW())
        ON CONFLICT (hospital_id, blood_type) 
@@ -441,7 +520,7 @@ app.post('/api/hospital/inventory/update', authenticateHospital, async (req, res
       [req.hospitalId, bloodType, units, confidenceLevel]
     );
     
-    console.log(`✅ Inventory updated: ${bloodType} = ${units} units`);
+    console.log(`✅ Inventory updated: ${bloodType} = ${units} units (${confidenceLevel})`);
     
     res.json({ 
       success: true, 
@@ -450,12 +529,17 @@ app.post('/api/hospital/inventory/update', authenticateHospital, async (req, res
     });
   } catch (e) {
     console.error('❌ Update inventory error:', e);
-    res.status(500).json({ success: false, message: 'Database error.' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Update failed: ' + e.message 
+    });
+  } finally {
+    if (client) client.release();
   }
 });
 
 // ============================================================================
-// TOKEN VERIFICATION (DONOR & PATIENT)
+// TOKEN VERIFICATION (DONOR & PATIENT) - FIXED
 // ============================================================================
 
 app.post('/api/hospital/verify-tokens', authenticateHospital, async (req, res) => {
@@ -468,20 +552,27 @@ app.post('/api/hospital/verify-tokens', authenticateHospital, async (req, res) =
     });
   }
   
+  let client;
   try {
-    // Verify donor token
-    const donorResult = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    // Verify donor token - FIXED: use donor_id instead of user_id
+    const donorResult = await client.query(
       `SELECT dc.*, u.full_name as donor_name, u.phone_number as donor_phone, u.blood_type as donor_blood_type,
               br.blood_type_needed, br.patient_token
        FROM donation_commitments dc
-       JOIN users u ON dc.user_id = u.user_id
+       JOIN users u ON dc.donor_id = u.user_id
        JOIN blood_requests br ON dc.request_id = br.request_id
        WHERE dc.donor_token = $1`,
       [donorToken]
     );
     
     // Verify patient token
-    const patientResult = await pool.query(
+    const patientResult = await client.query(
       `SELECT br.*, u.full_name as patient_name, u.phone_number as patient_phone
        FROM blood_requests br
        JOIN users u ON br.patient_id = u.user_id
@@ -506,13 +597,13 @@ app.post('/api/hospital/verify-tokens', authenticateHospital, async (req, res) =
     const donor = donorResult.rows[0];
     const patient = patientResult.rows[0];
     
-    // Check if tokens match
-    const tokensMatch = donor.patient_token === patientToken;
+    // Check if tokens match (same request)
+    const tokensMatch = donor.request_id === patient.request_id;
     
     res.json({ 
       success: true, 
       match: tokensMatch,
-      message: tokensMatch ? 'Tokens verified and matched!' : 'Tokens do not match.',
+      message: tokensMatch ? 'Tokens verified and matched!' : 'Tokens do not match the same request.',
       donor: {
         name: donor.donor_name,
         phone: donor.donor_phone,
@@ -531,7 +622,12 @@ app.post('/api/hospital/verify-tokens', authenticateHospital, async (req, res) =
     });
   } catch (e) {
     console.error('❌ Token verification error:', e);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Verification failed: ' + e.message 
+    });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -540,8 +636,15 @@ app.post('/api/hospital/verify-tokens', authenticateHospital, async (req, res) =
 // ============================================================================
 
 app.get('/api/hospital/playbooks', authenticateHospital, async (req, res) => {
+  let client;
   try {
-    const { rows } = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    const { rows } = await client.query(
       `SELECT playbook_id, title, category, content, created_at, updated_at 
        FROM hospital_playbooks 
        WHERE hospital_id = $1 OR hospital_id IS NULL
@@ -552,7 +655,12 @@ app.get('/api/hospital/playbooks', authenticateHospital, async (req, res) => {
     res.json({ success: true, playbooks: rows });
   } catch (e) {
     console.error('❌ Get playbooks error:', e);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to load playbooks: ' + e.message 
+    });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -566,8 +674,15 @@ app.post('/api/hospital/playbooks', authenticateHospital, async (req, res) => {
     });
   }
   
+  let client;
   try {
-    const { rows } = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    const { rows } = await client.query(
       `INSERT INTO hospital_playbooks (hospital_id, title, category, content, created_at, updated_at)
        VALUES ($1, $2, $3, $4, NOW(), NOW())
        RETURNING *`,
@@ -583,7 +698,12 @@ app.post('/api/hospital/playbooks', authenticateHospital, async (req, res) => {
     });
   } catch (e) {
     console.error('❌ Create playbook error:', e);
-    res.status(500).json({ success: false, message: 'Database error.' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to create playbook: ' + e.message 
+    });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -598,8 +718,15 @@ app.put('/api/hospital/playbooks/:id', authenticateHospital, async (req, res) =>
     });
   }
   
+  let client;
   try {
-    const { rows } = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    const { rows } = await client.query(
       `UPDATE hospital_playbooks 
        SET title = $1, category = $2, content = $3, updated_at = NOW()
        WHERE playbook_id = $4 AND hospital_id = $5
@@ -623,15 +750,27 @@ app.put('/api/hospital/playbooks/:id', authenticateHospital, async (req, res) =>
     });
   } catch (e) {
     console.error('❌ Update playbook error:', e);
-    res.status(500).json({ success: false, message: 'Database error.' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Update failed: ' + e.message 
+    });
+  } finally {
+    if (client) client.release();
   }
 });
 
 app.delete('/api/hospital/playbooks/:id', authenticateHospital, async (req, res) => {
   const { id } = req.params;
   
+  let client;
   try {
-    const { rows } = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    const { rows } = await client.query(
       `DELETE FROM hospital_playbooks 
        WHERE playbook_id = $1 AND hospital_id = $2
        RETURNING *`,
@@ -653,7 +792,12 @@ app.delete('/api/hospital/playbooks/:id', authenticateHospital, async (req, res)
     });
   } catch (e) {
     console.error('❌ Delete playbook error:', e);
-    res.status(500).json({ success: false, message: 'Database error.' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Delete failed: ' + e.message 
+    });
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -662,15 +806,24 @@ app.delete('/api/hospital/playbooks/:id', authenticateHospital, async (req, res)
 // ============================================================================
 
 app.get('/api/hospital/sos-requests', authenticateHospital, async (req, res) => {
+  let client;
   try {
-    const { rows } = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    const { rows } = await client.query(
       `SELECT br.*, u.full_name as patient_name, u.phone_number as patient_phone,
+              als.distance_km,
               CASE 
                 WHEN br.accepted_by_hospital_id = $1 THEN true
                 ELSE false
               END as is_accepted_by_me
        FROM blood_requests br
        JOIN users u ON br.patient_id = u.user_id
+       LEFT JOIN alert_status als ON br.request_id = als.request_id AND als.hospital_id = $1
        WHERE br.status IN ('pending', 'escalated', 'accepted')
        ORDER BY br.created_at DESC
        LIMIT 100`,
@@ -680,23 +833,35 @@ app.get('/api/hospital/sos-requests', authenticateHospital, async (req, res) => 
     res.json({ success: true, requests: rows });
   } catch (e) {
     console.error('❌ Get SOS requests error:', e);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to load SOS requests: ' + e.message 
+    });
+  } finally {
+    if (client) client.release();
   }
 });
 
 // ============================================================================
-// DONOR APPOINTMENTS
+// DONOR APPOINTMENTS - FIXED
 // ============================================================================
 
 app.get('/api/hospital/appointments', authenticateHospital, async (req, res) => {
+  let client;
   try {
-    const { rows } = await pool.query(
+    if (!pool) {
+      throw new Error('Database connection not available');
+    }
+
+    client = await pool.connect();
+    
+    const { rows } = await client.query(
       `SELECT dc.*, u.full_name as donor_name, u.phone_number as donor_phone, u.blood_type,
               br.blood_type_needed, br.patient_token
        FROM donation_commitments dc
-       JOIN users u ON dc.user_id = u.user_id
+       JOIN users u ON dc.donor_id = u.user_id
        JOIN blood_requests br ON dc.request_id = br.request_id
-       WHERE br.accepted_by_hospital_id = $1
+       WHERE dc.hospital_id = $1
        ORDER BY dc.created_at DESC
        LIMIT 100`,
       [req.hospitalId]
@@ -705,7 +870,12 @@ app.get('/api/hospital/appointments', authenticateHospital, async (req, res) => 
     res.json({ success: true, appointments: rows });
   } catch (e) {
     console.error('❌ Get appointments error:', e);
-    res.status(500).json({ success: false, message: 'Server error.' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to load appointments: ' + e.message 
+    });
+  } finally {
+    if (client) client.release();
   }
 });
 
