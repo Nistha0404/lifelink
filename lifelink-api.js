@@ -321,6 +321,38 @@ const LifeLinkAPI = {
       });
       return result.commitments || [];
     }
+,
+    
+    /**
+     * Get nearby hospitals for scheduling
+     */
+    async getNearbyHospitals(donorId, radius = 50) {
+      const result = await LifeLinkAPI.request(`/donor/nearby-hospitals/${donorId}?radius=${radius}`, {
+        method: 'GET'
+      });
+      return result;
+    },
+    
+    /**
+     * Schedule a donation appointment
+     */
+    async scheduleDonation(donorId, hospitalId, scheduledDate, donationType = 'whole_blood') {
+      const result = await LifeLinkAPI.request('/donor/schedule-donation', {
+        method: 'POST',
+        body: JSON.stringify({ donorId, hospitalId, scheduledDate, donationType })
+      });
+      
+      // Show success popup
+      if (result.success) {
+        alert(`✅ Donation Scheduled!\n\n` +
+              `Hospital: ${result.appointment.hospital}\n` +
+              `Date: ${new Date(scheduledDate).toLocaleDateString()}\n` +
+              `Token: ${result.appointment.token}\n\n` +
+              `Please save your token!`);
+      }
+      
+      return result;
+    }
   },
 
   // ============================================================================

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Donor Portal - LifeLink</title>
+    <title>Donor Login - LifeLink</title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,601 +12,367 @@
     <link rel="stylesheet" href="style.css">
     
     <style>
-        /* Note: All auth-page styles are assumed to be in style.css */
-        /* These are copied from your admin-login.html for completeness */
-        .auth-page {
-            min-height: 100vh;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            background: var(--neutral-50);
-        }
-        
-        .auth-sidebar {
-            background: var(--gradient-primary);
-            padding: var(--space-12);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            color: white;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .auth-sidebar::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-            pointer-events: none;
-        }
-        
-        .auth-sidebar-content {
-            position: relative;
-            z-index: 1;
-        }
-        
-        .auth-sidebar h2 {
-            font-size: var(--text-4xl);
-            color: white;
-            margin-bottom: var(--space-4);
-        }
-        
-        .auth-sidebar p {
-            font-size: var(--text-lg);
-            color: rgba(255, 255, 255, 0.9);
-            line-height: var(--leading-relaxed);
-        }
-
-        .auth-logo {
-            display: flex;
-            align-items: center;
-            gap: var(--space-3);
-            font-size: var(--text-2xl);
-            font-weight: var(--font-bold);
-            color: var(--primary-600);
-            margin-bottom: var(--space-8);
-            text-decoration: none;
-        }
-
-        .auth-logo img {
-            height: 40px;
-            width: auto;
-        }
-        
-        .auth-stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: var(--space-6);
-            margin-top: var(--space-8);
-        }
-        
-        .auth-stat {
-            text-align: center;
-        }
-        
-        .auth-stat-number {
-            font-size: var(--text-3xl);
-            font-weight: var(--font-bold);
-            color: white;
-            margin-bottom: var(--space-2);
-        }
-        
-        .auth-stat-label {
-            font-size: var(--text-sm);
-            color: rgba(255, 255, 255, 0.8);
-        }
-        
-        .auth-content {
-            padding: var(--space-12);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        
-        .auth-header {
-            margin-bottom: var(--space-8);
-        }
-        
-        .auth-title {
-            font-size: var(--text-3xl);
-            margin-bottom: var(--space-3);
-        }
-        
-        .auth-subtitle {
-            color: var(--neutral-600);
-            font-size: var(--text-base);
-        }
-        
-        .auth-tabs {
+        .tab-container {
             display: flex;
             gap: var(--space-2);
-            background: var(--neutral-100);
-            padding: var(--space-1);
-            border-radius: var(--radius-lg);
-            margin-bottom: var(--space-8);
+            margin-bottom: var(--space-6);
+            border-bottom: 2px solid var(--neutral-200);
         }
         
-        .auth-tab {
-            flex: 1;
-            padding: var(--space-3) var(--space-4);
-            background: transparent;
+        .tab-button {
+            padding: var(--space-3) var(--space-5);
+            background: none;
             border: none;
-            border-radius: var(--radius-md);
-            font-size: var(--text-sm);
-            font-weight: var(--font-medium);
+            border-bottom: 3px solid transparent;
             color: var(--neutral-600);
+            font-weight: var(--font-semibold);
             cursor: pointer;
-            transition: all var(--transition-fast);
+            transition: all 0.3s ease;
         }
         
-        .auth-tab.active {
-            background: white;
-            color: var(--primary-600);
-            box-shadow: var(--shadow-sm);
+        .tab-button.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
         }
         
-        .auth-form {
-            max-width: 400px;
+        .tab-content {
+            display: none;
         }
         
-        .auth-footer {
-            margin-top: var(--space-6);
-            text-align: center;
+        .tab-content.active {
+            display: block;
+        }
+        
+        .info-banner {
+            padding: var(--space-4);
+            background: var(--primary-light);
+            border-left: 4px solid var(--primary);
+            border-radius: var(--radius-md);
+            margin-bottom: var(--space-6);
+        }
+        
+        .info-banner h4 {
+            color: var(--primary);
+            margin: 0 0 var(--space-2) 0;
+        }
+        
+        .info-banner p {
+            color: var(--neutral-700);
+            margin: 0;
             font-size: var(--text-sm);
-            color: var(--neutral-600);
-        }
-        
-        .auth-footer a {
-            color: var(--primary-600);
-            font-weight: var(--font-medium);
-        }
-        
-        .message-success {
-            padding: var(--space-4);
-            background: var(--success-light);
-            color: var(--success);
-            border-radius: var(--radius-lg);
-            margin-bottom: var(--space-4);
-            border: 1px solid var(--success);
-        }
-        
-        .message-error {
-            padding: var(--space-4);
-            background: var(--error-light);
-            color: var(--error);
-            border-radius: var(--radius-lg);
-            margin-bottom: var(--space-4);
-            border: 1px solid var(--error);
-        }
-        
-        @media (max-width: 1024px) {
-            .auth-page {
-                grid-template-columns: 1fr;
-            }
-            
-            .auth-sidebar {
-                display: none;
-            }
-            
-            .auth-content {
-                padding: var(--space-8) var(--space-6);
-            }
         }
     </style>
 </head>
 <body>
-    <div class="auth-page">
-        <div class="auth-sidebar">
-            <div class="auth-sidebar-content">
-                <a href="index.html" class="auth-logo" style="color: white;">
-                    <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22white%22 opacity=%220.2%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
-                    <span>LifeLink</span>
-                </a>
-                
-                <h2>Give the Gift of Life</h2>
-                <p>
-                    Join our community of donors making a real difference. Your donation can save up to three lives.
-                </p>
-                
-                <div class="auth-stats">
-                    <div class="auth-stat">
-                        <div class="auth-stat-number">1000+</div>
-                        <div class="auth-stat-label">Lives Saved</div>
-                    </div>
-                    <div class="auth-stat">
-                        <div class="auth-stat-number">500+</div>
-                        <div class="auth-stat-label">Donors</div>
-                    </div>
-                    <div class="auth-stat">
-                        <div class="auth-stat-number">20+</div>
-                        <div class="auth-stat-label">Hospitals</div>
+    <header id="main-header">
+        <div class="header-container">
+            <a href="index.html" class="logo">
+                <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+                <span>LifeLink</span>
+            </a>
+            <nav id="main-nav">
+                <a href="index.html">Home</a>
+                <a href="donor-questionnaire.html">Check Eligibility</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="section" style="background: var(--neutral-100); min-height: calc(100vh - 80px);">
+            <div class="section-container">
+                <div class="card" style="max-width: 500px; margin: 0 auto;">
+                    <div class="card-body">
+                        <h2 class="card-title" style="text-align: center; margin-bottom: var(--space-2);">Donor Portal</h2>
+                        <p style="text-align: center; color: var(--neutral-600); margin-bottom: var(--space-8);">
+                            Save lives by donating blood
+                        </p>
+                        
+                        <div class="info-banner">
+                            <h4>💉 Why Donate?</h4>
+                            <p>Every donation can save up to 3 lives. Join our community of heroes making a difference!</p>
+                        </div>
+                        
+                        <!-- Tabs -->
+                        <div class="tab-container">
+                            <button class="tab-button active" onclick="switchTab('login')">Login</button>
+                            <button class="tab-button" onclick="switchTab('register')">Register</button>
+                        </div>
+                        
+                        <!-- Login Form -->
+                        <div id="login-tab" class="tab-content active">
+                            <form id="loginForm">
+                                <div class="form-group">
+                                    <label class="form-label">Phone Number</label>
+                                    <input type="tel" class="form-input" id="login-phone" 
+                                           placeholder="Enter 10-digit phone number" 
+                                           pattern="[0-9]{10}" required>
+                                </div>
+                                
+                                <button type="button" class="btn btn-outline" 
+                                        onclick="sendOTP('login')" 
+                                        style="width: 100%; margin-bottom: var(--space-4);">
+                                    Send OTP
+                                </button>
+                                
+                                <div class="form-group" id="login-otp-group" style="display: none;">
+                                    <label class="form-label">Enter OTP</label>
+                                    <input type="text" class="form-input" id="login-otp" 
+                                           placeholder="4-digit OTP" 
+                                           pattern="[0-9]{4}" maxlength="4">
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary" 
+                                        id="login-submit-btn" 
+                                        style="width: 100%; display: none;">
+                                    Login
+                                </button>
+                                
+                                <div id="login-message" class="form-message"></div>
+                            </form>
+                        </div>
+                        
+                        <!-- Register Form -->
+                        <div id="register-tab" class="tab-content">
+                            <form id="registerForm">
+                                <div class="form-group">
+                                    <label class="form-label">Full Name</label>
+                                    <input type="text" class="form-input" id="register-name" 
+                                           placeholder="Enter your full name" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Phone Number</label>
+                                    <input type="tel" class="form-input" id="register-phone" 
+                                           placeholder="Enter 10-digit phone number" 
+                                           pattern="[0-9]{10}" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Blood Type</label>
+                                    <select class="form-input" id="register-blood-type" required>
+                                        <option value="">Select blood type</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A-">A-</option>
+                                        <option value="B+">B+</option>
+                                        <option value="B-">B-</option>
+                                        <option value="AB+">AB+</option>
+                                        <option value="AB-">AB-</option>
+                                        <option value="O+">O+</option>
+                                        <option value="O-">O-</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">Pincode</label>
+                                    <input type="text" class="form-input" id="register-pincode" 
+                                           placeholder="Enter 6-digit pincode" 
+                                           pattern="[0-9]{6}" maxlength="6" required>
+                                </div>
+                                
+                                <button type="button" class="btn btn-outline" 
+                                        onclick="sendOTP('register')" 
+                                        style="width: 100%; margin-bottom: var(--space-4);">
+                                    Send OTP
+                                </button>
+                                
+                                <div class="form-group" id="register-otp-group" style="display: none;">
+                                    <label class="form-label">Enter OTP</label>
+                                    <input type="text" class="form-input" id="register-otp" 
+                                           placeholder="4-digit OTP" 
+                                           pattern="[0-9]{4}" maxlength="4">
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary" 
+                                        id="register-submit-btn" 
+                                        style="width: 100%; display: none;">
+                                    Register
+                                </button>
+                                
+                                <div id="register-message" class="form-message"></div>
+                            </form>
+                            
+                            <div style="text-align: center; margin-top: var(--space-4); color: var(--neutral-600); font-size: var(--text-sm);">
+                                <p>Before registering, please <a href="donor-questionnaire.html" style="color: var(--primary);">check your eligibility</a></p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <p style="font-size: var(--text-sm); opacity: 0.8;">
-                © 2025 LifeLink. All rights reserved.
-            </p>
-        </div>
-        
-        <div class="auth-content">
-            <div class="auth-header">
-                <a href="index.html" class="auth-logo hide-desktop">
-                    <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
-                    <span>LifeLink</span>
-                </a>
-                
-                <h1 class="auth-title">Donor Portal</h1>
-                <p class="auth-subtitle">Sign in to your account or create a new one</p>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>LifeLink</h4>
+                    <p>Connecting donors, patients, and hospitals to save lives.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <p><a href="index.html">Home</a></p>
+                    <p><a href="donor-questionnaire.html">Eligibility</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Get Started</h4>
+                    <p><a href="patient-login.html">Request Blood</a></p>
+                    <p><a href="hospital-login.html">Hospital Portal</a></p>
+                </div>
             </div>
-            
-            <div class="auth-tabs">
-                <button class="auth-tab active" id="login-tab-btn" onclick="showTab('login')">Login</button>
-                <button class="auth-tab" id="register-tab-btn" onclick="showTab('register')">Register</button>
-            </div>
-            
-            <div id="login-tab" class="auth-form">
-                <form id="donorLoginForm">
-                    <div class="form-group">
-                        <label class="form-label" for="loginPhone">
-                            Phone Number <span class="required">*</span>
-                        </label>
-                        <input 
-                            type="tel" 
-                            id="loginPhone" 
-                            class="form-input" 
-                            placeholder="Enter your 10-digit number"
-                            maxlength="10"
-                            required
-                        >
-                    </div>
-                    
-                    <button type="button" id="loginOtpBtn" class="btn btn-primary" style="width: 100%; margin-bottom: var(--space-4);">
-                        Generate OTP
-                    </button>
-                    
-                    <div id="loginOtpGroup" style="display: none;">
-                        <div class="form-group">
-                            <label class="form-label" for="loginOtp">
-                                Enter OTP <span class="required">*</span>
-                            </label>
-                            <input 
-                                type="text" 
-                                id="loginOtp" 
-                                class="form-input" 
-                                placeholder="Enter 6-digit OTP"
-                                maxlength="6"
-                                inputmode="numeric"
-                            >
-                            <p class="form-hint">Check your mobile for the OTP</p>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary" style="width: 100%;">
-                            Login
-                        </button>
-                    </div>
-                </form>
-            </div>
-            
-            <div id="register-tab" class="auth-form" style="display: none;">
-                <form id="donorRegisterForm">
-                    <div class="form-group">
-                        <label class="form-label" for="regName">
-                            Full Name <span class="required">*</span>
-                        </label>
-                        <input 
-                            type="text" 
-                            id="regName" 
-                            class="form-input" 
-                            placeholder="Enter your full name"
-                            required
-                        >
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="regPhone">
-                            Phone Number <span class="required">*</span>
-                        </label>
-                        <input 
-                            type="tel" 
-                            id="regPhone" 
-                            class="form-input" 
-                            placeholder="10-digit mobile number"
-                            maxlength="10"
-                            required
-                        >
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="regBloodType">
-                            Blood Type <span class="required">*</span>
-                        </label>
-                        <select id="regBloodType" class="form-select" required>
-                            <option value="" disabled selected>Select your blood type</option>
-                            <option value="A+">A+</option>
-                            <option value="A-">A-</option>
-                            <option value="B+">B+</option>
-                            <option value="B-">B-</option>
-                            <option value="AB+">AB+</option>
-                            <option value="AB-">AB-</option>
-                            <option value="O+">O+</option>
-                            <option value="O-">O-</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="regPincode">
-                            Pincode <span class="required">*</span>
-                        </label>
-                        <input 
-                            type="text" 
-                            id="regPincode" 
-                            class="form-input" 
-                            placeholder="Your 6-digit area pincode"
-                            maxlength="6"
-                            inputmode="numeric"
-                            required
-                        >
-                    </div>
-                    
-                    <button type="button" id="registerOtpBtn" class="btn btn-primary" style="width: 100%; margin-bottom: var(--space-4);">
-                        Register & Get OTP
-                    </button>
-                    
-                    <div id="registerOtpGroup" style="display: none;">
-                        <div class="form-group">
-                            <label class="form-label" for="registerOtp">
-                                Enter OTP <span class="required">*</span>
-                            </label>
-                            <input 
-                                type="text" 
-                                id="registerOtp" 
-                                class="form-input" 
-                                placeholder="Enter 6-digit OTP"
-                                maxlength="6"
-                                inputmode="numeric"
-                            >
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary" style="width: 100%;">
-                            Confirm Registration
-                        </button>
-                    </div>
-                </form>
-            </div>
-            
-            <div id="message" class="mt-4"></div>
-            
-            <div class="auth-footer">
-                <p>
-                    <a href="index.html">← Back to Home</a>
-                </p>
+            <div class="footer-bottom">
+                <p>© 2025 LifeLink. All rights reserved.</p>
             </div>
         </div>
-    </div>
+    </footer>
+
+    <!-- Include API Client -->
+    <script src="lifelink-api.js"></script>
     
     <script>
-        const loginForm = document.getElementById("donorLoginForm");
-        const registerForm = document.getElementById("donorRegisterForm");
-        const messageEl = document.getElementById("message");
-
-        const loginPhoneInput = document.getElementById("loginPhone");
-        const loginOtpBtn = document.getElementById("loginOtpBtn");
-        const loginOtpGroup = document.getElementById("loginOtpGroup");
-
-        const regNameInput = document.getElementById("regName");
-        const regPhoneInput = document.getElementById("regPhone");
-        const regBloodTypeInput = document.getElementById("regBloodType");
-        const regPincodeInput = document.getElementById("regPincode");
-        const registerOtpBtn = document.getElementById("registerOtpBtn");
-        const registerOtpGroup = document.getElementById("registerOtpGroup");
-
-        function showTab(tabName) {
-            document.getElementById('login-tab').style.display = tabName === 'login' ? 'block' : 'none';
-            document.getElementById('register-tab').style.display = tabName === 'register' ? 'block' : 'none';
-            document.getElementById('login-tab-btn').classList.toggle('active', tabName === 'login');
-            document.getElementById('register-tab-btn').classList.toggle('active', tabName === 'register');
+        // Tab switching
+        function switchTab(tab) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
             
-            // Hide message and OTP groups
-            messageEl.style.display = 'none';
-            messageEl.className = '';
-            loginOtpGroup.style.display = 'none';
-            registerOtpGroup.style.display = 'none';
+            // Show selected tab
+            document.getElementById(tab + '-tab').classList.add('active');
+            event.target.classList.add('active');
+            
+            // Clear messages
+            document.querySelectorAll('.form-message').forEach(m => m.textContent = '');
         }
-
-        function showMessage(text, type) {
-            messageEl.textContent = text;
-            messageEl.className = type === 'success' ? 'message-success' : 'message-error';
-            messageEl.style.display = 'block';
-        }
-
-        function isValidPhone(phone) {
-            return /^\d{10}$/.test(phone);
-        }
-
-        function isValidPincode(pincode) {
-            return /^\d{6}$/.test(pincode);
-        }
-
-        // --- MODIFIED: Login OTP Generation ---
-        loginOtpBtn.addEventListener('click', () => {
-            const phoneNumber = loginPhoneInput.value.trim();
-            if (!isValidPhone(phoneNumber)) {
-                showMessage('Please enter a valid 10-digit phone number', 'error');
+        
+        // Send OTP
+        async function sendOTP(type) {
+            const phoneInput = document.getElementById(type + '-phone');
+            const phone = phoneInput.value.trim();
+            
+            if (!phone || phone.length !== 10) {
+                showMessage(type, 'Please enter a valid 10-digit phone number', 'error');
                 return;
             }
-
-            loginOtpBtn.disabled = true;
-            loginOtpBtn.textContent = 'Sending OTP...';
-
-            // Generate a random 6-digit OTP
-            const otp = Math.floor(100000 + Math.random() * 900000).toString();
             
-            // Store it in session storage to verify later
-            sessionStorage.setItem('loginOtp', otp);
-            sessionStorage.setItem('loginPhone', phoneNumber); // Store phone for "session"
-
-            // Simulate API call delay
-            setTimeout(() => {
-                // Show the alert
-                alert(`Your (test) OTP for ${phoneNumber} is: ${otp}`);
-
-                showMessage('OTP sent to your mobile number.', 'success');
-                loginOtpGroup.style.display = 'block';
-                loginPhoneInput.disabled = true;
-                loginOtpBtn.style.display = 'none'; // Hide button after sending
-            }, 500);
-        });
-
-        // --- MODIFIED: Login Form Submit ---
-        loginForm.addEventListener('submit', (event) => {
-            event.preventDefault();
-            const phoneNumber = loginPhoneInput.value.trim();
-            const otp = document.getElementById('loginOtp').value.trim();
-
-            if (otp.length !== 6) {
-                showMessage('Please enter the 6-digit OTP.', 'error');
-                return;
-            }
-
-            const submitBtn = loginForm.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Logging in...';
-
-            // Get the correct OTP from session storage
-            const correctOtp = sessionStorage.getItem('loginOtp');
-            const correctPhone = sessionStorage.getItem('loginPhone');
-
-            // Simulate API check delay
-            setTimeout(() => {
-                if (otp === correctOtp && phoneNumber === correctPhone) {
-                    // SUCCESS
-                    sessionStorage.setItem('currentDonorName', 'Test Donor'); // Mock user name
-                    sessionStorage.setItem('currentDonorPhone', phoneNumber);
-                    showMessage('Login successful! Redirecting...', 'success');
-                    
-                    // Clean up
-                    sessionStorage.removeItem('loginOtp');
-                    sessionStorage.removeItem('loginPhone');
-
-                    setTimeout(() => {
-                        window.location.href = "donor-dashboard.html"; // Redirect to donor dashboard
-                    }, 1500);
-                } else {
-                    // FAILURE
-                    showMessage('Login failed: Invalid OTP.', 'error');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Login';
+            try {
+                showMessage(type, 'Sending OTP...', 'info');
+                const result = await LifeLinkAPI.donor.sendOTP(phone);
+                
+                if (result.success) {
+                    // Show OTP input and submit button
+                    document.getElementById(type + '-otp-group').style.display = 'block';
+                    document.getElementById(type + '-submit-btn').style.display = 'block';
+                    showMessage(type, 'OTP sent successfully!', 'success');
                 }
-            }, 500);
-        });
-
-        // --- MODIFIED: Register OTP Generation ---
-        registerOtpBtn.addEventListener('click', () => {
-            const fullName = regNameInput.value.trim();
-            const phoneNumber = regPhoneInput.value.trim();
-            const bloodType = regBloodTypeInput.value;
-            const pincode = regPincodeInput.value.trim();
-
-            if (!fullName || !bloodType) {
-                showMessage('Please fill in all required fields.', 'error');
-                return;
+            } catch (error) {
+                showMessage(type, error.message || 'Failed to send OTP', 'error');
             }
-            if (!isValidPhone(phoneNumber)) {
-                showMessage('Please enter a valid 10-digit phone number', 'error');
-                return;
-            }
-            if (!isValidPincode(pincode)) {
-                showMessage('Please enter a valid 6-digit pincode', 'error');
-                return;
-            }
-
-            registerOtpBtn.disabled = true;
-            registerOtpBtn.textContent = 'Sending OTP...';
-
-            // Generate a random 6-digit OTP
-            const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        }
+        
+        // Login form submission
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
             
-            // Store it in session storage to verify later
-            sessionStorage.setItem('registerOtp', otp);
-            // Store all form data to "submit" later
-            const registrationData = { fullName, phoneNumber, bloodType, pincode };
-            sessionStorage.setItem('registrationData', JSON.stringify(registrationData));
-
-            // Simulate API call delay
-            setTimeout(() => {
-                // Show the alert
-                alert(`Your (test) Registration OTP for ${phoneNumber} is: ${otp}`);
-
-                showMessage('OTP sent to your mobile number. Please verify to complete registration.', 'success');
-                registerOtpGroup.style.display = 'block';
-                // Disable form fields
-                regNameInput.disabled = true;
-                regPhoneInput.disabled = true;
-                regBloodTypeInput.disabled = true;
-                regPincodeInput.disabled = true;
-                registerOtpBtn.style.display = 'none'; // Hide button
-            }, 500);
-        });
-
-        // --- MODIFIED: Register Form Submit ---
-        registerForm.addEventListener('submit', (event) => {
-            event.preventDefault();
-            const otp = document.getElementById('registerOtp').value.trim();
+            const phone = document.getElementById('login-phone').value.trim();
+            const otp = document.getElementById('login-otp').value.trim();
             
-            // Get data from session storage
-            const correctOtp = sessionStorage.getItem('registerOtp');
-            const storedData = JSON.parse(sessionStorage.getItem('registrationData'));
-
-            if (!storedData) {
-                showMessage('Session expired. Please start registration again.', 'error');
+            if (!otp || otp.length !== 4) {
+                showMessage('login', 'Please enter the 4-digit OTP', 'error');
                 return;
             }
-
-            if (otp.length !== 6) {
-                showMessage('Please enter the 6-digit OTP.', 'error');
-                return;
-            }
-
-            const submitBtn = registerForm.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Confirming...';
-
-            // Simulate API check delay
-            setTimeout(() => {
-                if (otp === correctOtp) {
-                    // SUCCESS
-                    showMessage('Registration successful! You can now log in.', 'success');
+            
+            try {
+                showMessage('login', 'Logging in...', 'info');
+                
+                const result = await LifeLinkAPI.donor.login(
+                    phone, 
+                    null, // fullName not needed for login
+                    null, // bloodType not needed for login
+                    null, // pincode not needed for login
+                    otp
+                );
+                
+                if (result.success) {
+                    // Save user data
+                    LifeLinkAPI.setCurrentUser({
+                        role: 'donor',
+                        ...result.donor
+                    });
                     
-                    // Clean up session storage
-                    sessionStorage.removeItem('registerOtp');
-                    sessionStorage.removeItem('registrationData');
+                    showMessage('login', 'Login successful! Redirecting...', 'success');
                     
                     setTimeout(() => {
-                        registerForm.reset();
-                        // Re-enable fields
-                        regNameInput.disabled = false;
-                        regPhoneInput.disabled = false;
-                        regBloodTypeInput.disabled = false;
-                        regPincodeInput.disabled = false;
-                        registerOtpBtn.style.display = 'block';
-                        registerOtpBtn.disabled = false;
-                        registerOtpBtn.textContent = 'Register & Get OTP';
-                        
-                        showTab('login'); // Switch to login tab
-                    }, 2000);
-                } else {
-                    // FAILURE
-                    showMessage('Registration failed: Invalid OTP.', 'error');
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Confirm Registration';
+                        window.location.href = 'donor-dashboard.html';
+                    }, 1000);
                 }
-            }, 500);
+            } catch (error) {
+                showMessage('login', error.message || 'Login failed', 'error');
+            }
         });
-
+        
+        // Register form submission
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('register-name').value.trim();
+            const phone = document.getElementById('register-phone').value.trim();
+            const bloodType = document.getElementById('register-blood-type').value;
+            const pincode = document.getElementById('register-pincode').value.trim();
+            const otp = document.getElementById('register-otp').value.trim();
+            
+            if (!name || !phone || !bloodType || !pincode || !otp) {
+                showMessage('register', 'Please fill all fields', 'error');
+                return;
+            }
+            
+            if (otp.length !== 4) {
+                showMessage('register', 'Please enter the 4-digit OTP', 'error');
+                return;
+            }
+            
+            try {
+                showMessage('register', 'Registering...', 'info');
+                
+                const result = await LifeLinkAPI.donor.login(
+                    phone,
+                    name,
+                    bloodType,
+                    pincode,
+                    otp
+                );
+                
+                if (result.success) {
+                    // Save user data
+                    LifeLinkAPI.setCurrentUser({
+                        role: 'donor',
+                        ...result.donor
+                    });
+                    
+                    showMessage('register', 'Registration successful! Redirecting...', 'success');
+                    
+                    setTimeout(() => {
+                        window.location.href = 'donor-dashboard.html';
+                    }, 1000);
+                }
+            } catch (error) {
+                showMessage('register', error.message || 'Registration failed', 'error');
+            }
+        });
+        
+        // Show message helper
+        function showMessage(type, message, status) {
+            const messageEl = document.getElementById(type + '-message');
+            messageEl.textContent = message;
+            messageEl.className = 'form-message ' + (status === 'error' ? 'form-error' : 
+                                                     status === 'success' ? 'form-success' : '');
+        }
+        
+        // Check if already logged in
+        if (LifeLinkAPI.isLoggedIn()) {
+            const user = LifeLinkAPI.getCurrentUser();
+            if (user.role === 'donor') {
+                window.location.href = 'donor-dashboard.html';
+            }
+        }
     </script>
 </body>
 </html>
