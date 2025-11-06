@@ -563,286 +563,35 @@ app.post('/api/server/verify-token', async (req, res) => {
   }
 });
 
-// DONOR AUTHENTICATION
-app.post('/api/server/donor/generate-otp', async (req, res) => {
-  const { phoneNumber } = req.body;
+
+
+/**
+ * Get donor's accepted commitments
+ */
+app.get('/api/server/donor/commitments/:donorId', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      "SELECT user_id FROM users WHERE phone_number = $1 AND role = 'donor'",
-      [phoneNumber]
+      `SELECT 
+        dc.commitment_id,
+        dc.donor_token,
+        dc.status,
+        dc.created_at,
+        br.blood_type_needed,
+        h.hospital_name,
+        h.address,
+        h.pincode
+       FROM donation_commitments dc
+       JOIN blood_requests br ON dc.request_id = br.request_id
+       LEFT JOIN hospitals h ON dc.hospital_id = h.hospital_id
+       WHERE dc.donor_id = $1
+       ORDER BY dc.created_at DESC
+       LIMIT 20`,
+      [req.params.donorId]
     );
-    if (!rows.length) {
-      return res.status(404).json({ success: false, message: 'Not a registered donor.' });
-    }
     
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
-    console.log(`Donor OTP for ${phoneNumber}: ${otp}`);
-    res.json({ success: true, otp, message: 'OTP generated.' });
+    res.json({ success: true, commitments: rows });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.post('/api/server/donor/login', async (req, res) => {
-  const { phoneNumber, otp } = req.body;
-  const record = otpStore[phoneNumber];
-  if (!record || record.otp !== otp || Date.now() >= record.expiry) {
-    return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
-  }
-  
-  try {
-    delete otpStore[phoneNumber];
-    const { rows } = await pool.query(
-      "SELECT user_id, full_name, phone_number, pincode, blood_type, role FROM users WHERE phone_number = $1 AND role = 'donor'",
-      [phoneNumber]
-    );
-    res.json({ success: true, message: 'Login successful!', user: rows[0] });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.post('/api/server/donor/register-request', async (req, res) => {
-  const { phoneNumber } = req.body;
-  try {
-    const existing = await pool.query('SELECT 1 FROM users WHERE phone_number = $1', [phoneNumber]);
-    if (existing.rows.length) {
-      return res.status(409).json({ success: false, message: 'Phone already registered.' });
-    }
-    
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
-    console.log(`Donor registration OTP for ${phoneNumber}: ${otp}`);
-    res.json({ success: true, otp, message: 'OTP sent.' });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.post('/api/server/donor/register-confirm', async (req, res) => {
-  const { fullName, phoneNumber, pincode, bloodType, otp } = req.body;
-  const record = otpStore[phoneNumber];
-  if (!record || record.otp !== otp || Date.now() >= record.expiry) {
-    return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
-  }
-  
-  try {
-    const insertQuery = `
-      INSERT INTO users (full_name, phone_number, pincode, blood_type, role)
-      VALUES ($1, $2, $3, $4, 'donor') RETURNING user_id`;
-    await pool.query(insertQuery, [fullName, phoneNumber, pincode, bloodType.toUpperCase()]);
-    delete otpStore[phoneNumber];
-    res.status(201).json({ success: true, message: 'Registration successful!' });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.post('/api/donor/accept-request', async (req, res) => {
-  const { requestId, donorId } = req.body;
-  if (!requestId || !donorId) {
-    return res.status(400).json({ success: false, message: 'requestId and donorId required.' });
-  }
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    const reqRow = await client.query(
-      'SELECT request_id, status FROM blood_requests WHERE request_id = $1',
-      [requestId]
-    );
-    if (!reqRow.rows.length) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Request not found.' });
-    }
-
-    const donorRow = await client.query(
-      "SELECT user_id FROM users WHERE user_id = $1 AND role = 'donor'",
-      [donorId]
-    );
-    if (!donorRow.rows.length) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: 'Donor not found.' });
-    }
-
-    const exists = await client.query(
-      'SELECT donor_token FROM donation_commitments WHERE request_id = $1 AND donor_id = $2',
-      [requestId, donorId]
-    );
-    if (exists.rows.length) {
-      await client.query('COMMIT');
-      return res.json({ success: true, message: 'Already committed.', donor_token: exists.rows[0].donor_token });
-    }
-
-    const donorToken = await generateUniqueDonorToken(client);
-    const insertCommitment = await client.query(
-      `INSERT INTO donation_commitments (request_id, donor_id, donor_token, status)
-       VALUES ($1, $2, $3, 'committed')
-       RETURNING commitment_id, donor_token`,
-      [requestId, donorId, donorToken]
-    );
-
-    await client.query('COMMIT');
-    res.status(201).json({ success: true, message: 'Request accepted.', donor_token: insertCommitment.rows[0].donor_token });
-  } catch (e) {
-    await client.query('ROLLBACK');
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  } finally {
-    client.release();
-  }
-});
-
-app.post('/api/donor/schedule-casual-donation', async (req, res) => {
-  const { donorId, latitude, longitude, pincode, bloodType, date, timeSlot } = req.body;
-
-  if (!donorId || !bloodType || !date || !timeSlot) {
-    return res.status(400).json({ success: false, message: 'Missing required fields.' });
-  }
-
-  const donorToken = generate4DigitToken();
-  
-  try {
-    let findHospitalQuery;
-    let queryParams;
-
-    if (latitude && longitude) {
-      findHospitalQuery = `
-        SELECT hospital_id, hospital_name, latitude, longitude,
-          (6371 * acos(
-            cos(radians($1)) * cos(radians(latitude)) *
-            cos(radians(longitude) - radians($2)) +
-            sin(radians($1)) * sin(radians(latitude))
-          )) AS distance
-        FROM hospitals
-        HAVING (
-          6371 * acos(
-            cos(radians($1)) * cos(radians(latitude)) *
-            cos(radians(longitude) - radians($2)) +
-            sin(radians($1)) * sin(radians(latitude))
-          )
-        ) < 10
-        ORDER BY distance ASC
-        LIMIT 1`;
-      queryParams = [latitude, longitude];
-    } else if (pincode) {
-      findHospitalQuery = `
-        SELECT hospital_id, hospital_name 
-        FROM hospitals 
-        WHERE pincode = $1 
-        LIMIT 1`;
-      queryParams = [pincode];
-    } else {
-      return res.status(400).json({ success: false, message: 'No location or pincode provided.' });
-    }
-
-    const hospitalRes = await pool.query(findHospitalQuery, queryParams);
-
-    if (hospitalRes.rows.length === 0) {
-      return res.status(404).json({ success: false, message: 'No hospitals found within 10km.' });
-    }
-
-    const hospital = hospitalRes.rows[0];
-
-    const commitQuery = `
-      INSERT INTO donation_commitments (donor_id, hospital_id, donor_token, status)
-      VALUES ($1, $2, $3, 'scheduled')
-      RETURNING *`;
-    await pool.query(commitQuery, [donorId, hospital.hospital_id, donorToken]);
-
-    res.status(201).json({ success: true, hospital: hospital });
-  } catch (err) {
-    console.error('Scheduling Error:', err);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.get('/api/donor/active-token/:donorId', async (req, res) => {
-  const { donorId } = req.params;
-  try {
-    const query = `
-      SELECT 
-        dc.donor_token, dc.status, dc.created_at,
-        h.hospital_name, h.pincode
-      FROM donation_commitments dc
-      JOIN hospitals h ON dc.hospital_id = h.hospital_id
-      WHERE dc.donor_id = $1 
-        AND dc.status IN ('scheduled', 'committed')
-      ORDER BY dc.created_at DESC
-      LIMIT 1`;
-    const { rows } = await pool.query(query, [donorId]);
-
-    if (rows.length > 0) {
-      res.json({ 
-        success: true, 
-        commitment: rows[0],
-        hospital: {
-          hospital_name: rows[0].hospital_name,
-          pincode: rows[0].pincode
-        }
-      });
-    } else {
-      res.json({ success: false, message: 'No active commitment.' });
-    }
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.get('/api/sos/active/:donorId', async (req, res) => {
-  const { donorId } = req.params;
-  try {
-    const donor = await pool.query('SELECT blood_type FROM users WHERE user_id = $1', [donorId]);
-    if (!donor.rows.length) {
-      return res.status(404).json({ success: false, message: 'Donor not found.' });
-    }
-    const { blood_type } = donor.rows[0];
-
-    const requests = await pool.query(
-      `SELECT br.request_id, u.full_name AS patient_name, br.blood_type_needed, br.latitude, br.longitude
-       FROM blood_requests br
-       JOIN users u ON br.patient_id = u.user_id
-       WHERE br.blood_type_needed = $1
-         AND br.status = 'escalated'
-         AND NOT EXISTS (
-           SELECT 1 FROM donation_commitments dc 
-           WHERE dc.request_id = br.request_id AND dc.donor_id = $2
-         )
-       ORDER BY br.created_at DESC`,
-      [blood_type, donorId]
-    );
-
-    res.json({ success: true, requests: requests.rows });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ success: false, message: 'Server error.' });
-  }
-});
-
-app.get('/api/hospital/appointments/:hospitalId', async (req, res) => {
-  const { hospitalId } = req.params;
-
-  try {
-    const query = `
-      SELECT 
-        dc.commitment_id, dc.status, dc.created_at,
-        u.full_name, u.blood_type
-      FROM donation_commitments dc
-      JOIN users u ON dc.donor_id = u.user_id
-      WHERE dc.hospital_id = $1
-        AND dc.status = 'scheduled'
-      ORDER BY dc.created_at DESC`;
-    const { rows } = await pool.query(query, [hospitalId]);
-    res.json({ success: true, data: rows });
-  } catch (err) {
-    console.error(err);
     res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
