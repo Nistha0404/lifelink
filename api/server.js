@@ -1145,16 +1145,4 @@ app.post('/api/generate-material', async (req, res) => {
 // (Your existing SERVER START code continues below)
 // ===========================================================================
 
-// ============================================================================
-// SERVER START
-// ============================================================================
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 LifeLink Server running on port ${PORT}`);
-  console.log(`🔐 Admin Access Code: ${ADMIN_ACCESS_CODE}`);
-  console.log(`🏥 Hospital authentication enabled`);
-  console.log(`⚠️  Passwords stored in plain text - NOT secure for production!`);
-});
-
 module.exports = app;
