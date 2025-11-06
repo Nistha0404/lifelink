@@ -171,6 +171,7 @@
             border-radius: var(--radius-lg);
             margin-bottom: var(--space-4);
             border: 1px solid var(--success);
+            display: none; /* Hidden by default */
         }
         
         .message-error {
@@ -180,6 +181,7 @@
             border-radius: var(--radius-lg);
             margin-bottom: var(--space-4);
             border: 1px solid var(--error);
+            display: none; /* Hidden by default */
         }
         
         @media (max-width: 1024px) {
@@ -247,7 +249,9 @@
                 <button class="auth-tab active" id="login-tab-btn" onclick="showTab('login')">Login</button>
                 <button class="auth-tab" id="register-tab-btn" onclick="showTab('register')">Register</button>
             </div>
-            
+
+            <div id="message" class="mt-4"></div>
+
             <div id="login-tab" class="auth-form">
                 <form id="donorLoginForm">
                     <div class="form-group">
@@ -277,7 +281,7 @@
                                 type="text" 
                                 id="loginOtp" 
                                 class="form-input" 
-                                placeholder="Enter 6-digit OTP"
+                                placeholder="Enter OTP"
                                 maxlength="6"
                                 inputmode="numeric"
                             >
@@ -365,7 +369,7 @@
                                 type="text" 
                                 id="registerOtp" 
                                 class="form-input" 
-                                placeholder="Enter 6-digit OTP"
+                                placeholder="Enter OTP"
                                 maxlength="6"
                                 inputmode="numeric"
                             >
@@ -377,8 +381,6 @@
                     </div>
                 </form>
             </div>
-            
-            <div id="message" class="mt-4"></div>
             
             <div class="auth-footer">
                 <p>
@@ -443,19 +445,29 @@
             loginOtpBtn.textContent = 'Sending OTP...';
 
             try {
-                // --- MOCK API CALL ---
-                // Replace with your actual API endpoint
+                // --- This is your REAL API call ---
                 const response = await fetch('/api/server/otp/generate-login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phoneNumber, type: 'donor-login' })
                 });
                 
-                // const result = await response.json();
-                // Simulating a successful response
-                const result = { success: true, message: 'OTP sent successfully' };
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || 'Server error');
+                }
 
                 if (result.success) {
+                    // --- HERE IS THE ALERT ---
+                    if (result.otp) {
+                        alert(`(TESTING) Your OTP is: ${result.otp}`);
+                    } else {
+                        console.warn("Server did not return an 'otp' field.");
+                        alert("OTP sent! Check your device."); // Fallback
+                    }
+                    // --- END OF ALERT ---
+
                     showMessage('OTP sent to your mobile number.', 'success');
                     loginOtpGroup.style.display = 'block';
                     loginPhoneInput.disabled = true;
@@ -466,7 +478,7 @@
                     loginOtpBtn.textContent = 'Generate OTP';
                 }
             } catch (error) {
-                showMessage('Could not connect to the server. Please try again.', 'error');
+                showMessage(error.message || 'Could not connect to the server.', 'error');
                 loginOtpBtn.disabled = false;
                 loginOtpBtn.textContent = 'Generate OTP';
             }
@@ -478,8 +490,8 @@
             const phoneNumber = loginPhoneInput.value.trim();
             const otp = document.getElementById('loginOtp').value.trim();
 
-            if (otp.length !== 6) {
-                showMessage('Please enter the 6-digit OTP.', 'error');
+            if (!otp) { // Simplified check, your server should validate length
+                showMessage('Please enter the OTP.', 'error');
                 return;
             }
 
@@ -488,19 +500,26 @@
             submitBtn.textContent = 'Logging in...';
 
             try {
-                // --- MOCK API CALL ---
-                // Replace with your actual API endpoint
+                // --- This is your REAL API call ---
                 const response = await fetch('/api/server/login/donor', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phoneNumber, otp })
                 });
+                
+                const result = await response.json();
 
-                // Simulating a successful response
-                const result = { success: true, user: { fullName: 'Test Donor' } };
+                if (!response.ok) {
+                    throw new Error(result.message || 'Server error');
+                }
 
                 if (result.success) {
-                    sessionStorage.setItem('currentDonorName', result.user.fullName);
+                    // Use a more robust way to store user data
+                    sessionStorage.setItem('currentUser', JSON.stringify({
+                        role: 'donor',
+                        ...result.user // Assumes server sends back user data
+                    }));
+                    
                     showMessage('Login successful! Redirecting...', 'success');
                     setTimeout(() => {
                         window.location.href = "donor-dashboard.html"; // Redirect to donor dashboard
@@ -511,7 +530,7 @@
                     submitBtn.textContent = 'Login';
                 }
             } catch (error) {
-                showMessage('Could not connect to the server. Please try again.', 'error');
+                showMessage(error.message || 'Could not connect to the server.', 'error');
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Login';
             }
@@ -541,18 +560,29 @@
             registerOtpBtn.textContent = 'Sending OTP...';
 
             try {
-                // --- MOCK API CALL ---
-                // Replace with your actual API endpoint
+                // --- This is your REAL API call ---
                 const response = await fetch('/api/server/otp/generate-register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ fullName, phoneNumber, bloodType, pincode, type: 'donor-register' })
                 });
 
-                // Simulating a successful response
-                const result = { success: true, message: 'OTP sent successfully' };
+                const result = await response.json();
 
+                if (!response.ok) {
+                    throw new Error(result.message || 'Server error');
+                }
+                
                 if (result.success) {
+                    // --- HERE IS THE ALERT ---
+                    if (result.otp) {
+                        alert(`(TESTING) Your OTP is: ${result.otp}`);
+                    } else {
+                        console.warn("Server did not return an 'otp' field.");
+                        alert("OTP sent! Check your device."); // Fallback
+                    }
+                    // --- END OF ALERT ---
+
                     showMessage('OTP sent to your mobile number. Please verify to complete registration.', 'success');
                     registerOtpGroup.style.display = 'block';
                     // Disable form fields
@@ -567,7 +597,7 @@
                     registerOtpBtn.textContent = 'Register & Get OTP';
                 }
             } catch (error) {
-                showMessage('Could not connect to the server. Please try again.', 'error');
+                showMessage(error.message || 'Could not connect to the server.', 'error');
                 registerOtpBtn.disabled = false;
                 registerOtpBtn.textContent = 'Register & Get OTP';
             }
@@ -578,14 +608,14 @@
             event.preventDefault();
             const otp = document.getElementById('registerOtp').value.trim();
             
-            // Get data again (or store it)
+            // Get data again (from disabled fields)
             const fullName = regNameInput.value.trim();
             const phoneNumber = regPhoneInput.value.trim();
             const bloodType = regBloodTypeInput.value;
             const pincode = regPincodeInput.value.trim();
 
-            if (otp.length !== 6) {
-                showMessage('Please enter the 6-digit OTP.', 'error');
+            if (!otp) { // Simplified check
+                showMessage('Please enter the OTP.', 'error');
                 return;
             }
 
@@ -594,16 +624,18 @@
             submitBtn.textContent = 'Confirming...';
 
             try {
-                // --- MOCK API CALL ---
-                // Replace with your actual API endpoint
+                // --- This is your REAL API call ---
                 const response = await fetch('/api/server/register/donor', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ fullName, phoneNumber, bloodType, pincode, otp })
                 });
                 
-                // Simulating a successful response
-                const result = { success: true, message: 'Registration successful' };
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || 'Server error');
+                }
 
                 if (result.success) {
                     showMessage('Registration successful! You can now log in.', 'success');
@@ -626,11 +658,26 @@
                     submitBtn.textContent = 'Confirm Registration';
                 }
             } catch (error) {
-                showMessage('Could not connect to the server. Please try again.', 'error');
+                showMessage(error.message || 'Could not connect to the server.', 'error');
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Confirm Registration';
             }
         });
+        
+        // --- Check if already logged in ---
+        const loggedInUser = sessionStorage.getItem('currentUser');
+        if (loggedInUser) {
+            try {
+                const user = JSON.parse(loggedInUser);
+                if (user.role === 'donor') {
+                    // User is already logged in, redirect
+                    window.location.href = 'donor-dashboard.html';
+                }
+            } catch (e) {
+                // Clear bad data
+                sessionStorage.removeItem('currentUser');
+            }
+        }
 
     </script>
 </body>
