@@ -5,129 +5,248 @@
   <title>Patient Dashboard - LifeLink</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  
   <style>
     .hidden { display: none; }
+
+    /* For SOS form success/error messages */
+    .message-area {
+      font-size: var(--text-sm);
+      margin-top: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      display: none; /* Hidden by default */
+    }
+    .message-area.message-error {
+      display: block;
+      color: var(--error);
+      background-color: var(--error-light);
+      border-color: var(--error);
+    }
+    .message-area.message-success {
+      display: block;
+      color: var(--success);
+      background-color: var(--success-light);
+      border-color: var(--success);
+    }
+    .message-area.message-pending {
+      display: block;
+      color: var(--info);
+      background-color: var(--info-light);
+      border-color: var(--info);
+    }
+    
+    /* Token card styles */
     .token-card { 
-      margin-top: 20px; 
-      padding: 20px; 
-      border: 2px solid #2a5c60; 
-      border-radius: 12px; 
-      background: #f0f8ff; 
+      margin-top: var(--space-6); 
+      padding: var(--space-6); 
+      border: 1px solid var(--primary-200); 
+      border-radius: var(--radius-xl); 
+      background: var(--primary-50); 
       display: flex; 
-      gap: 20px; 
+      gap: var(--space-5); 
       align-items: center; 
       justify-content: space-between;
     }
     .token-pill { 
-      font-size: 28px; 
-      font-weight: 700; 
-      letter-spacing: 4px; 
-      padding: 12px 20px; 
-      border-radius: 8px; 
-      background: #1a73e8; 
-      color: #fff; 
+      font-size: var(--text-2xl); 
+      font-weight: var(--font-bold); 
+      letter-spacing: 2px; 
+      padding: var(--space-3) var(--space-5); 
+      border-radius: var(--radius-lg); 
+      background: var(--gradient-primary); 
+      color: white; 
       text-align: center; 
     }
     .qr-wrap { text-align: center; }
     .qr-wrap img { width: 150px; height: 150px; }
-    .qr-caption { font-size: 12px; color: #555; margin-top: 8px; }
+    .qr-caption { font-size: var(--text-xs); color: var(--neutral-600); margin-top: var(--space-2); }
+
+    /* Status box styles */
     .status-box {
-      padding: 15px;
-      border-radius: 8px;
-      margin: 20px 0;
-      font-weight: bold;
+      padding: var(--space-5);
+      border-radius: var(--radius-lg);
+      margin: var(--space-6) 0;
+      font-weight: var(--font-medium);
+      border: 1px solid;
     }
-    .status-pending { background: #fff3cd; color: #856404; }
-    .status-accepted { background: #d4edda; color: #155724; }
-    .status-escalated { background: #f8d7da; color: #721c24; }
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { padding: 12px; border-bottom: 1px solid #ddd; text-align: left; }
-    th { background: #2a5c60; color: white; }
-    .action-buttons { display: flex; gap: 10px; margin-top: 20px; }
+    .status-pending { 
+      background: var(--warning-light); 
+      color: var(--warning);
+      border-color: var(--warning); 
+    }
+    .status-accepted { 
+      background: var(--success-light); 
+      color: var(--success);
+      border-color: var(--success);
+    }
+    .status-escalated { 
+      background: var(--error-light); 
+      color: var(--error);
+      border-color: var(--error);
+    }
+    .status-box h4 { margin: 0 0 var(--space-2) 0; color: var(--neutral-900); }
+    .status-box p { margin: 0 0 var(--space-1) 0; }
+
+    /* Table styles */
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin-top: var(--space-4); 
+      font-size: var(--text-sm);
+    }
+    th, td { 
+      padding: var(--space-3) var(--space-4); 
+      border-bottom: 1px solid var(--neutral-200); 
+      text-align: left; 
+    }
+    th { 
+      background: var(--primary-600); 
+      color: white; 
+      font-weight: var(--font-semibold);
+    }
+    tbody tr:nth-child(even) { background-color: var(--neutral-50); }
+    
+    /* Action buttons container */
+    .action-buttons { 
+      display: flex; 
+      gap: var(--space-4); 
+      margin-top: var(--space-6); 
+      border-top: 1px solid var(--neutral-200);
+      padding-top: var(--space-6);
+    }
     .action-buttons button { flex: 1; }
   </style>
 </head>
-<body>
-<header>
-  <div class="logo">
-    <img src="lifeLinklogoD.png" alt="LifeLink Logo">
-    <span>LifeLink</span>
+
+<body style="background-color: var(--neutral-100);">
+
+<header id="main-header">
+  <div class="header-container">
+    <a href="index.html" class="logo">
+      <img src="lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+      <span>LifeLink</span>
+    </a>
+    <nav>
+      <a href="#" id="logoutBtn">Logout</a>
+    </nav>
+    <button class="mobile-menu-toggle" aria-label="Toggle menu">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
   </div>
-  <nav><a href="#" id="logoutBtn">Logout</a></nav>
 </header>
 
 <main>
-  <section class="main-card">
-    <h2 id="welcome-message">Welcome, Patient!</h2>
+  <div class="section">
+    <div class="section-container">
+    
+      <div class="card" style="max-width: 900px; margin: 0 auto;">
+        <div class="card-body">
 
-    <!-- SOS REQUEST SECTION -->
-    <div id="sos-section">
-      <h3>🚨 Request Emergency Blood</h3>
-      <p>Your precise location is required. Pincode is used as backup.</p>
-      <form id="sosForm">
-        <div class="form-group">
-          <label for="bloodType">Blood Type Needed:</label>
-          <select id="bloodType" required>
-            <option value="" disabled selected>-- Select --</option>
-            <option value="A+">A+</option>
-            <option value="A-">A-</option>
-            <option value="B+">B+</option>
-            <option value="B-">B-</option>
-            <option value="O+">O+</option>
-            <option value="O-">O-</option>
-            <option value="AB+">AB+</option>
-            <option value="AB-">AB-</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="pincode">Pincode (Backup):</label>
-          <input type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
-        </div>
-        <button type="submit" class="btn-danger">Send SOS Alert</button>
-      </form>
-      <p id="sosMessage" class="message-area"></p>
+          <h2 id="welcome-message" class="card-title">Welcome, Patient!</h2>
 
-      <!-- PATIENT TOKEN DISPLAY -->
-      <div id="patientTokenCard" class="token-card hidden">
-        <div>
-          <h4 style="margin: 0 0 10px 0;">Your Verification Token</h4>
-          <div id="patientTokenText" class="token-pill">----</div>
-          <p class="qr-caption">Show this token or QR code at the hospital for verification.</p>
-        </div>
-        <div class="qr-wrap">
-          <div id="qrCodeContainer"></div>
-          <p class="qr-caption">Scan at Hospital</p>
-        </div>
+          <div id="sos-section">
+            <h3>🚨 Request Emergency Blood</h3>
+            <p>Your precise location is required. Pincode is used as backup.</p>
+            <form id="sosForm">
+              
+              <div class="form-group">
+                <label class="form-label" for="bloodType">Blood Type Needed:</label>
+                <select id="bloodType" class="form-select" required>
+                  <option value="" disabled selected>-- Select --</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                </select>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label" for="pincode">Pincode (Backup):</label>
+                <input class="form-input" type="text" id="pincode" placeholder="Enter 6-digit pincode" maxlength="6" required>
+              </div>
+              
+              <button type="submit" class="btn btn-danger" style="width: 100%;">Send SOS Alert</button>
+            </form>
+            <p id="sosMessage" class="message-area"></p>
+
+            <div id="patientTokenCard" class="token-card hidden">
+              <div>
+                <h4 style="margin: 0 0 10px 0;">Your Verification Token</h4>
+                <div id="patientTokenText" class="token-pill">----</div>
+                <p class="qr-caption">Show this token or QR code at the hospital for verification.</p>
+              </div>
+              <div class="qr-wrap">
+                <div id="qrCodeContainer"></div>
+                <p class="qr-caption">Scan at Hospital</p>
+              </div>
+            </div>
+
+            <div id="statusBox" class="hidden"></div>
+          </div>
+
+          <div class="action-buttons">
+            <button id="historyBtn" class="btn btn-outline">View Request History</button>
+            <button id="statusBtn" class="btn btn-primary">Check Current Status</button>
+          </div>
+
+          <div id="history-section" class="hidden">
+            <h3>Your Request History</h3>
+            <div style="overflow-x: auto;"> <table id="history-table">
+                <thead>
+                  <tr>
+                    <th>Date & Time</th>
+                    <th>Blood Type</th>
+                    <th>Status</th>
+                    <th>Hospital</th>
+                    <th>Token</th>
+                  </tr>
+                </thead>
+                <tbody id="history-body"></tbody>
+              </table>
+            </div>
+          </div>
+          
+        </div> </div> </div> </div> </main>
+
+<footer>
+  <div class="footer-container">
+    <div class="footer-content">
+      <div class="footer-section">
+        <h4>LifeLink</h4>
+        <p>Connecting donors, patients, and hospitals to save lives through modern technology.</p>
       </div>
-
-      <!-- STATUS BOX -->
-      <div id="statusBox" class="hidden"></div>
+      <div class="footer-section">
+        <h4>Quick Links</h4>
+        <p><a href="index.html">Home</a></p>
+        <p><a href="facts.html">Facts</a></p>
+        <p><a href="volunteer-login.html">Volunteer</a></p>
+      </div>
+      <div class="footer-section">
+        <h4>Get Started</h4>
+        <p><a href="patient-login.html">Request Blood</a></p>
+        <p><a href="donor-login.html">Donate Blood</a></p>
+        <p><a href="hospital-login.html">Hospital Portal</a></p>
+      </div>
+      <div class="footer-section">
+        <h4>Support</h4>
+        <p><a href="admin-login.html">Admin Portal</a></p>
+        <p><a href="#">Help Center</a></p>
+        <p><a href="#">Contact Us</a></p>
+      </div>
     </div>
-
-    <!-- ACTION BUTTONS -->
-    <div class="action-buttons">
-      <button id="historyBtn" class="btn-secondary">View Request History</button>
-      <button id="statusBtn" class="btn-primary">Check Status</button>
+    <div class="footer-bottom">
+      <p>© 2025 LifeLink. All rights reserved. Saving lives through technology.</p>
     </div>
-
-    <!-- REQUEST HISTORY TABLE -->
-    <div id="history-section" class="hidden">
-      <h3>Your Request History</h3>
-      <table id="history-table">
-        <thead>
-          <tr>
-            <th>Date & Time</th>
-            <th>Blood Type</th>
-            <th>Status</th>
-            <th>Hospital</th>
-            <th>Token</th>
-          </tr>
-        </thead>
-        <tbody id="history-body"></tbody>
-      </table>
-    </div>
-  </section>
-</main>
+  </div>
+</footer>
 
 <script>
 let currentRequestId = null;
@@ -441,8 +560,5 @@ function showMessage(text, type) {
 }
 </script>
 
-<footer>
-  <p>© 2025 LifeLink</p>
-</footer>
 </body>
 </html>
