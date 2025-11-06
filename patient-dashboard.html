@@ -129,333 +129,316 @@
   </section>
 </main>
 
-<script src="lifelink-api.js"></script>
 <script>
-// ============================================================================
-// PATIENT DASHBOARD - FULLY INTEGRATED
-// ============================================================================
-
-let currentUser = null;
-let statusPollInterval = null;
 let currentRequestId = null;
+let statusPollInterval = null;
+
+// Pincode to approximate coordinates mapping (Patiala area)
+const PINCODE_COORDINATES = {
+  '147001': { lat: 30.3398, lon: 76.3869 }, // Central Patiala
+  '147002': { lat: 30.3520, lon: 76.4095 }, // Urban Estate
+  '147003': { lat: 30.3216, lon: 76.4250 }, // Rajpura Colony
+  '147004': { lat: 30.3601, lon: 76.3540 }, // Sirhind Road
+  // Add more as needed
+};
+
+// Function to get approximate coordinates for a pincode
+function getCoordinatesFromPincode(pincode) {
+  // If we have exact mapping, use it
+  if (PINCODE_COORDINATES[pincode]) {
+    return PINCODE_COORDINATES[pincode];
+  }
+  
+  // Otherwise, use a random offset from central Patiala
+  const baseLat = 30.3398;
+  const baseLon = 76.3869;
+  const randomOffsetLat = (Math.random() - 0.5) * 0.05; // ~2.5km radius
+  const randomOffsetLon = (Math.random() - 0.5) * 0.05;
+  
+  return {
+    lat: baseLat + randomOffsetLat,
+    lon: baseLon + randomOffsetLon
+  };
+}
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Check authentication
-    currentUser = LifeLinkAPI.getCurrentUser();
-    if (!currentUser) {
-        window.location.href = 'patient-login.html';
-        return;
+  const user = JSON.parse(sessionStorage.getItem('currentUser'));
+  if (!user) {
+    window.location.href = 'patient-login.html';
+    return;
+  }
+
+  document.getElementById('welcome-message').textContent = `Welcome, ${user.full_name || 'Patient'}!`;
+  document.getElementById('pincode').value = user.pincode || '';
+
+  // Logout handler
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    sessionStorage.clear();
+    window.location.href = 'patient-login.html';
+  });
+
+  // Load history on page load
+  loadHistory();
+
+  // History button
+  document.getElementById('historyBtn').addEventListener('click', () => {
+    const historySection = document.getElementById('history-section');
+    historySection.classList.toggle('hidden');
+    if (!historySection.classList.contains('hidden')) {
+      loadHistory();
     }
-    
-    // Display welcome message
-    document.getElementById('welcome-message').textContent = `Welcome, ${currentUser.full_name}!`;
-    
-    // Prefill pincode if available
-    if (currentUser.pincode) {
-        document.getElementById('pincode').value = currentUser.pincode;
+  });
+
+  // Manual status check button
+  document.getElementById('statusBtn').addEventListener('click', () => {
+    if (currentRequestId) {
+      checkRequestStatus(currentRequestId);
+    } else {
+      showMessage('No active request to check.', 'error');
     }
-    
-    // Setup event listeners
-    document.getElementById('sosForm').addEventListener('submit', handleSOSSubmit);
-    document.getElementById('statusBtn').addEventListener('click', showStatusBox);
-    document.getElementById('historyBtn').addEventListener('click', () => {
-        toggleSection('history');
-        loadHistory();
-    });
-    document.getElementById('logoutBtn').addEventListener('click', () => {
-        LifeLinkAPI.logout();
-    });
+  });
 });
 
 // ============================================================================
-// CORE FEATURE: SEND SOS - INTEGRATED WITH BACKEND
+// SOS FORM SUBMISSION WITH PINCODE FALLBACK
 // ============================================================================
+document.getElementById('sosForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const user = JSON.parse(sessionStorage.getItem('currentUser'));
+  const bloodType = document.getElementById('bloodType').value;
+  const pincode = document.getElementById('pincode').value;
+  const messageEl = document.getElementById('sosMessage');
 
-async function handleSOSSubmit(e) {
-    e.preventDefault();
-    
-    const bloodType = document.getElementById('bloodType').value;
-    const pincode = document.getElementById('pincode').value;
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    
-    // Validation
-    if (!bloodType) {
-        showMessage('❌ Please select a blood type.', 'error');
-        return;
-    }
-    
-    if (!/^\d{6}$/.test(pincode)) {
-        showMessage('❌ Please enter a valid 6-digit pincode.', 'error');
-        return;
-    }
-    
-    // Disable button and show loading
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Requesting Location...';
-    showMessage('📍 Requesting your precise location...', 'info');
-    
-    try {
-        // Make API call (includes geolocation request)
-        const result = await LifeLinkAPI.patient.sendSOS(
-            currentUser.user_id,
-            bloodType,
-            pincode
-        );
+  if (!bloodType || !pincode) {
+    messageEl.textContent = 'Please select blood type and enter pincode.';
+    messageEl.className = 'message-area message-error';
+    return;
+  }
+
+  messageEl.textContent = 'Getting your location...';
+  messageEl.className = 'message-area message-pending';
+
+  // Try to get precise location first
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      // SUCCESS: Got precise location
+      async (position) => {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
         
-        if (result.success) {
-            currentRequestId = result.requestId;
-            
-            // Display patient token
-            displayPatientToken(result.patient_token);
-            
-            // Start polling for status updates
-            startStatusPolling(currentRequestId);
-            
-            // Show success message
-            showMessage('✅ ' + result.message, 'success');
-            
-            // Hide form after successful submission
-            document.getElementById('sosForm').style.display = 'none';
-        }
-    } catch (error) {
-        console.error('SOS Error:', error);
-        showMessage('❌ ' + error.message, 'error');
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Send SOS Alert';
+        messageEl.textContent = 'Precise location obtained! Sending SOS...';
+        await sendSOSRequest(user, bloodType, pincode, latitude, longitude, messageEl);
+      },
+      
+      // ERROR: Location denied or unavailable - USE PINCODE FALLBACK
+      async (error) => {
+        console.log('Location error:', error.message);
+        messageEl.textContent = 'Location access denied. Using pincode as fallback...';
+        messageEl.className = 'message-area message-pending';
+        
+        // Get approximate coordinates from pincode
+        const coords = getCoordinatesFromPincode(pincode);
+        console.log(`Using pincode ${pincode} coordinates:`, coords);
+        
+        await sendSOSRequest(user, bloodType, pincode, coords.lat, coords.lon, messageEl);
+      },
+      
+      // Options
+      { 
+        enableHighAccuracy: true, 
+        timeout: 8000,
+        maximumAge: 0 
+      }
+    );
+  } else {
+    // Browser doesn't support geolocation - USE PINCODE FALLBACK
+    messageEl.textContent = 'Geolocation not supported. Using pincode...';
+    const coords = getCoordinatesFromPincode(pincode);
+    await sendSOSRequest(user, bloodType, pincode, coords.lat, coords.lon, messageEl);
+  }
+});
+
+// ============================================================================
+// SEND SOS REQUEST TO SERVER
+// ============================================================================
+async function sendSOSRequest(user, bloodType, pincode, latitude, longitude, messageEl) {
+  try {
+    const response = await fetch('/api/server/request-blood', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        patientId: user.user_id,
+        bloodType: bloodType,
+        pincode: pincode,
+        latitude: latitude,
+        longitude: longitude
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      currentRequestId = data.requestId;
+      messageEl.textContent = `✅ ${data.message}`;
+      messageEl.className = 'message-area message-success';
+      
+      // Display token
+      displayPatientToken(data.patient_token);
+      
+      // Start polling for status
+      startStatusPolling(data.requestId);
+    } else {
+      messageEl.textContent = `❌ ${data.message || 'Failed to send SOS.'}`;
+      messageEl.className = 'message-area message-error';
     }
+  } catch (error) {
+    console.error('SOS Error:', error);
+    messageEl.textContent = '❌ Could not connect to server.';
+    messageEl.className = 'message-area message-error';
+  }
 }
 
 // ============================================================================
 // DISPLAY PATIENT TOKEN + QR CODE
 // ============================================================================
-
 function displayPatientToken(token) {
-    const tokenCard = document.getElementById('patientTokenCard');
-    tokenCard.innerHTML = `
-        <div class="card-body">
-            <div class="grid grid-cols-2" style="align-items: center; gap: var(--space-6);">
-                <div>
-                    <h4 class="card-title" style="margin-bottom: var(--space-4);">Your Verification Token</h4>
-                    <div id="patientTokenText" class="token-text">${token}</div>
-                    <p class="form-hint" style="margin-top: var(--space-4);">Show this token or QR code at the hospital.</p>
-                </div>
-                <div style="text-align: center;">
-                    <div class="qr-display-container">
-                        <div id="qrCodeContainer"></div>
-                    </div>
-                    <p class="form-hint" style="margin-top: var(--space-2);">Scan at Hospital</p>
-                </div>
-            </div>
-        </div>
-    `;
+  const tokenCard = document.getElementById('patientTokenCard');
+  const tokenText = document.getElementById('patientTokenText');
+  const qrContainer = document.getElementById('qrCodeContainer');
 
-    // Generate QR Code (using QRCode.js library)
-    if (typeof QRCode !== 'undefined') {
-        new QRCode(document.getElementById('qrCodeContainer'), {
-            text: `/verify-token/${token}`,
-            width: 130,
-            height: 130,
-            colorDark : "#0d3230",
-            colorLight : "#ffffff"
-        });
-    }
+  tokenText.textContent = token;
+  qrContainer.innerHTML = ''; // Clear previous QR
 
-    tokenCard.classList.remove('hidden');
+  // Generate QR Code
+  new QRCode(qrContainer, {
+    text: `/verify-token/${token}`,
+    width: 150,
+    height: 150
+  });
+
+  tokenCard.classList.remove('hidden');
 }
 
 // ============================================================================
 // STATUS POLLING - Check if hospital accepted
 // ============================================================================
-
 function startStatusPolling(requestId) {
-    if (statusPollInterval) {
-        clearInterval(statusPollInterval);
-    }
-    
-    // Check immediately
+  if (statusPollInterval) {
+    clearInterval(statusPollInterval);
+  }
+
+  // Check immediately
+  checkRequestStatus(requestId);
+
+  // Then poll every 15 seconds
+  statusPollInterval = setInterval(() => {
     checkRequestStatus(requestId);
-    
-    // Then poll every 15 seconds
-    statusPollInterval = setInterval(() => {
-        checkRequestStatus(requestId);
-    }, 15000);
+  }, 15000);
 }
 
 async function checkRequestStatus(requestId) {
-    try {
-        const data = await LifeLinkAPI.patient.getStatus(requestId);
-        
-        const statusBox = document.getElementById('statusBox');
-        statusBox.classList.remove('hidden');
-        let html = '';
+  try {
+    const response = await fetch(`/api/server/request-status/${requestId}`);
+    const data = await response.json();
 
-        if (data.status === 'accepted') {
-            html = `
-                <div class="card-body message-area message-success" style="display: block;">
-                    <h4 class="card-title status-title-accepted">✅ Hospital Accepted!</h4>
-                    <p><strong>Hospital:</strong> ${data.hospital.name}</p>
-                    <p><strong>Address:</strong> ${data.hospital.address}</p>
-                    <p><strong>Pincode:</strong> ${data.hospital.pincode}</p>
-                    <p><strong>Phone:</strong> ${data.hospital.phone}</p>
-                    <p><strong>Your Token:</strong> <span class="token-text" style="font-size: var(--text-xl);">${data.patient_token}</span></p>
-                    <p style="margin-top: var(--space-4);">Please proceed to the hospital with your token.</p>
-                </div>
-            `;
-            // Stop polling when accepted
-            if (statusPollInterval) {
-                clearInterval(statusPollInterval);
-                statusPollInterval = null;
-            }
-            
-        } else if (data.status === 'escalated') {
-            html = `
-                <div class="card-body message-area message-error" style="display: block;">
-                    <h4 class="card-title status-title-escalated">⏳ Request Escalated to Donors</h4>
-                    <p>No hospitals accepted within the time limit. Nearby donors have been notified.</p>
-                    <p><strong>Your Token:</strong> <span class="token-text" style="font-size: var(--text-xl);">${data.patient_token}</span></p>
-                    <p style="margin-top: var(--space-2);">You will be notified when a donor accepts.</p>
-                </div>
-            `;
-            // Stop polling when escalated (donor will handle from here)
-            if (statusPollInterval) {
-                clearInterval(statusPollInterval);
-                statusPollInterval = null;
-            }
-            
-        } else if (data.status === 'donor_assigned') {
-            html = `
-                <div class="card-body message-area message-success" style="display: block;">
-                    <h4 class="card-title status-title-accepted">✅ Donor Found!</h4>
-                    <p>A matching donor has accepted your request.</p>
-                    <p><strong>Hospital Assigned:</strong> ${data.hospital ? data.hospital.name : 'Please check back'}</p>
-                    <p><strong>Your Token:</strong> <span class="token-text" style="font-size: var(--text-xl);">${data.patient_token}</span></p>
-                    <p style="margin-top: var(--space-2);">Please proceed to the assigned hospital.</p>
-                </div>
-            `;
-            // Stop polling when donor assigned
-            if (statusPollInterval) {
-                clearInterval(statusPollInterval);
-                statusPollInterval = null;
-            }
-            
-        } else { // 'pending'
-            html = `
-                <div class="card-body message-area message-info" style="display: block;">
-                    <h4 class="card-title status-title-pending">⏰ Waiting for Hospital Response...</h4>
-                    <p>Your request has been sent to nearby hospitals. Please wait for confirmation.</p>
-                    <p><strong>Your Token:</strong> <span class="token-text" style="font-size: var(--text-xl);">${data.patient_token}</span></p>
-                    <p style="margin-top: var(--space-2); font-size: var(--text-sm); color: var(--neutral-600);">
-                        Auto-updating every 15 seconds...
-                    </p>
-                </div>
-            `;
-        }
-        
-        statusBox.innerHTML = html;
+    const statusBox = document.getElementById('statusBox');
+    statusBox.classList.remove('hidden');
 
-    } catch (error) {
-        console.error('Status Check Error:', error);
-        // Don't show error to user, just log it
-    }
-}
-
-function showStatusBox() {
-    if (currentRequestId) {
-        checkRequestStatus(currentRequestId);
+    if (data.status === 'accepted') {
+      statusBox.className = 'status-box status-accepted';
+      statusBox.innerHTML = `
+        <h4>✅ Hospital Accepted!</h4>
+        <p><strong>Hospital:</strong> ${data.hospital.name}</p>
+        <p><strong>Address:</strong> ${data.hospital.address}</p>
+        <p><strong>Pincode:</strong> ${data.hospital.pincode}</p>
+        <p><strong>Your Token:</strong> <span style="font-size: 20px; letter-spacing: 2px;">${data.patient_token}</span></p>
+        <p>Please proceed to the hospital with your token.</p>
+      `;
+      
+      // Stop polling
+      if (statusPollInterval) {
+        clearInterval(statusPollInterval);
+      }
+      
+    } else if (data.status === 'escalated') {
+      statusBox.className = 'status-box status-escalated';
+      statusBox.innerHTML = `
+        <h4>⏳ Request Escalated to Donors</h4>
+        <p>No hospitals accepted within 10 minutes.</p>
+        <p>Nearby donors have been notified.</p>
+        <p><strong>Your Token:</strong> <span style="font-size: 20px; letter-spacing: 2px;">${data.patient_token}</span></p>
+        <p>You will be notified when a donor accepts.</p>
+      `;
+      
     } else {
-        showMessage('ℹ️ No active request. Send an SOS first.', 'info');
+      statusBox.className = 'status-box status-pending';
+      statusBox.innerHTML = `
+        <h4>⏰ Waiting for Hospital Response...</h4>
+        <p>Your request has been sent to nearby hospitals.</p>
+        <p><strong>Your Token:</strong> <span style="font-size: 20px; letter-spacing: 2px;">${data.patient_token}</span></p>
+        <p>Please wait for confirmation (10-minute window).</p>
+      `;
     }
+
+  } catch (error) {
+    console.error('Status Check Error:', error);
+  }
 }
 
 // ============================================================================
-// LOAD REQUEST HISTORY - INTEGRATED WITH BACKEND
+// LOAD REQUEST HISTORY
 // ============================================================================
-
 async function loadHistory() {
-    const tbody = document.getElementById('history-body');
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Loading...</td></tr>';
+  const user = JSON.parse(sessionStorage.getItem('currentUser'));
+  const tbody = document.getElementById('history-body');
 
-    try {
-        const history = await LifeLinkAPI.patient.getHistory(currentUser.user_id);
+  try {
+    const response = await fetch(`/api/server/requests/history/${user.user_id}`);
+    const data = await response.json();
 
-        tbody.innerHTML = '';
+    tbody.innerHTML = '';
 
-        if (history.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: var(--space-4);">No previous requests.</td></tr>';
-            return;
-        }
-
-        history.forEach(req => {
-            const row = document.createElement('tr');
-            const statusBadge = getStatusBadge(req.status);
-            
-            row.innerHTML = `
-                <td>${new Date(req.created_at).toLocaleString()}</td>
-                <td>${req.blood_type_needed}</td>
-                <td>${statusBadge}</td>
-                <td>${req.hospital_name || '—'}</td>
-                <td>${req.patient_token || '—'}</td>
-            `;
-            tbody.appendChild(row);
-        });
-
-    } catch (error) {
-        console.error('History Error:', error);
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--error);">Error loading history.</td></tr>';
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No previous requests.</td></tr>';
+      return;
     }
-}
 
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
+    data.forEach(req => {
+      const row = document.createElement('tr');
+      const statusBadge = getStatusBadge(req.status);
+      
+      row.innerHTML = `
+        <td>${new Date(req.created_at).toLocaleString()}</td>
+        <td>${req.blood_type_needed}</td>
+        <td>${statusBadge}</td>
+        <td>${req.hospital_name || '—'}</td>
+        <td>${req.patient_token || '—'}</td>
+      `;
+      tbody.appendChild(row);
+    });
+
+  } catch (error) {
+    console.error('History Error:', error);
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Error loading history.</td></tr>';
+  }
+}
 
 function getStatusBadge(status) {
-    status = (status || 'pending').toLowerCase();
-    const badges = {
-        'pending': '<span class="badge badge-warning">Pending</span>',
-        'accepted': '<span class="badge badge-success">Accepted</span>',
-        'escalated': '<span class="badge badge-error">Escalated</span>',
-        'donor_assigned': '<span class="badge badge-success">Donor Assigned</span>',
-        'completed': '<span class="badge badge-neutral">Completed</span>'
-    };
-    return badges[status] || status;
+  const badges = {
+    'pending': '<span style="background:#ffc107; color:#000; padding:4px 8px; border-radius:4px;">Pending</span>',
+    'accepted': '<span style="background:#28a745; color:#fff; padding:4px 8px; border-radius:4px;">Accepted</span>',
+    'escalated': '<span style="background:#dc3545; color:#fff; padding:4px 8px; border-radius:4px;">Escalated</span>',
+    'completed': '<span style="background:#6c757d; color:#fff; padding:4px 8px; border-radius:4px;">Completed</span>'
+  };
+  return badges[status] || status;
 }
 
 function showMessage(text, type) {
-    const messageEl = document.getElementById('sosMessage');
-    messageEl.textContent = text;
-    messageEl.className = `message-area message-${type}`;
-    messageEl.style.display = 'block';
-    
-    // Auto-hide after 5 seconds for info/success messages
-    if (type === 'info' || type === 'success') {
-        setTimeout(() => {
-            messageEl.style.display = 'none';
-        }, 5000);
-    }
+  const messageEl = document.getElementById('sosMessage');
+  messageEl.textContent = text;
+  messageEl.className = `message-area message-${type}`;
 }
-
-function toggleSection(sectionName) {
-    // Hide all sections
-    document.querySelectorAll('.tab-content').forEach(section => {
-        section.classList.remove('active');
-    });
-    
-    // Show selected section
-    const section = document.getElementById(sectionName + '-section') || 
-                    document.getElementById(sectionName);
-    if (section) {
-        section.classList.add('active');
-    }
-}
-
-// Clean up on page unload
-window.addEventListener('beforeunload', () => {
-    if (statusPollInterval) {
-        clearInterval(statusPollInterval);
-    }
-});
 </script>
 
 <footer>

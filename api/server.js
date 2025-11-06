@@ -2,105 +2,46 @@ const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
 const axios = require('axios');
-const crypto = require('crypto');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Database connection
+// Database Connection
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
   ssl: { rejectUnauthorized: false },
 });
 
-// Environment variables
+// Environment Variables
 const FAST2SMS_API_KEY = process.env.FAST2SMS_API_KEY;
-const OPENCAGE_API_KEY = process.env.OPENCAGE_API_KEY || 'your_opencage_key';
-const ADMIN_ACCESS_CODE = process.env.ADMIN_ACCESS_CODE || '1900';
+const OPENCAGE_API_KEY = process.env.OPENCAGE_API_KEY;
 
-// In-memory storage (use Redis in production)
+// In-memory OTP storage
 const otpStore = {};
-const activeRequests = new Map();
-const adminSessions = new Map();
-const hospitalSessions = new Map(); // Hospital sessions
 
-// Pincode to Lat/Lon mapping
-const PINCODE_COORDS = {
-  '147001': { lat: 30.3398, lon: 76.3869 }, // Patiala
-  '147002': { lat: 30.3520, lon: 76.4095 },
-  '147003': { lat: 30.3216, lon: 76.4250 },
-  '147004': { lat: 30.3601, lon: 76.3540 },
-  '110001': { lat: 28.6139, lon: 77.2090 }, // Delhi
-  '400001': { lat: 18.9388, lon: 72.8354 }, // Mumbai
-  '560001': { lat: 12.9716, lon: 77.5946 }, // Bangalore
-  '600001': { lat: 13.0827, lon: 80.2707 }, // Chennai
-  '700001': { lat: 22.5726, lon: 88.3639 }, // Kolkata
-};
-
-// ============================================================================
 // HELPER FUNCTIONS
-// ============================================================================
-
 function calculateDistance(lat1, lon1, lat2, lon2) {
   if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return Infinity;
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2) ** 2 + 
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+  const a = Math.sin(dLat/2) ** 2 +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLon/2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
-}
-
-async function getCoordsFromPincode(pincode) {
-  if (PINCODE_COORDS[pincode]) {
-    return PINCODE_COORDS[pincode];
-  }
-  
-  if (OPENCAGE_API_KEY && OPENCAGE_API_KEY !== 'your_opencage_key') {
-    try {
-      const response = await axios.get(`https://api.opencagedata.com/geocode/v1/json`, {
-        params: {
-          q: `${pincode}, India`,
-          key: OPENCAGE_API_KEY,
-          limit: 1
-        }
-      });
-      
-      if (response.data.results && response.data.results.length > 0) {
-        const result = response.data.results[0];
-        return {
-          lat: result.geometry.lat,
-          lon: result.geometry.lng
-        };
-      }
-    } catch (error) {
-      console.error('OpenCage API error:', error.message);
-    }
-  }
-  
-  return { lat: 23.0, lon: 80.0 };
 }
 
 function generate4DigitToken() {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-function generateOTP() {
-  return Math.floor(1000 + Math.random() * 9000).toString();
-}
-
-function generateSecureToken() {
-  return crypto.randomBytes(32).toString('hex');
-}
-
 async function generateUniquePatientToken(client) {
   for (let i = 0; i < 10; i++) {
     const token = generate4DigitToken();
     const { rows } = await client.query(
-      "SELECT 1 FROM blood_requests WHERE patient_token = $1 AND status IN ('pending','accepted')", 
+      "SELECT 1 FROM blood_requests WHERE patient_token = $1 AND status IN ('pending','accepted')",
       [token]
     );
     if (rows.length === 0) return token;
@@ -112,7 +53,7 @@ async function generateUniqueDonorToken(client) {
   for (let i = 0; i < 10; i++) {
     const token = generate4DigitToken();
     const { rows } = await client.query(
-      'SELECT 1 FROM donation_commitments WHERE donor_token = $1', 
+      'SELECT 1 FROM donation_commitments WHERE donor_token = $1',
       [token]
     );
     if (rows.length === 0) return token;
@@ -120,1009 +61,64 @@ async function generateUniqueDonorToken(client) {
   throw new Error('Could not generate unique donor token.');
 }
 
-// ============================================================================
-// AUTHENTICATION MIDDLEWARE
-// ============================================================================
+// ESCALATION LOGIC
+async function checkAndEscalate(requestId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    const reqRes = await client.query(
+      "SELECT status, blood_type_needed FROM blood_requests WHERE request_id = $1 FOR UPDATE",
+      [requestId]
+    );
+    
+    if (!reqRes.rows.length || reqRes.rows[0].status !== 'pending') {
+      await client.query('ROLLBACK');
+      return;
+    }
 
-function authenticateAdmin(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  
-  if (!token || !adminSessions.has(token)) {
-    return res.status(401).json({ 
-      success: false, 
-      message: 'Unauthorized. Please login.' 
-    });
+    const sentAlerts = await client.query(
+      "SELECT 1 FROM alert_status WHERE request_id = $1 AND status = 'sent'",
+      [requestId]
+    );
+
+    if (sentAlerts.rows.length === 0) {
+      console.log(`Escalating request ${requestId} to donors...`);
+      
+      await client.query(
+        "UPDATE blood_requests SET status = 'escalated' WHERE request_id = $1",
+        [requestId]
+      );
+      
+      const { rows: donors } = await client.query(
+        "SELECT user_id, phone_number, full_name FROM users WHERE role = 'donor' AND blood_type = $1",
+        [reqRes.rows[0].blood_type_needed]
+      );
+      
+      console.log(`Notified ${donors.length} donors for request ${requestId}`);
+    }
+    
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(`Error in checkAndEscalate: ${e.message}`);
+  } finally {
+    client.release();
   }
-  
-  const session = adminSessions.get(token);
-  
-  if (Date.now() - session.createdAt > 24 * 60 * 60 * 1000) {
-    adminSessions.delete(token);
-    return res.status(401).json({ 
-      success: false, 
-      message: 'Session expired. Please login again.' 
-    });
-  }
-  
-  req.adminId = session.adminId;
-  next();
 }
 
-function authenticateHospital(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  
-  if (!token || !hospitalSessions.has(token)) {
-    return res.status(401).json({ 
-      success: false, 
-      message: 'Unauthorized. Please login.' 
-    });
-  }
-  
-  const session = hospitalSessions.get(token);
-  
-  if (Date.now() - session.createdAt > 24 * 60 * 60 * 1000) {
-    hospitalSessions.delete(token);
-    return res.status(401).json({ 
-      success: false, 
-      message: 'Session expired. Please login again.' 
-    });
-  }
-  
-  req.hospitalId = session.hospitalId;
-  next();
-}
-
-// ============================================================================
-// HOSPITAL AUTHENTICATION
-// ============================================================================
-
-app.post('/api/server/register/hospital', async (req, res) => {
-  const { hospitalName, phoneNumber, password, address, pincode, email } = req.body;
-  
-  console.log('🏥 Hospital registration attempt:', { hospitalName, phoneNumber, pincode });
-  
-  // Validation
-  if (!hospitalName || !phoneNumber || !password || !address || !pincode) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'All fields are required (hospital name, phone, password, address, pincode).' 
-    });
-  }
-  
-  if (!/^\d{10}$/.test(phoneNumber)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Invalid phone number format. Must be 10 digits.' 
-    });
-  }
-  
-  if (!/^\d{6}$/.test(pincode)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Invalid pincode format. Must be 6 digits.' 
-    });
-  }
-  
-  if (password.length < 6) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Password must be at least 6 characters long.' 
-    });
-  }
-  
-  let client;
-  try {
-    // Check database connection
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    // Check if phone exists
-    const existing = await client.query(
-      "SELECT hospital_id FROM hospitals WHERE phone_number = $1",
-      [phoneNumber]
-    );
-    
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'A hospital with this phone number already exists.' 
-      });
-    }
-    
-    // Get coordinates
-    const coords = await getCoordsFromPincode(pincode);
-    console.log('📍 Coordinates for pincode', pincode, ':', coords);
-    
-    // Insert hospital
-    const { rows } = await client.query(
-      `INSERT INTO hospitals (hospital_name, phone_number, password_hash, address, pincode, email, latitude, longitude, created_at) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) 
-       RETURNING hospital_id, hospital_name, phone_number, address, pincode, email`,
-      [hospitalName, phoneNumber, password, address, pincode, email || null, coords.lat, coords.lon]
-    );
-    
-    console.log('✅ Hospital registered successfully:', rows[0].hospital_id);
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Hospital registered successfully!',
-      hospital: rows[0]
-    });
-    
-  } catch (e) {
-    console.error('❌ Hospital registration error:', e);
-    console.error('Error details:', {
-      message: e.message,
-      code: e.code,
-      detail: e.detail
-    });
-    
-    // Handle specific database errors
-    if (e.code === '23505') {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'A hospital with this phone number already exists.' 
-      });
-    }
-    
-    if (e.code === '42P01') {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Database table "hospitals" does not exist. Please run database migrations.' 
-      });
-    }
-    
-    if (e.code === '42703') {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Database column missing. Error: ' + e.message 
-      });
-    }
-    
-    if (e.message.includes('connection')) {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Database connection error. Please check if POSTGRES_URL is set correctly.' 
-      });
-    }
-    
-    res.status(500).json({ 
-      success: false, 
-      message: 'Registration failed: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-app.post('/api/server/login/hospital', async (req, res) => {
-  const { phoneNumber, password } = req.body;
-  
-  console.log('🏥 Hospital login attempt:', { phoneNumber });
-  
-  if (!phoneNumber || !password) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Phone number and password are required.' 
-    });
-  }
-  
-  if (!/^\d{10}$/.test(phoneNumber)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Invalid phone number format.' 
-    });
-  }
-  
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    const { rows } = await client.query(
-      "SELECT hospital_id, hospital_name, phone_number, address, pincode, email, password_hash FROM hospitals WHERE phone_number = $1",
-      [phoneNumber]
-    );
-    
-    if (rows.length === 0) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid phone number or password.' 
-      });
-    }
-    
-    const hospital = rows[0];
-    
-    if (password !== hospital.password_hash) {
-      console.log('❌ Invalid password for hospital:', phoneNumber);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid phone number or password.' 
-      });
-    }
-    
-    const token = generateSecureToken();
-    
-    hospitalSessions.set(token, {
-      hospitalId: hospital.hospital_id,
-      phoneNumber: hospital.phone_number,
-      createdAt: Date.now()
-    });
-    
-    await client.query(
-      "UPDATE hospitals SET last_login = NOW() WHERE hospital_id = $1",
-      [hospital.hospital_id]
-    );
-    
-    console.log(`✅ Hospital logged in successfully: ${hospital.hospital_id}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Login successful!',
-      token: token,
-      hospital: {
-        hospital_id: hospital.hospital_id,
-        hospitalName: hospital.hospital_name,
-        phoneNumber: hospital.phone_number,
-        address: hospital.address,
-        pincode: hospital.pincode,
-        email: hospital.email
-      }
-    });
-  } catch (e) {
-    console.error('❌ Hospital login error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Login failed: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-app.post('/api/server/logout/hospital', authenticateHospital, async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  
-  if (token) {
-    hospitalSessions.delete(token);
-  }
-  
-  res.json({ 
-    success: true, 
-    message: 'Logged out successfully.' 
-  });
-});
-
-app.get('/api/server/verify/hospital', authenticateHospital, async (req, res) => {
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    const { rows } = await client.query(
-      "SELECT hospital_id, hospital_name, phone_number, address, pincode, email FROM hospitals WHERE hospital_id = $1",
-      [req.hospitalId]
-    );
-    
-    if (rows.length === 0) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Hospital not found.' 
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      hospital: {
-        hospital_id: rows[0].hospital_id,
-        hospitalName: rows[0].hospital_name,
-        phoneNumber: rows[0].phone_number,
-        address: rows[0].address,
-        pincode: rows[0].pincode,
-        email: rows[0].email
-      }
-    });
-  } catch (e) {
-    console.error('❌ Hospital verification error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Verification failed: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-// ============================================================================
-// HOSPITAL BLOOD INVENTORY MANAGEMENT
-// ============================================================================
-
-app.get('/api/hospital/inventory', authenticateHospital, async (req, res) => {
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    const { rows } = await client.query(
-      `SELECT blood_type, units_available, confidence_level, last_updated 
-       FROM blood_inventory 
-       WHERE hospital_id = $1 
-       ORDER BY blood_type`,
-      [req.hospitalId]
-    );
-    
-    res.json({ success: true, inventory: rows });
-  } catch (e) {
-    console.error('❌ Get inventory error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to load inventory: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-app.post('/api/hospital/inventory/update', authenticateHospital, async (req, res) => {
-  const { bloodType, units, confidenceLevel } = req.body;
-  
-  if (!bloodType || units === undefined || !confidenceLevel) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Blood type, units, and confidence level are required.' 
-    });
-  }
-  
-  if (units < 0) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Units cannot be negative.' 
-    });
-  }
-  
-  const validBloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-  if (!validBloodTypes.includes(bloodType)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Invalid blood type.' 
-    });
-  }
-  
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    const { rows } = await client.query(
-      `INSERT INTO blood_inventory (hospital_id, blood_type, units_available, confidence_level, last_updated)
-       VALUES ($1, $2, $3, $4, NOW())
-       ON CONFLICT (hospital_id, blood_type) 
-       DO UPDATE SET 
-         units_available = $3, 
-         confidence_level = $4, 
-         last_updated = NOW()
-       RETURNING *`,
-      [req.hospitalId, bloodType, units, confidenceLevel]
-    );
-    
-    console.log(`✅ Inventory updated: ${bloodType} = ${units} units (${confidenceLevel})`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Inventory updated successfully!',
-      inventory: rows[0]
-    });
-  } catch (e) {
-    console.error('❌ Update inventory error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Update failed: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-// ============================================================================
-// TOKEN VERIFICATION (DONOR & PATIENT) - FIXED
-// ============================================================================
-
-app.post('/api/hospital/verify-tokens', authenticateHospital, async (req, res) => {
-  const { donorToken, patientToken } = req.body;
-  
-  if (!donorToken || !patientToken) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Both donor and patient tokens are required.' 
-    });
-  }
-  
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    // Verify donor token - FIXED: use donor_id instead of user_id
-    const donorResult = await client.query(
-      `SELECT dc.*, u.full_name as donor_name, u.phone_number as donor_phone, u.blood_type as donor_blood_type,
-              br.blood_type_needed, br.patient_token
-       FROM donation_commitments dc
-       JOIN users u ON dc.donor_id = u.user_id
-       JOIN blood_requests br ON dc.request_id = br.request_id
-       WHERE dc.donor_token = $1`,
-      [donorToken]
-    );
-    
-    // Verify patient token
-    const patientResult = await client.query(
-      `SELECT br.*, u.full_name as patient_name, u.phone_number as patient_phone
-       FROM blood_requests br
-       JOIN users u ON br.patient_id = u.user_id
-       WHERE br.patient_token = $1`,
-      [patientToken]
-    );
-    
-    if (donorResult.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Invalid donor token.' 
-      });
-    }
-    
-    if (patientResult.rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Invalid patient token.' 
-      });
-    }
-    
-    const donor = donorResult.rows[0];
-    const patient = patientResult.rows[0];
-    
-    // Check if tokens match (same request)
-    const tokensMatch = donor.request_id === patient.request_id;
-    
-    res.json({ 
-      success: true, 
-      match: tokensMatch,
-      message: tokensMatch ? 'Tokens verified and matched!' : 'Tokens do not match the same request.',
-      donor: {
-        name: donor.donor_name,
-        phone: donor.donor_phone,
-        bloodType: donor.donor_blood_type,
-        token: donorToken,
-        status: donor.status
-      },
-      patient: {
-        name: patient.patient_name,
-        phone: patient.patient_phone,
-        bloodType: patient.blood_type_needed,
-        token: patientToken,
-        status: patient.status,
-        requestId: patient.request_id
-      }
-    });
-  } catch (e) {
-    console.error('❌ Token verification error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Verification failed: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-// ============================================================================
-// HOSPITAL PLAYBOOKS
-// ============================================================================
-
-app.get('/api/hospital/playbooks', authenticateHospital, async (req, res) => {
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    const { rows } = await client.query(
-      `SELECT playbook_id, title, category, content, created_at, updated_at 
-       FROM hospital_playbooks 
-       WHERE hospital_id = $1 OR hospital_id IS NULL
-       ORDER BY created_at DESC`,
-      [req.hospitalId]
-    );
-    
-    res.json({ success: true, playbooks: rows });
-  } catch (e) {
-    console.error('❌ Get playbooks error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to load playbooks: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-app.post('/api/hospital/playbooks', authenticateHospital, async (req, res) => {
-  const { title, category, content } = req.body;
-  
-  if (!title || !content) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Title and content are required.' 
-    });
-  }
-  
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    const { rows } = await client.query(
-      `INSERT INTO hospital_playbooks (hospital_id, title, category, content, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, NOW(), NOW())
-       RETURNING *`,
-      [req.hospitalId, title, category || 'General', content]
-    );
-    
-    console.log(`✅ Playbook created: ${title}`);
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Playbook created successfully!',
-      playbook: rows[0]
-    });
-  } catch (e) {
-    console.error('❌ Create playbook error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to create playbook: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-app.put('/api/hospital/playbooks/:id', authenticateHospital, async (req, res) => {
-  const { id } = req.params;
-  const { title, category, content } = req.body;
-  
-  if (!title || !content) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Title and content are required.' 
-    });
-  }
-  
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    const { rows } = await client.query(
-      `UPDATE hospital_playbooks 
-       SET title = $1, category = $2, content = $3, updated_at = NOW()
-       WHERE playbook_id = $4 AND hospital_id = $5
-       RETURNING *`,
-      [title, category || 'General', content, id, req.hospitalId]
-    );
-    
-    if (rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Playbook not found or you do not have permission to edit it.' 
-      });
-    }
-    
-    console.log(`✅ Playbook updated: ${title}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Playbook updated successfully!',
-      playbook: rows[0]
-    });
-  } catch (e) {
-    console.error('❌ Update playbook error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Update failed: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-app.delete('/api/hospital/playbooks/:id', authenticateHospital, async (req, res) => {
-  const { id } = req.params;
-  
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    const { rows } = await client.query(
-      `DELETE FROM hospital_playbooks 
-       WHERE playbook_id = $1 AND hospital_id = $2
-       RETURNING *`,
-      [id, req.hospitalId]
-    );
-    
-    if (rows.length === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Playbook not found or you do not have permission to delete it.' 
-      });
-    }
-    
-    console.log(`✅ Playbook deleted: ${id}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Playbook deleted successfully!'
-    });
-  } catch (e) {
-    console.error('❌ Delete playbook error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Delete failed: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-// ============================================================================
-// SOS MONITOR - VIEW ALL PATIENT REQUESTS
-// ============================================================================
-
-app.get('/api/hospital/sos-requests', authenticateHospital, async (req, res) => {
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    const { rows } = await client.query(
-      `SELECT br.*, u.full_name as patient_name, u.phone_number as patient_phone,
-              als.distance_km,
-              CASE 
-                WHEN br.accepted_by_hospital_id = $1 THEN true
-                ELSE false
-              END as is_accepted_by_me
-       FROM blood_requests br
-       JOIN users u ON br.patient_id = u.user_id
-       LEFT JOIN alert_status als ON br.request_id = als.request_id AND als.hospital_id = $1
-       WHERE br.status IN ('pending', 'escalated', 'accepted')
-       ORDER BY br.created_at DESC
-       LIMIT 100`,
-      [req.hospitalId]
-    );
-    
-    res.json({ success: true, requests: rows });
-  } catch (e) {
-    console.error('❌ Get SOS requests error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to load SOS requests: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-// ============================================================================
-// DONOR APPOINTMENTS - FIXED
-// ============================================================================
-
-app.get('/api/hospital/appointments', authenticateHospital, async (req, res) => {
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    const { rows } = await client.query(
-      `SELECT dc.*, u.full_name as donor_name, u.phone_number as donor_phone, u.blood_type,
-              br.blood_type_needed, br.patient_token
-       FROM donation_commitments dc
-       JOIN users u ON dc.donor_id = u.user_id
-       JOIN blood_requests br ON dc.request_id = br.request_id
-       WHERE dc.hospital_id = $1
-       ORDER BY dc.created_at DESC
-       LIMIT 100`,
-      [req.hospitalId]
-    );
-    
-    res.json({ success: true, appointments: rows });
-  } catch (e) {
-    console.error('❌ Get appointments error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Failed to load appointments: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-// ============================================================================
-// ADMIN AUTHENTICATION (keeping existing)
-// ============================================================================
-
-app.post('/api/server/register/admin', async (req, res) => {
-  const { fullName, pincode, phoneNumber, password, accessCode } = req.body;
-  
-  console.log('🔐 Admin registration attempt:', { fullName, phoneNumber });
-  
-  if (!fullName || !pincode || !phoneNumber || !password || !accessCode) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'All fields are required.' 
-    });
-  }
-  
-  if (!/^\d{10}$/.test(phoneNumber)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Invalid phone number format. Must be 10 digits.' 
-    });
-  }
-  
-  if (!/^\d{6}$/.test(pincode)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Invalid pincode format. Must be 6 digits.' 
-    });
-  }
-  
-  if (password.length < 6) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Password must be at least 6 characters long.' 
-    });
-  }
-  
-  if (accessCode !== ADMIN_ACCESS_CODE) {
-    console.log('❌ Invalid access code attempt:', accessCode);
-    return res.status(403).json({ 
-      success: false, 
-      message: 'Invalid access code. Admin registration denied.' 
-    });
-  }
-  
-  try {
-    const existing = await pool.query(
-      "SELECT user_id FROM users WHERE phone_number = $1 AND role = 'admin'",
-      [phoneNumber]
-    );
-    
-    if (existing.rows.length > 0) {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'An admin with this phone number already exists.' 
-      });
-    }
-    
-    const { rows } = await pool.query(
-      `INSERT INTO users (full_name, phone_number, pincode, role, password_hash, created_at, last_login) 
-       VALUES ($1, $2, $3, 'admin', $4, NOW(), NOW()) 
-       RETURNING user_id, full_name, phone_number, pincode, role`,
-      [fullName, phoneNumber, pincode, password]
-    );
-    
-    console.log(`✅ Admin registered successfully: ${rows[0].user_id}`);
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Admin registered successfully!',
-      user: {
-        user_id: rows[0].user_id,
-        fullName: rows[0].full_name,
-        phoneNumber: rows[0].phone_number,
-        pincode: rows[0].pincode,
-        role: rows[0].role
-      }
-    });
-  } catch (e) {
-    console.error('❌ Admin registration error:', e);
-    
-    if (e.code === '23505') {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'An admin with this phone number already exists.' 
-      });
-    }
-    
-    res.status(500).json({ 
-      success: false, 
-      message: 'Database error. Please try again.' 
-    });
-  }
-});
-
-app.post('/api/server/login/admin', async (req, res) => {
-  const { phoneNumber, password } = req.body;
-  
-  console.log('🔐 Admin login attempt:', { phoneNumber });
-  
-  if (!phoneNumber || !password) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Phone number and password are required.' 
-    });
-  }
-  
-  if (!/^\d{10}$/.test(phoneNumber)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Invalid phone number format.' 
-    });
-  }
-  
-  try {
-    const { rows } = await pool.query(
-      "SELECT user_id, full_name, phone_number, pincode, password_hash FROM users WHERE phone_number = $1 AND role = 'admin'",
-      [phoneNumber]
-    );
-    
-    if (rows.length === 0) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid phone number or password.' 
-      });
-    }
-    
-    const admin = rows[0];
-    
-    if (password !== admin.password_hash) {
-      console.log('❌ Invalid password for admin:', phoneNumber);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid phone number or password.' 
-      });
-    }
-    
-    const token = generateSecureToken();
-    
-    adminSessions.set(token, {
-      adminId: admin.user_id,
-      phoneNumber: admin.phone_number,
-      createdAt: Date.now()
-    });
-    
-    await pool.query(
-      "UPDATE users SET last_login = NOW() WHERE user_id = $1",
-      [admin.user_id]
-    );
-    
-    console.log(`✅ Admin logged in successfully: ${admin.user_id}`);
-    
-    res.json({ 
-      success: true, 
-      message: 'Login successful!',
-      token: token,
-      user: {
-        user_id: admin.user_id,
-        fullName: admin.full_name,
-        phoneNumber: admin.phone_number,
-        pincode: admin.pincode,
-        role: 'admin'
-      }
-    });
-  } catch (e) {
-    console.error('❌ Admin login error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Database error. Please try again.' 
-    });
-  }
-});
-
-app.post('/api/server/logout/admin', authenticateAdmin, async (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  
-  if (token) {
-    adminSessions.delete(token);
-  }
-  
-  res.json({ 
-    success: true, 
-    message: 'Logged out successfully.' 
-  });
-});
-
-app.get('/api/server/verify/admin', authenticateAdmin, async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      "SELECT user_id, full_name, phone_number, pincode, role FROM users WHERE user_id = $1 AND role = 'admin'",
-      [req.adminId]
-    );
-    
-    if (rows.length === 0) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Admin not found.' 
-      });
-    }
-    
-    res.json({ 
-      success: true, 
-      user: {
-        user_id: rows[0].user_id,
-        fullName: rows[0].full_name,
-        phoneNumber: rows[0].phone_number,
-        pincode: rows[0].pincode,
-        role: rows[0].role
-      }
-    });
-  } catch (e) {
-    console.error('❌ Admin verification error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error.' 
-    });
-  }
-});
-
-// ============================================================================
-// PATIENT & VOLUNTEER (keeping existing endpoints - abbreviated for space)
-// ============================================================================
-
+// PATIENT AUTHENTICATION
 app.post('/api/server/send-otp', async (req, res) => {
   const { phoneNumber } = req.body;
-  
-  if (!phoneNumber) {
-    return res.status(400).json({ success: false, message: 'Phone number required.' });
-  }
+  if (!phoneNumber) return res.status(400).json({ success: false, message: 'Phone number required.' });
   
   try {
-    const otp = generateOTP();
-    otpStore[phoneNumber] = { 
-      otp, 
-      expiry: Date.now() + 300000
-    };
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
     
-    console.log(`📱 Patient OTP for ${phoneNumber}: ${otp}`);
+    console.log(`Patient OTP for ${phoneNumber}: ${otp}`);
     
-    res.json({ 
-      success: true, 
-      otp,
-      message: `OTP generated: ${otp}` 
-    });
+    res.json({ success: true, otp, message: 'OTP generated.' });
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, message: 'Server error.' });
@@ -1136,658 +132,905 @@ app.post('/api/server/patient-login', async (req, res) => {
   if (!record || record.otp !== otp || Date.now() >= record.expiry) {
     return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
   }
-  
   delete otpStore[phoneNumber];
   
   try {
     const existing = await pool.query(
-      "SELECT * FROM users WHERE phone_number = $1 AND role = 'patient'", 
+      "SELECT * FROM users WHERE phone_number = $1 AND role = 'patient'",
       [phoneNumber]
     );
     
     if (existing.rows.length) {
-      const { rows } = await pool.query(
-        "UPDATE users SET full_name = $1, pincode = $2, last_login = NOW() WHERE phone_number = $3 AND role = 'patient' RETURNING *", 
-        [fullName, pincode, phoneNumber]
-      );
-      return res.json({ 
-        success: true, 
-        message: 'Login successful!', 
-        user: rows[0] 
-      });
+      const updateQuery = `
+        UPDATE users SET full_name = $1, pincode = $2, last_login = NOW()
+        WHERE phone_number = $3 AND role = 'patient'
+        RETURNING *`;
+      const { rows } = await pool.query(updateQuery, [fullName, pincode, phoneNumber]);
+      return res.json({ success: true, message: 'Login successful!', user: rows[0] });
     }
     
     if (!fullName || !pincode) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Name and pincode required for registration.' 
-      });
+      return res.status(400).json({ success: false, message: 'Name and pincode required for registration.' });
     }
     
-    const { rows } = await pool.query(
-      "INSERT INTO users (full_name, phone_number, role, pincode) VALUES ($1, $2, 'patient', $3) RETURNING *", 
-      [fullName, phoneNumber, pincode]
-    );
-    
-    res.status(201).json({ 
-      success: true, 
-      message: 'Registration successful!', 
-      user: rows[0] 
-    });
+    const insertQuery = `
+      INSERT INTO users (full_name, phone_number, role, pincode)
+      VALUES ($1, $2, 'patient', $3) RETURNING *`;
+    const { rows } = await pool.query(insertQuery, [fullName, phoneNumber, pincode]);
+    res.status(201).json({ success: true, message: 'Registration successful!', user: rows[0] });
   } catch (e) {
     console.error(e);
     res.status(500).json({ success: false, message: 'Database error.' });
   }
 });
 
-// ============================================================================
-// SOS BROADCAST TO ALL HOSPITALS
-// ============================================================================
-
+// PATIENT SOS
 app.post('/api/server/request-blood', async (req, res) => {
   const { patientId, bloodType, pincode, latitude, longitude } = req.body;
   
-  if (!patientId || !bloodType || !pincode) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Patient ID, blood type, and pincode are required.' 
-    });
-  }
+  console.log('Received SOS Request:', { patientId, bloodType, pincode, latitude, longitude });
   
+  if (!patientId || !bloodType) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+  if (!latitude || !longitude) {
+    return res.status(400).json({ success: false, message: 'Precise location is required.' });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    
-    let coords = { lat: latitude, lon: longitude };
-    if (!latitude || !longitude) {
-      coords = await getCoordsFromPincode(pincode);
-    }
-    
+
     const patientToken = await generateUniquePatientToken(client);
-    
-    const { rows } = await client.query(
-      `INSERT INTO blood_requests 
-       (patient_id, blood_type_needed, status, patient_token, latitude, longitude, pincode, created_at) 
-       VALUES ($1, $2, 'pending', $3, $4, $5, $6, NOW()) 
-       RETURNING *`,
-      [patientId, bloodType, patientToken, coords.lat, coords.lon, pincode]
-    );
+    const deadline = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+    const insertRequest = `
+      INSERT INTO blood_requests 
+        (patient_id, blood_type_needed, pincode, latitude, longitude, status, patient_token, deadline)
+      VALUES 
+        ($1, $2, $3, $4, $5, 'pending', $6, $7)
+      RETURNING request_id, patient_token`;
+      
+    const { rows } = await client.query(insertRequest, [
+      patientId, bloodType, pincode, latitude, longitude, patientToken, deadline
+    ]);
     
     const requestId = rows[0].request_id;
-    
-    // BROADCAST SOS TO ALL HOSPITALS
+    console.log(`Created blood request ${requestId} with token ${patientToken}`);
+
     const { rows: hospitals } = await client.query(
-      'SELECT hospital_id, hospital_name, phone_number, latitude, longitude FROM hospitals'
+      'SELECT hospital_id, hospital_name, latitude, longitude FROM hospitals WHERE latitude IS NOT NULL AND longitude IS NOT NULL'
     );
     
-    let hospitalCount = 0;
+    console.log(`Found ${hospitals.length} hospitals in database`);
+    
+    const alertPromises = [];
+    let hospitalsNotified = 0;
+    
     for (const hospital of hospitals) {
-      if (hospital.latitude && hospital.longitude) {
-        const distance = calculateDistance(
-          coords.lat, coords.lon,
-          hospital.latitude, hospital.longitude
+      const distance = calculateDistance(latitude, longitude, hospital.latitude, hospital.longitude);
+      
+      console.log(`${hospital.hospital_name}: ${distance.toFixed(2)} km away`);
+      
+      if (distance <= 10) {
+        hospitalsNotified++;
+        alertPromises.push(
+          client.query(
+            'INSERT INTO alert_status (request_id, hospital_id, distance_km, status) VALUES ($1, $2, $3, $4)',
+            [requestId, hospital.hospital_id, distance.toFixed(2), 'sent']
+          )
         );
-        
-        await client.query(
-          'INSERT INTO alert_status (request_id, hospital_id, distance_km, status) VALUES ($1, $2, $3, $4)',
-          [requestId, hospital.hospital_id, distance.toFixed(2), 'sent']
-        );
-        
-        hospitalCount++;
-        
-        console.log(`📡 SOS sent to ${hospital.hospital_name} (${distance.toFixed(2)} km)`);
       }
     }
     
+    await Promise.all(alertPromises);
     await client.query('COMMIT');
     
-    console.log(`✅ SOS broadcast to ${hospitalCount} hospitals for request ${requestId}`);
-    
+    console.log(`Notified ${hospitalsNotified} hospitals within 10km`);
+
+    setTimeout(() => {
+      console.log(`Timer expired for request ${requestId}`);
+      checkAndEscalate(requestId);
+    }, 10 * 60 * 1000 + 1000);
+
     res.status(201).json({ 
       success: true, 
-      message: `SOS Alert broadcast to ${hospitalCount} hospitals!`,
-      request: rows[0],
-      hospitalsNotified: hospitalCount
+      message: `SOS Alert sent to ${hospitalsNotified} nearby hospitals!`, 
+      requestId, 
+      patient_token: rows[0].patient_token
     });
+
   } catch (e) {
     await client.query('ROLLBACK');
-    console.error('❌ Request blood error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Database error.' 
-    });
+    console.error('Error in request-blood:', e);
+    res.status(500).json({ success: false, message: 'Server error: ' + e.message });
   } finally {
     client.release();
   }
 });
 
+app.get('/api/server/request-status/:requestId', async (req, res) => {
+  const { requestId } = req.params;
+  try {
+    const { rows } = await pool.query(
+      `SELECT br.status, br.patient_token, h.hospital_name, h.pincode, h.address
+       FROM blood_requests br
+       LEFT JOIN hospitals h ON h.hospital_id = br.accepted_by_hospital_id
+       WHERE br.request_id = $1`,
+      [requestId]
+    );
 
-// ===========================================================================
-// VOLUNTEER MATERIAL GENERATOR
-// ===========================================================================
+    if (rows.length === 0) {
+      return res.status(404).json({ status: 'not_found' });
+    }
 
-app.post('/api/generate-material', async (req, res) => {
-  // Note: This is an unprotected endpoint for simplicity.
-  // In a real app, you would verify the 'Authorization' header.
+    const request = rows[0];
+    
+    if (request.status === 'accepted') {
+      res.json({ 
+        status: 'accepted', 
+        hospital: { 
+          name: request.hospital_name, 
+          pincode: request.pincode,
+          address: request.address 
+        },
+        patient_token: request.patient_token
+      });
+    } else if (request.status === 'escalated') {
+      res.json({ status: 'escalated', patient_token: request.patient_token });
+    } else {
+      res.json({ status: 'pending', patient_token: request.patient_token });
+    }
 
-  const { link, title, userId, userType } = req.body;
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ status: 'error', message: 'Server error.' });
+  }
+});
 
-  if (!link || !title) {
-    return res.status(400).json({
-      success: false,
-      message: 'Missing required fields: link and title'
-    });
+app.get('/api/server/requests/history/:patientId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT br.request_id, br.blood_type_needed, br.pincode, br.status, br.created_at, br.patient_token,
+              h.hospital_name
+       FROM blood_requests br
+       LEFT JOIN hospitals h ON h.hospital_id = br.accepted_by_hospital_id
+       WHERE br.patient_id = $1 
+       ORDER BY br.created_at DESC`,
+      [req.params.patientId]
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json([]);
+  }
+});
+
+// HOSPITAL AUTHENTICATION
+app.post('/api/server/hospital-register', async (req, res) => {
+  const { hospitalName, address, pincode, phoneNumber, password } = req.body;
+  
+  if (!hospitalName || !pincode || !phoneNumber || !password || !address) {
+    return res.status(400).json({ success: false, message: 'All fields required.' });
   }
 
+  let latitude = null;
+  let longitude = null;
+  
   try {
-    // Use a public API to generate the QR code (as hinted in your frontend)
-    const qrApiBase = 'https://api.qrserver.com/v1/create-qr-code/';
-    const qrData = encodeURIComponent(link); // Make the link URL-safe
-    const qrSize = '200x200';
-    
-    // This is the final, public URL to the generated QR code image
-    const qrImageUrl = `${qrApiBase}?data=${qrData}&size=${qrSize}&format=png`;
-
-    console.log(`✅ Generated QR code for user ${userId} (${userType})`);
-
-    // Send back the response structure your frontend expects
-    res.status(200).json({
-      success: true,
-      message: 'Material generated successfully!',
-      material: {
-        content_url: qrImageUrl,     // The URL to the QR image
-        qr_code_data: link,          // The original link data
-        title: title,
-        user_id: userId,
+    const fullAddress = `${address}, ${pincode}`;
+    const geoResponse = await axios.get('https://api.opencagedata.com/geocode/v1/json', {
+      params: {
+        q: fullAddress,
+        key: OPENCAGE_API_KEY,
+        limit: 1,
+        countrycode: 'in'
       }
     });
 
-  } catch (error) {
-    console.error('❌ Error generating QR material:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while generating material.'
-    });
+    if (geoResponse.data && geoResponse.data.results.length > 0) {
+      const { lat, lng } = geoResponse.data.results[0].geometry;
+      latitude = lat;
+      longitude = lng;
+    } else {
+      throw new Error('Could not geocode address.');
+    }
+  } catch (geoError) {
+    console.error("Geocoding Error:", geoError.message);
+    return res.status(400).json({ success: false, message: 'Could not validate address.' });
   }
-});
 
-
-// ============================================================================
-// DONOR AUTHENTICATION
-// ============================================================================
-
-app.post('/api/server/donor/send-otp', async (req, res) => {
-  const { phoneNumber } = req.body;
-  
-  console.log('📱 Donor OTP request:', { phoneNumber });
-  
-  if (!phoneNumber) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Phone number is required.' 
-    });
-  }
-  
-  if (!/^\d{10}$/.test(phoneNumber)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Invalid phone number format. Must be 10 digits.' 
-    });
-  }
-  
   try {
-    const otp = generateOTP();
-    otpStore[phoneNumber] = {
-      otp: otp,
-      createdAt: Date.now()
-    };
-    
-    console.log(`✅ OTP generated for donor ${phoneNumber}: ${otp}`);
-    
-    // In production, send SMS here using FAST2SMS_API_KEY
-    
-    res.json({ 
-      success: true, 
-      message: 'OTP sent successfully!',
-      otp: otp  // Remove this in production
-    });
-  } catch (e) {
-    console.error('❌ Donor OTP error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Could not send OTP. Please try again.' 
-    });
-  }
-});
-
-app.post('/api/server/donor-login', async (req, res) => {
-  const { phoneNumber, otp, fullName, bloodType, pincode } = req.body;
-  
-  console.log('🩸 Donor login attempt:', { phoneNumber, hasOTP: !!otp });
-  
-  if (!phoneNumber || !otp) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Phone number and OTP are required.' 
-    });
-  }
-  
-  if (!/^\d{10}$/.test(phoneNumber)) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Invalid phone number format.' 
-    });
-  }
-  
-  // Verify OTP
-  const storedOTP = otpStore[phoneNumber];
-  if (!storedOTP || storedOTP.otp !== otp) {
-    return res.status(401).json({ 
-      success: false, 
-      message: 'Invalid or expired OTP.' 
-    });
-  }
-  
-  // Check if OTP is expired (5 minutes)
-  if (Date.now() - storedOTP.createdAt > 5 * 60 * 1000) {
-    delete otpStore[phoneNumber];
-    return res.status(401).json({ 
-      success: false, 
-      message: 'OTP has expired. Please request a new one.' 
-    });
-  }
-  
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
+    const existing = await pool.query('SELECT 1 FROM hospitals WHERE phone_number = $1', [phoneNumber]);
+    if (existing.rows.length) {
+      return res.status(409).json({ success: false, message: 'Phone already registered.' });
     }
 
-    client = await pool.connect();
+    const last = await pool.query('SELECT hospital_id FROM hospitals ORDER BY hospital_id DESC LIMIT 1');
+    const nextNum = last.rows.length ? parseInt(last.rows[0].hospital_id.replace('HOS','')) + 1 : 101;
+    const newId = `HOS${nextNum}`;
+
+    const insertQuery = `
+      INSERT INTO hospitals (hospital_id, hospital_name, address, pincode, phone_number, password_hash, blood_inventory, latitude, longitude)
+      VALUES ($1, $2, $3, $4, $5, $6, '{}', $7, $8) 
+      RETURNING hospital_id`;
     
-    // Check if donor exists
-    const { rows } = await client.query(
-      "SELECT user_id, full_name, phone_number, blood_type, pincode, role FROM users WHERE phone_number = $1 AND role = 'donor'",
-      [phoneNumber]
+    const { rows } = await pool.query(insertQuery, [newId, hospitalName, address, pincode, phoneNumber, password, latitude, longitude]);
+
+    res.status(201).json({ success: true, hospitalId: rows[0].hospital_id });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.post('/api/server/hospital-login', async (req, res) => {
+  const { hospitalId, password } = req.body;
+  if (!hospitalId || !password) {
+    return res.status(400).json({ success: false, message: 'Hospital ID and password required.' });
+  }
+  
+  try {
+    const { rows } = await pool.query('SELECT * FROM hospitals WHERE hospital_id = $1', [hospitalId.toUpperCase()]);
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'Hospital not found.' });
+    }
+    
+    const hospital = rows[0];
+    if (password !== hospital.password_hash) {
+      return res.status(401).json({ success: false, message: 'Invalid password.' });
+    }
+    
+    const { password_hash, ...safeHospital } = hospital;
+    res.json({ success: true, hospital: safeHospital });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// HOSPITAL SOS MONITOR
+app.get('/api/server/sos-alerts/:hospitalId', async (req, res) => {
+  const { hospitalId } = req.params;
+  try {
+    const query = `
+      SELECT 
+        br.request_id,
+        br.blood_type_needed,
+        br.patient_token,
+        br.deadline,
+        u.full_name AS patient_name,
+        als.distance_km
+      FROM alert_status als
+      JOIN blood_requests br ON als.request_id = br.request_id
+      JOIN users u ON br.patient_id = u.user_id
+      WHERE als.hospital_id = $1
+        AND als.status = 'sent'
+        AND br.status = 'pending'
+      ORDER BY als.created_at DESC
+    `;
+    const { rows } = await pool.query(query, [hospitalId.toUpperCase()]);
+
+    const alerts = rows.map(req => ({
+      requestId: req.request_id,
+      patientName: req.patient_name,
+      bloodType: req.blood_type_needed,
+      patientToken: req.patient_token,
+      distance: parseFloat(req.distance_km),
+      deadline: req.deadline
+    }));
+
+    res.json(alerts);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+app.post('/api/server/hospital-response', async (req, res) => {
+  const { requestId, hospitalId, response } = req.body;
+  
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const reqRes = await client.query(
+      "SELECT status FROM blood_requests WHERE request_id = $1 FOR UPDATE",
+      [requestId]
     );
     
-    if (rows.length > 0) {
-      // Existing donor - login
-      const donor = rows[0];
-      
+    if (!reqRes.rows.length || reqRes.rows[0].status !== 'pending') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, message: 'Request no longer active.' });
+    }
+
+    if (response === 'accept') {
       await client.query(
-        "UPDATE users SET last_login = NOW() WHERE user_id = $1",
-        [donor.user_id]
+        "UPDATE alert_status SET status = 'accepted', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2",
+        [requestId, hospitalId]
       );
       
-      delete otpStore[phoneNumber];
+      await client.query(
+        "UPDATE alert_status SET status = 'closed', response_at = NOW() WHERE request_id = $1 AND hospital_id != $2 AND status = 'sent'",
+        [requestId, hospitalId]
+      );
       
-      console.log(`✅ Donor logged in: ${donor.user_id}`);
-      
+      await client.query(
+        "UPDATE blood_requests SET status = 'accepted', accepted_by_hospital_id = $1 WHERE request_id = $2",
+        [hospitalId, requestId]
+      );
+    } else {
+      await client.query(
+        "UPDATE alert_status SET status = 'rejected', response_at = NOW() WHERE request_id = $1 AND hospital_id = $2",
+        [requestId, hospitalId]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    if (response === 'reject') {
+      checkAndEscalate(requestId);
+    }
+    
+    res.json({ success: true });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/server/update-inventory', async (req, res) => {
+  const { hospitalId, inventory } = req.body;
+  if (!hospitalId || !inventory) {
+    return res.status(400).json({ success: false, message: 'Missing data.' });
+  }
+  
+  try {
+    await pool.query('UPDATE hospitals SET blood_inventory = $1 WHERE hospital_id = $2', [inventory, hospitalId]);
+    res.json({ success: true, message: 'Stock updated.' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.post('/api/server/verify-token', async (req, res) => {
+  const { token } = req.body;
+  if (!token || token.length !== 4) {
+    return res.status(400).json({ success: false, message: '4-digit token required.' });
+  }
+  
+  try {
+    const patientQuery = `
+      SELECT br.request_id, br.patient_id, br.patient_token, br.blood_type_needed, br.pincode,
+             u.full_name AS patient_name
+      FROM blood_requests br
+      JOIN users u ON u.user_id = br.patient_id
+      WHERE br.patient_token = $1
+      LIMIT 1`;
+    const patientResult = await pool.query(patientQuery, [token]);
+    
+    if (patientResult.rows.length) {
+      const r = patientResult.rows[0];
+      return res.json({
+        success: true,
+        type: 'patient',
+        request_id: r.request_id,
+        patient_token: r.patient_token,
+        patient: {
+          user_id: r.patient_id,
+          full_name: r.patient_name,
+          blood_type_needed: r.blood_type_needed,
+          pincode: r.pincode
+        }
+      });
+    }
+
+    const donorQuery = `
+      SELECT dc.commitment_id, dc.request_id, dc.donor_id, dc.donor_token, dc.status AS commitment_status,
+             du.full_name AS donor_name, du.blood_type AS donor_blood_type,
+             br.patient_token
+      FROM donation_commitments dc
+      JOIN users du ON du.user_id = dc.donor_id
+      JOIN blood_requests br ON br.request_id = dc.request_id
+      WHERE dc.donor_token = $1
+      LIMIT 1`;
+    const donorResult = await pool.query(donorQuery, [token]);
+    
+    if (donorResult.rows.length) {
+      const r = donorResult.rows[0];
+      return res.json({
+        success: true,
+        type: 'donor',
+        donor_token: r.donor_token,
+        donor: {
+          user_id: r.donor_id,
+          full_name: r.donor_name,
+          blood_type: r.donor_blood_type
+        },
+        matched_patient_token: r.patient_token,
+        request_id: r.request_id
+      });
+    }
+
+    res.status(404).json({ success: false, message: 'Token not found.' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// DONOR AUTHENTICATION
+app.post('/api/server/donor/generate-otp', async (req, res) => {
+  const { phoneNumber } = req.body;
+  try {
+    const { rows } = await pool.query(
+      "SELECT user_id FROM users WHERE phone_number = $1 AND role = 'donor'",
+      [phoneNumber]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'Not a registered donor.' });
+    }
+    
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
+    console.log(`Donor OTP for ${phoneNumber}: ${otp}`);
+    res.json({ success: true, otp, message: 'OTP generated.' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.post('/api/server/donor/login', async (req, res) => {
+  const { phoneNumber, otp } = req.body;
+  const record = otpStore[phoneNumber];
+  if (!record || record.otp !== otp || Date.now() >= record.expiry) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
+  }
+  
+  try {
+    delete otpStore[phoneNumber];
+    const { rows } = await pool.query(
+      "SELECT user_id, full_name, phone_number, pincode, blood_type, role FROM users WHERE phone_number = $1 AND role = 'donor'",
+      [phoneNumber]
+    );
+    res.json({ success: true, message: 'Login successful!', user: rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.post('/api/server/donor/register-request', async (req, res) => {
+  const { phoneNumber } = req.body;
+  try {
+    const existing = await pool.query('SELECT 1 FROM users WHERE phone_number = $1', [phoneNumber]);
+    if (existing.rows.length) {
+      return res.status(409).json({ success: false, message: 'Phone already registered.' });
+    }
+    
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
+    console.log(`Donor registration OTP for ${phoneNumber}: ${otp}`);
+    res.json({ success: true, otp, message: 'OTP sent.' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.post('/api/server/donor/register-confirm', async (req, res) => {
+  const { fullName, phoneNumber, pincode, bloodType, otp } = req.body;
+  const record = otpStore[phoneNumber];
+  if (!record || record.otp !== otp || Date.now() >= record.expiry) {
+    return res.status(400).json({ success: false, message: 'Invalid or expired OTP.' });
+  }
+  
+  try {
+    const insertQuery = `
+      INSERT INTO users (full_name, phone_number, pincode, blood_type, role)
+      VALUES ($1, $2, $3, $4, 'donor') RETURNING user_id`;
+    await pool.query(insertQuery, [fullName, phoneNumber, pincode, bloodType.toUpperCase()]);
+    delete otpStore[phoneNumber];
+    res.status(201).json({ success: true, message: 'Registration successful!' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.post('/api/donor/accept-request', async (req, res) => {
+  const { requestId, donorId } = req.body;
+  if (!requestId || !donorId) {
+    return res.status(400).json({ success: false, message: 'requestId and donorId required.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const reqRow = await client.query(
+      'SELECT request_id, status FROM blood_requests WHERE request_id = $1',
+      [requestId]
+    );
+    if (!reqRow.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Request not found.' });
+    }
+
+    const donorRow = await client.query(
+      "SELECT user_id FROM users WHERE user_id = $1 AND role = 'donor'",
+      [donorId]
+    );
+    if (!donorRow.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Donor not found.' });
+    }
+
+    const exists = await client.query(
+      'SELECT donor_token FROM donation_commitments WHERE request_id = $1 AND donor_id = $2',
+      [requestId, donorId]
+    );
+    if (exists.rows.length) {
+      await client.query('COMMIT');
+      return res.json({ success: true, message: 'Already committed.', donor_token: exists.rows[0].donor_token });
+    }
+
+    const donorToken = await generateUniqueDonorToken(client);
+    const insertCommitment = await client.query(
+      `INSERT INTO donation_commitments (request_id, donor_id, donor_token, status)
+       VALUES ($1, $2, $3, 'committed')
+       RETURNING commitment_id, donor_token`,
+      [requestId, donorId, donorToken]
+    );
+
+    await client.query('COMMIT');
+    res.status(201).json({ success: true, message: 'Request accepted.', donor_token: insertCommitment.rows[0].donor_token });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/donor/schedule-casual-donation', async (req, res) => {
+  const { donorId, latitude, longitude, pincode, bloodType, date, timeSlot } = req.body;
+
+  if (!donorId || !bloodType || !date || !timeSlot) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+
+  const donorToken = generate4DigitToken();
+  
+  try {
+    let findHospitalQuery;
+    let queryParams;
+
+    if (latitude && longitude) {
+      findHospitalQuery = `
+        SELECT hospital_id, hospital_name, latitude, longitude,
+          (6371 * acos(
+            cos(radians($1)) * cos(radians(latitude)) *
+            cos(radians(longitude) - radians($2)) +
+            sin(radians($1)) * sin(radians(latitude))
+          )) AS distance
+        FROM hospitals
+        HAVING (
+          6371 * acos(
+            cos(radians($1)) * cos(radians(latitude)) *
+            cos(radians(longitude) - radians($2)) +
+            sin(radians($1)) * sin(radians(latitude))
+          )
+        ) < 10
+        ORDER BY distance ASC
+        LIMIT 1`;
+      queryParams = [latitude, longitude];
+    } else if (pincode) {
+      findHospitalQuery = `
+        SELECT hospital_id, hospital_name 
+        FROM hospitals 
+        WHERE pincode = $1 
+        LIMIT 1`;
+      queryParams = [pincode];
+    } else {
+      return res.status(400).json({ success: false, message: 'No location or pincode provided.' });
+    }
+
+    const hospitalRes = await pool.query(findHospitalQuery, queryParams);
+
+    if (hospitalRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'No hospitals found within 10km.' });
+    }
+
+    const hospital = hospitalRes.rows[0];
+
+    const commitQuery = `
+      INSERT INTO donation_commitments (donor_id, hospital_id, donor_token, status)
+      VALUES ($1, $2, $3, 'scheduled')
+      RETURNING *`;
+    await pool.query(commitQuery, [donorId, hospital.hospital_id, donorToken]);
+
+    res.status(201).json({ success: true, hospital: hospital });
+  } catch (err) {
+    console.error('Scheduling Error:', err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.get('/api/donor/active-token/:donorId', async (req, res) => {
+  const { donorId } = req.params;
+  try {
+    const query = `
+      SELECT 
+        dc.donor_token, dc.status, dc.created_at,
+        h.hospital_name, h.pincode
+      FROM donation_commitments dc
+      JOIN hospitals h ON dc.hospital_id = h.hospital_id
+      WHERE dc.donor_id = $1 
+        AND dc.status IN ('scheduled', 'committed')
+      ORDER BY dc.created_at DESC
+      LIMIT 1`;
+    const { rows } = await pool.query(query, [donorId]);
+
+    if (rows.length > 0) {
       res.json({ 
         success: true, 
-        message: 'Login successful!',
-        user: {
-          user_id: donor.user_id,
-          fullName: donor.full_name,
-          phoneNumber: donor.phone_number,
-          bloodType: donor.blood_type,
-          pincode: donor.pincode,
-          role: 'donor'
+        commitment: rows[0],
+        hospital: {
+          hospital_name: rows[0].hospital_name,
+          pincode: rows[0].pincode
         }
       });
     } else {
-      // New donor - register
-      if (!fullName || !bloodType || !pincode) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Full name, blood type, and pincode are required for registration.' 
-        });
-      }
-      
-      if (!/^\d{6}$/.test(pincode)) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Invalid pincode format. Must be 6 digits.' 
-        });
-      }
-      
-      const validBloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-      if (!validBloodTypes.includes(bloodType)) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Invalid blood type.' 
-        });
-      }
-      
-      const { rows: newDonor } = await client.query(
-        `INSERT INTO users (full_name, phone_number, blood_type, pincode, role, created_at, last_login) 
-         VALUES ($1, $2, $3, $4, 'donor', NOW(), NOW()) 
-         RETURNING user_id, full_name, phone_number, blood_type, pincode, role`,
-        [fullName, phoneNumber, bloodType, pincode]
-      );
-      
-      delete otpStore[phoneNumber];
-      
-      console.log(`✅ New donor registered: ${newDonor[0].user_id}`);
-      
-      res.status(201).json({ 
-        success: true, 
-        message: 'Registration successful!',
-        user: {
-          user_id: newDonor[0].user_id,
-          fullName: newDonor[0].full_name,
-          phoneNumber: newDonor[0].phone_number,
-          bloodType: newDonor[0].blood_type,
-          pincode: newDonor[0].pincode,
-          role: 'donor'
-        }
-      });
+      res.json({ success: false, message: 'No active commitment.' });
     }
   } catch (e) {
-    console.error('❌ Donor login/register error:', e);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Database error: ' + e.message 
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-
-// ============================================================================
-// DONOR DASHBOARD APIs
-// ============================================================================
-
-app.get('/api/donor/reliability-score/:donorId', async (req, res) => {
-  const { donorId } = req.params;
-  
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    // Check if donor_reliability table exists, if not return mock data
-    const { rows } = await client.query(
-      `SELECT * FROM donor_reliability WHERE donor_id = $1`,
-      [donorId]
-    );
-    
-    if (rows.length === 0) {
-      // Return default score for new donors
-      return res.json({
-        success: true,
-        score: 100.0,
-        total: 0,
-        successful: 0,
-        noShows: 0,
-        strikes: 0
-      });
-    }
-    
-    res.json({
-      success: true,
-      score: rows[0].reliability_score || 100.0,
-      total: rows[0].total_commitments || 0,
-      successful: rows[0].successful_checkins || 0,
-      noShows: rows[0].no_shows || 0,
-      strikes: rows[0].strikes || 0
-    });
-  } catch (e) {
-    console.error('❌ Get reliability score error:', e);
-    // Return default on error
-    res.json({
-      success: true,
-      score: 100.0,
-      total: 0,
-      successful: 0,
-      noShows: 0,
-      strikes: 0
-    });
-  } finally {
-    if (client) client.release();
-  }
-});
-
-app.get('/api/donor/stats/:donorId', async (req, res) => {
-  const { donorId } = req.params;
-  
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    // Count successful donations
-    const { rows: donations } = await client.query(
-      `SELECT COUNT(*) as total FROM donation_commitments WHERE donor_id = $1 AND status = 'completed'`,
-      [donorId]
-    );
-    
-    const totalDonations = parseInt(donations[0].total) || 0;
-    
-    // Get last donation date to calculate next eligible date
-    const { rows: lastDonation } = await client.query(
-      `SELECT MAX(created_at) as last_date FROM donation_commitments WHERE donor_id = $1 AND status = 'completed'`,
-      [donorId]
-    );
-    
-    let nextEligibleDate = 'Eligible Now';
-    if (lastDonation[0].last_date) {
-      const lastDate = new Date(lastDonation[0].last_date);
-      const nextDate = new Date(lastDate.getTime() + (90 * 24 * 60 * 60 * 1000)); // 90 days later
-      if (nextDate > new Date()) {
-        nextEligibleDate = nextDate.toLocaleDateString();
-      }
-    }
-    
-    res.json({
-      success: true,
-      totalDonations: totalDonations,
-      livesSaved: totalDonations * 3, // Approximate: 1 donation saves 3 lives
-      nextEligibleDate: nextEligibleDate
-    });
-  } catch (e) {
-    console.error('❌ Get donor stats error:', e);
-    res.json({
-      success: true,
-      totalDonations: 0,
-      livesSaved: 0,
-      nextEligibleDate: 'Eligible Now'
-    });
-  } finally {
-    if (client) client.release();
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 
 app.get('/api/sos/active/:donorId', async (req, res) => {
   const { donorId } = req.params;
-  const { bloodType } = req.query;
-  
-  let client;
   try {
-    if (!pool) {
-      throw new Error('Database connection not available');
+    const donor = await pool.query('SELECT blood_type FROM users WHERE user_id = $1', [donorId]);
+    if (!donor.rows.length) {
+      return res.status(404).json({ success: false, message: 'Donor not found.' });
     }
+    const { blood_type } = donor.rows[0];
 
-    client = await pool.connect();
-    
-    // Get donor's blood type if not provided
-    let donorBloodType = bloodType;
-    if (!donorBloodType) {
-      const { rows: donor } = await client.query(
-        `SELECT blood_type FROM users WHERE user_id = $1`,
-        [donorId]
-      );
-      if (donor.length > 0) {
-        donorBloodType = donor[0].blood_type;
-      }
-    }
-    
-    // Get active SOS requests matching donor's blood type
-    const { rows } = await client.query(
-      `SELECT br.request_id, br.blood_type_needed, br.created_at, br.pincode,
-              u.full_name as patient_name, u.phone_number as patient_phone
+    const requests = await pool.query(
+      `SELECT br.request_id, u.full_name AS patient_name, br.blood_type_needed, br.latitude, br.longitude
        FROM blood_requests br
        JOIN users u ON br.patient_id = u.user_id
-       WHERE br.status IN ('pending', 'escalated')
-         AND br.blood_type_needed = $1
+       WHERE br.blood_type_needed = $1
+         AND br.status = 'escalated'
+         AND NOT EXISTS (
+           SELECT 1 FROM donation_commitments dc 
+           WHERE dc.request_id = br.request_id AND dc.donor_id = $2
+         )
+       ORDER BY br.created_at DESC`,
+      [blood_type, donorId]
+    );
+
+    res.json({ success: true, requests: requests.rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.get('/api/hospital/appointments/:hospitalId', async (req, res) => {
+  const { hospitalId } = req.params;
+
+  try {
+    const query = `
+      SELECT 
+        dc.commitment_id, dc.status, dc.created_at,
+        u.full_name, u.blood_type
+      FROM donation_commitments dc
+      JOIN users u ON dc.donor_id = u.user_id
+      WHERE dc.hospital_id = $1
+        AND dc.status = 'scheduled'
+      ORDER BY dc.created_at DESC`;
+    const { rows } = await pool.query(query, [hospitalId]);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+// VOLUNTEER AND NGO AUTHENTICATION
+app.post('/api/volunteer/generate-otp', async (req, res) => {
+  const { phoneNumber } = req.body;
+
+  if (!phoneNumber || !/^\d{10}$/.test(phoneNumber)) {
+    return res.status(400).json({ success: false, message: 'Valid 10-digit phone required.' });
+  }
+
+  try {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore[phoneNumber] = { otp, expiry: Date.now() + 300000 };
+    console.log(`Volunteer/NGO OTP for ${phoneNumber}: ${otp}`);
+    res.json({ success: true, otp: otp, message: 'OTP generated.' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.post('/api/volunteer/verify-login', async (req, res) => {
+  const { type, fullName, ngoName, registrationId, phoneNumber, otp } = req.body;
+
+  const record = otpStore[phoneNumber];
+  if (!record || record.otp !== otp || Date.now() >= record.expiry) {
+    return res.status(401).json({ success: false, message: 'Invalid or expired OTP.' });
+  }
+
+  delete otpStore[phoneNumber];
+
+  try {
+    const { rows } = await pool.query(
+      "SELECT user_id, full_name, phone_number, role, registration_id FROM users WHERE phone_number = $1 AND (role = 'volunteer' OR role = 'ngo')",
+      [phoneNumber]
+    );
+
+    if (rows.length) {
+      const user = rows[0];
+      const updateName = (type === 'volunteer') ? fullName : ngoName;
+      await pool.query(
+        "UPDATE users SET full_name = $1, role = $2, registration_id = $3 WHERE user_id = $4",
+        [updateName, type, (type === 'ngo') ? registrationId : null, user.user_id]
+      );
+      user.full_name = updateName;
+      user.role = type;
+      return res.json({ success: true, message: 'Login successful!', user: user });
+    }
+    
+    let name = (type === 'volunteer') ? fullName : ngoName;
+    let regId = (type === 'ngo') ? registrationId : null;
+
+    const newUser = await pool.query(
+      `INSERT INTO users (full_name, phone_number, role, registration_id)
+       VALUES ($1, $2, $3, $4)
+       RETURNING user_id, full_name, phone_number, role, registration_id`,
+      [name, phoneNumber, type, regId]
+    );
+
+    res.status(201).json({ success: true, message: 'Registration successful!', user: newUser.rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Database error.' });
+  }
+});
+
+// PLAYBOOKS
+app.get('/api/server/playbooks/:hospitalId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM playbooks WHERE hospital_id = $1 ORDER BY updated_at DESC",
+      [req.params.hospitalId]
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error(e);
+    res.json([]);
+  }
+});
+
+app.post('/api/server/playbooks', async (req, res) => {
+  const { hospitalId, title, content } = req.body;
+  try {
+    const { rows } = await pool.query(
+      "INSERT INTO playbooks (hospital_id, title, content) VALUES ($1, $2, $3) RETURNING *",
+      [hospitalId, title, content]
+    );
+    res.status(201).json({ success: true, playbook: rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Failed to save playbook.' });
+  }
+});
+
+// ADMIN ROUTES
+app.post('/api/server/register/admin', async (req, res) => {
+  const { fullName, pincode, phoneNumber, password } = req.body;
+  
+  try {
+    const existing = await pool.query('SELECT 1 FROM users WHERE phone_number = $1', [phoneNumber]);
+    if (existing.rows.length) {
+      return res.status(409).json({ success: false, message: 'Phone already registered.' });
+    }
+
+    const insertQuery = `
+      INSERT INTO users (full_name, phone_number, pincode, role, password_hash)
+      VALUES ($1, $2, $3, 'admin', $4)
+      RETURNING user_id`;
+    await pool.query(insertQuery, [fullName, phoneNumber, pincode, password]);
+    
+    res.status(201).json({ success: true, message: 'Admin registered successfully.' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.post('/api/server/login/admin', async (req, res) => {
+  const { phoneNumber, password } = req.body;
+  
+  try {
+    const { rows } = await pool.query(
+      "SELECT * FROM users WHERE phone_number = $1 AND role = 'admin'",
+      [phoneNumber]
+    );
+    
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'Admin not found.' });
+    }
+    
+    const user = rows[0];
+    if (password !== user.password_hash) {
+      return res.status(401).json({ success: false, message: 'Invalid password.' });
+    }
+    
+    res.json({ success: true, user: { fullName: user.full_name, userId: user.user_id } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ success: false, message: 'Server error.' });
+  }
+});
+
+app.get('/api/server/requests/live', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT br.request_id, br.blood_type_needed, br.status,
+              u.full_name AS patient_name,
+              h.hospital_name
+       FROM blood_requests br
+       JOIN users u ON br.patient_id = u.user_id
+       LEFT JOIN hospitals h ON h.hospital_id = br.accepted_by_hospital_id
+       WHERE br.status IN ('pending', 'accepted', 'escalated')
        ORDER BY br.created_at DESC
-       LIMIT 10`,
-      [donorBloodType]
+       LIMIT 20`
     );
-    
-    // Format for frontend
-    const requests = rows.map(req => ({
-      request_id: req.request_id,
-      blood_type_needed: req.blood_type_needed,
-      patient_name: req.patient_name,
-      hospital: 'Nearest Hospital', // Calculate this based on location
-      distance: 'Calculating...', // Calculate this based on donor location
-      created_at: req.created_at
-    }));
-    
-    res.json({
-      success: true,
-      requests: requests
-    });
+    res.json(rows);
   } catch (e) {
-    console.error('❌ Get active SOS error:', e);
-    res.json({
-      success: true,
-      requests: []
-    });
-  } finally {
-    if (client) client.release();
+    console.error(e);
+    res.status(500).json([]);
   }
 });
 
-app.post('/api/donor/confirm-sos', async (req, res) => {
-  const { donorId, requestId, latitude, longitude } = req.body;
-  
-  let client;
+// CAMPS
+app.get('/api/server/camps', async (req, res) => {
   try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    await client.query('BEGIN');
-    
-    // Generate donor token
-    const donorToken = await generateUniqueDonorToken(client);
-    
-    // Find nearest hospital that has accepted this request
-    const { rows: hospitals } = await client.query(
-      `SELECT h.* FROM hospitals h
-       JOIN alert_status als ON h.hospital_id = als.hospital_id
-       WHERE als.request_id = $1 AND als.status = 'accepted'
-       LIMIT 1`,
-      [requestId]
+    const { rows } = await pool.query(
+      `SELECT c.camp_id, c.camp_name, c.address, c.camp_date,
+              n.ngo_name
+       FROM camps c
+       LEFT JOIN ngos n ON c.organizer_ngo_id = n.ngo_id
+       WHERE c.camp_date >= CURRENT_DATE
+       ORDER BY c.camp_date ASC`
     );
-    
-    const hospitalId = hospitals.length > 0 ? hospitals[0].hospital_id : null;
-    
-    // Create donation commitment
-    await client.query(
-      `INSERT INTO donation_commitments (donor_id, request_id, donor_token, hospital_id, status, donor_lat_on_accept, donor_lon_on_accept, created_at)
-       VALUES ($1, $2, $3, $4, 'committed', $5, $6, NOW())`,
-      [donorId, requestId, donorToken, hospitalId, latitude, longitude]
-    );
-    
-    await client.query('COMMIT');
-    
-    console.log(`✅ Donor ${donorId} accepted SOS ${requestId}, token: ${donorToken}`);
-    
-    res.json({
-      success: true,
-      message: 'SOS accepted successfully!',
-      donorToken: donorToken,
-      hospital: hospitals.length > 0 ? {
-        name: hospitals[0].hospital_name,
-        address: hospitals[0].address,
-        pincode: hospitals[0].pincode
-      } : null
-    });
+    res.json(rows);
   } catch (e) {
-    if (client) await client.query('ROLLBACK');
-    console.error('❌ Confirm SOS error:', e);
-    res.status(500).json({
-      success: false,
-      message: 'Could not confirm SOS: ' + e.message
-    });
-  } finally {
-    if (client) client.release();
+    console.error(e);
+    res.json([]);
   }
 });
 
-app.post('/api/donor/schedule-casual-donation', async (req, res) => {
-  const { donorId, pincode, date, timeSlot, latitude, longitude } = req.body;
-  
-  let client;
-  try {
-    if (!pool) {
-      throw new Error('Database connection not available');
-    }
-
-    client = await pool.connect();
-    
-    // Find nearest hospital
-    const { rows: hospitals } = await client.query(
-      `SELECT * FROM hospitals WHERE pincode = $1 LIMIT 1`,
-      [pincode]
-    );
-    
-    if (hospitals.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No hospital found in your area.'
-      });
-    }
-    
-    const hospital = hospitals[0];
-    const donorToken = await generateUniqueDonorToken(client);
-    
-    // Create scheduled donation
-    await client.query(
-      `INSERT INTO donation_commitments (donor_id, donor_token, hospital_id, status, created_at)
-       VALUES ($1, $2, $3, 'scheduled', NOW())`,
-      [donorId, donorToken, hospital.hospital_id]
-    );
-    
-    console.log(`✅ Scheduled donation for donor ${donorId} at hospital ${hospital.hospital_id}`);
-    
-    res.json({
-      success: true,
-      message: 'Appointment scheduled successfully!',
-      hospital: {
-        hospital_name: hospital.hospital_name,
-        address: hospital.address
-      },
-      appointment: {
-        token: donorToken,
-        time: `${date} ${timeSlot}`
-      }
-    });
-  } catch (e) {
-    console.error('❌ Schedule donation error:', e);
-    res.status(500).json({
-      success: false,
-      message: 'Could not schedule appointment: ' + e.message
-    });
-  } finally {
-    if (client) client.release();
-  }
+// SERVER START
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`LifeLink Server running on port ${PORT}`);
 });
 
-// ===========================================================================
-// (Your existing SERVER START code continues below)
-// ===========================================================================
+
 
 module.exports = app;

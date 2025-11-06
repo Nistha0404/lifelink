@@ -1,174 +1,76 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hospital Portal</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      display: grid;
-      min-height: 100vh;
-      grid-template-rows: auto 1fr auto;
-      margin: 0;
-      background-color: #f4f7f6;
-    }
-
-    main {
-      max-width: 450px;
-      margin: 2rem auto;
-      padding: 2rem;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      background-color: #fff;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    }
-    
-    h2 {
-      text-align: center;
-      color: #333;
-    }
-
-    .tabs {
-      display: flex;
-      border-bottom: 1px solid #ddd;
-    }
-
-    .tabs button {
-      padding: 0.8rem 1rem;
-      border: none;
-      background: none;
-      cursor: pointer;
-      font-size: 1rem;
-      font-weight: 500;
-      color: #555;
-      border-bottom: 2px solid transparent;
-    }
-
-    .tabs button.active {
-      color: #007bff;
-      border-bottom-color: #007bff;
-    }
-
-    #login-tab,
-    #register-tab {
-      padding-top: 1.5rem;
-    }
-
-    form div {
-      margin-bottom: 1rem;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 0.35rem;
-      font-weight: 500;
-      color: #444;
-    }
-
-    input[type="text"],
-    input[type="password"],
-    input[type="tel"] {
-      width: 100%;
-      padding: 0.75rem;
-      box-sizing: border-box;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-
-    button[type="submit"] {
-      width: 100%;
-      padding: 0.8rem;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-
-    button[type="submit"]:hover {
-      background-color: #0056b3;
-    }
-
-    header,
-    footer {
-      text-align: center;
-      padding: 1rem;
-      background: #fff;
-      border-top: 1px solid #eee;
-    }
-    
-    footer {
-      border-top: 1px solid #eee;
-      border-bottom: none;
-      color: #777;
-    }
-  </style>
+  <title>Hospital Portal - LifeLink</title>
+  <link rel="stylesheet" href="../style.css">
 </head>
-
 <body>
-
   <header>
-    </header>
-
-  <main class="main-card" id="auth-section">
-    <h2>Hospital Portal</h2>
-
-    <div class="tabs">
-      <button id="login-tab-btn" class="active" onclick="showTab('login')">Login</button>
-      <button id="register-tab-btn" onclick="showTab('register')">Register</button>
+    <div class="logo">
+      <img src="lifeLinklogoD.png" alt="LifeLink Logo" height="40">
+      <span>LifeLink</span>
     </div>
+    <nav>
+      <a href="../index.html">Home</a>
+    </nav>
+  </header>
 
-    <div id="login-tab">
-      <form id="hospitalLoginForm">
-        <div>
-          <label for="hospitalId">Hospital ID:</label>
-          <input type="text" id="hospitalId" required>
-        </div>
-        <div>
-          <label for="password">Password:</label>
-          <input type="password" id="password" required>
-        </div>
-        <button type="submit">Login</button>
-      </form>
-    </div>
+  <main>
+    <section class="main-card" id="auth-section">
+      <h2>Hospital Portal</h2>
+      <div class="tabs">
+        <button id="login-tab-btn" class="active" onclick="showTab('login')">Login</button>
+        <button id="register-tab-btn" onclick="showTab('register')">Register</button>
+      </div>
 
-    <div id="register-tab" style="display:none;">
-      <form id="hospitalRegisterForm">
-        <div>
-          <label for="hospitalName">Hospital Name:</label>
-          <input type="text" id="hospitalName" required>
-        </div>
-        <div>
-          <label for="address">Address:</label>
-          <input type="text" id="address" required>
-        </div>
-        <div>
-          <label for="pincode">Pincode:</label>
-          <input type="text" id="pincode" required>
-        </div>
-        <div>
-          <label for="registerPhone">Phone Number:</label>
-          <input type="tel" id="registerPhone" required>
-        </div>
-        <div>
-          <label for="registerPassword">Password:</label>
-          <input type="password" id="registerPassword" required>
-        </div>
-        <div>
-          <label for="verifyPassword">Verify Password:</label>
-          <input type="password" id="verifyPassword" required>
-        </div>
-        <button type="submit">Register</button>
-      </form>
-    </div>
+      <div id="login-tab">
+        <form id="hospitalLoginForm">
+          <div class="form-group">
+            <label for="hospitalId">Hospital ID</label>
+            <input type="text" id="hospitalId" placeholder="e.g., HOS101" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter your password" required>
+          </div>
+          <button type="submit" class="btn-primary">Login</button>
+        </form>
+      </div>
 
-    <p id="message" style="margin-top: 15px; font-weight: bold; text-align: center;"></p>
+      <div id="register-tab" style="display:none;">
+        <form id="hospitalRegisterForm">
+          <div class="form-group">
+            <label for="hospitalName">Hospital Name</label>
+            <input type="text" id="hospitalName" required>
+          </div>
+          <div class="form-group">
+            <label for="address">Full Address</label>
+            <input type="text" id="address" required>
+          </div>
+          <div class="form-group">
+            <label for="pincode">Pincode</label>
+            <input type="text" id="pincode" maxlength="6" required>
+          </div>
+          <div class="form-group">
+            <label for="registerPhone">Contact Phone</label>
+            <input type="tel" id="registerPhone" maxlength="10" required>
+          </div>
+          <div class="form-group">
+            <label for="registerPassword">Create Password</label>
+            <input type="password" id="registerPassword" required>
+          </div>
+          <div class="form-group">
+            <label for="verifyPassword">Verify Password</label>
+            <input type="password" id="verifyPassword" placeholder="Re-enter your password" required>
+          </div>
+          <button type="submit" class="btn-primary">Register</button>
+        </form>
+      </div>
+      <p id="message" style="margin-top: 15px; font-weight: bold;"></p>
+    </section>
   </main>
-
+  
   <script>
     const loginForm = document.getElementById("hospitalLoginForm");
     const registerForm = document.getElementById("hospitalRegisterForm");
@@ -184,96 +86,86 @@
 
     // --- Registration Logic (MODIFIED) ---
     registerForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
+        event.preventDefault();
+        const password = document.getElementById("registerPassword").value;
+        const verifyPassword = document.getElementById("verifyPassword").value;
 
-      const password = document.getElementById("registerPassword").value;
-      const verifyPassword = document.getElementById("verifyPassword").value;
-
-      // Check if passwords match
-      if (password !== verifyPassword) {
-        messageEl.style.color = 'red'; // Consistent with other error styles
-        messageEl.textContent = 'Passwords do not match.';
-        return;
-      }
-
-      const hospitalData = {
-        hospitalName: document.getElementById("hospitalName").value,
-        address: document.getElementById("address").value,
-        pincode: document.getElementById("pincode").value,
-        phoneNumber: document.getElementById("registerPhone").value,
-        password: password
-      };
-
-      try {
-        // --- CHANGED THIS LINE ---
-        const response = await fetch('/api/server/hospital-register', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(hospitalData)
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-          alert(`Registration successful! Your new Hospital ID is: ${result.hospitalId}`);
-          messageEl.style.color = 'green';
-          messageEl.textContent = `Registration complete! Your ID is ${result.hospitalId}. Please switch to the login tab.`;
-          showTab('login');
-        } else {
-          messageEl.style.color = 'red';
-          messageEl.textContent = `Registration failed: ${result.message}`;
+        // Check if passwords match
+        if (password !== verifyPassword) {
+            messageEl.style.color = 'red'; // Consistent with other error styles
+            messageEl.textContent = 'Passwords do not match.';
+            return;
         }
-      } catch (error) {
-        console.error('Registration error:', error);
-        messageEl.style.color = 'red';
-        messageEl.textContent = 'Could not connect to the server. Please try again.';
-      }
+
+        const hospitalData = {
+            hospitalName: document.getElementById("hospitalName").value,
+            address: document.getElementById("address").value,
+            pincode: document.getElementById("pincode").value,
+            phoneNumber: document.getElementById("registerPhone").value,
+            password: password
+        };
+        
+        try {
+            // --- CHANGED THIS LINE ---
+            const response = await fetch('/api/server/hospital-register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(hospitalData)
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`Registration successful! Your new Hospital ID is: ${result.hospitalId}`);
+                messageEl.style.color = 'green';
+                messageEl.textContent = `Registration complete! Your ID is ${result.hospitalId}. Please switch to the login tab.`;
+                showTab('login');
+            } else {
+                messageEl.style.color = 'red';
+                messageEl.textContent = `Registration failed: ${result.message}`;
+            }
+        } catch (error) {
+            console.error('Registration error:', error);
+            messageEl.style.color = 'red';
+            messageEl.textContent = 'Could not connect to the server. Please try again.';
+        }
     });
 
     // --- Login Logic (MODIFIED) ---
     loginForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
+        event.preventDefault();
+        const hospitalId = document.getElementById("hospitalId").value;
+        const password = document.getElementById("password").value;
 
-      const hospitalId = document.getElementById("hospitalId").value;
-      const password = document.getElementById("password").value;
+        try {
+            // --- CHANGED THIS LINE ---
+            const response = await fetch('/api/server/hospital-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hospitalId, password })
+            });
+            const result = await response.json();
 
-      try {
-        // --- CHANGED THIS LINE ---
-        const response = await fetch('/api/server/hospital-login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ hospitalId, password })
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-          sessionStorage.setItem('currentHospital', JSON.stringify(result.hospital));
-          messageEl.style.color = 'green';
-          messageEl.textContent = 'Login successful! Redirecting...';
-          setTimeout(() => {
-            window.location.href = "hospital-dashboard.html";
-          }, 1500);
-        } else {
-          messageEl.style.color = 'red';
-          messageEl.textContent = `Login failed: ${result.message}`;
+            if (result.success) {
+                sessionStorage.setItem('currentHospital', JSON.stringify(result.hospital));
+                messageEl.style.color = 'green';
+                messageEl.textContent = 'Login successful! Redirecting...';
+                setTimeout(() => {
+                    window.location.href = "hospital-dashboard.html";
+                }, 1500);
+            } else {
+                messageEl.style.color = 'red';
+                messageEl.textContent = `Login failed: ${result.message}`;
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            messageEl.style.color = 'red';
+            messageEl.textContent = 'Could not connect to the server. Please try again.';
         }
-      } catch (error) {
-        console.error('Login error:', error);
-        messageEl.style.color = 'red';
-        messageEl.textContent = 'Could not connect to the server. Please try again.';
-      }
     });
   </script>
-
   <footer>
-    <p>&copy; 2025 LifeLink</p>
-  </footer>
+        <p>© 2025 LifeLink</p>
+    </footer>
 
 </body>
-
 </html>
