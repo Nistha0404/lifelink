@@ -307,26 +307,72 @@ app.get('/api/server/requests/history/:patientId', async (req, res) => {
 });
 
 // HOSPITAL AUTHENTICATION
+/**
+ * API ENDPOINT: Register a New Hospital
+ * --------------------------------------
+ * UPDATED: Stores the password in plain text, as requested.
+ * Saves latitude and longitude to the database.
+ */
 app.post('/api/server/hospital-register', async (req, res) => {
-  const { hospitalName, address, pincode, phoneNumber, password } = req.body;
-  if (!hospitalName || !pincode || !phoneNumber || !password) {
-    return res.status(400).json({ success: false, message: 'All fields are required.' });
-  }
-  try {
-    const existing = await pool.query('SELECT 1 FROM hospitals WHERE phone_number = $1', [phoneNumber]);
-    if (existing.rows.length) return res.status(409).json({ success: false, message: 'Phone number already registered.' });
+    
+    // Get all data from the request body
+    const { 
+      hospitalName, 
+      address, 
+      pincode, 
+      phoneNumber, 
+      password, // This is the plain text password
+      latitude, 
+      longitude 
+    } = req.body;
 
-    const last = await pool.query('SELECT hospital_id FROM hospitals ORDER BY hospital_id DESC LIMIT 1');
-    const nextNum = last.rows.length ? parseInt(last.rows[0].hospital_id.replace('HOS','')) + 1 : 101;
-    const newId = `HOS${nextNum}`;
-    const ins = `
-      INSERT INTO hospitals (hospital_id, hospital_name, address, pincode, phone_number, password_hash, blood_inventory)
-      VALUES ($1,$2,$3,$4,$5,$6,'{}') RETURNING hospital_id`;
-    const { rows } = await pool.query(ins, [newId, hospitalName, address, pincode, phoneNumber, password]);
-    res.status(201).json({ success: true, hospitalId: rows[0].hospital_id });
-  } catch (e) {
-    console.error(e); res.status(500).json({ success: false, message: 'Server error.' });
-  }
+    // Validate that we actually received location data
+    if (latitude === undefined || longitude === undefined) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Location data (latitude, longitude) is missing. Registration failed.' 
+      });
+    }
+
+    try {
+        const newHospitalId = await generateUniqueHospitalId(); // Assumes this function exists
+        
+        // --- UPDATED SQL QUERY ---
+        // 'password_hash' column will now store the plain text password
+        const query = `
+            INSERT INTO hospital (
+              hospital_id, hospital_name, address, pincode, 
+              phone_number, password_hash, latitude, longitude
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING hospital_id;
+        `;
+        
+        // --- UPDATED VALUES ARRAY ---
+        // Using the 'password' variable directly instead of a hashed password
+        const values = [
+          newHospitalId, 
+          hospitalName, 
+          address, 
+          pincode, 
+          phoneNumber, 
+          password, // Storing plain text password
+          latitude, 
+          longitude
+        ];
+        
+        // Assumes your database connection pool is named 'pool'
+        const result = await pool.query(query, values);
+        
+        res.status(201).json({ 
+          success: true, 
+          hospitalId: result.rows[0].hospital_id 
+        });
+
+    } catch (error) {
+        console.error('Hospital registration error:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
 });
 
 app.post('/api/server/hospital-login', async (req, res) => {
