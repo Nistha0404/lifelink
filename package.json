@@ -1,9 +1,11 @@
 {
   "name": "backend-",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "backend/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node backend/server.js",
+    "dev": "node backend/server.js",
+    "test": "echo \"No test specified\" && exit 0"
   },
   "keywords": [],
   "author": "",
