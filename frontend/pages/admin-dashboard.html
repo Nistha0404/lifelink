@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - LifeLink</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="../css/style.css">
+    
+    <style>
+        /* Dashboard-specific styles using design system variables */
+        
+        /* Tab Navigation */
+        .dashboard-tabs {
+            display: flex;
+            gap: var(--space-2);
+            background: var(--neutral-100);
+            padding: var(--space-1);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-8);
+            overflow-x: auto;
+        }
+        
+        .dashboard-tab {
+            flex: 1;
+            min-width: 100px;
+            padding: var(--space-3) var(--space-4);
+            background: transparent;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: var(--text-sm);
+            font-weight: var(--font-medium);
+            color: var(--neutral-600);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            white-space: nowrap;
+        }
+        
+        .dashboard-tab.active {
+            background: white;
+            color: var(--primary-600);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .tab-content .card { margin-bottom: var(--space-6); }
+
+        /* Welcome Header */
+        .dashboard-header {
+            margin-bottom: var(--space-8);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: var(--space-4);
+        }
+        
+        .admin-info {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+            padding: var(--space-3) var(--space-4);
+            background: var(--neutral-100);
+            border-radius: var(--radius-lg);
+        }
+        
+        .admin-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-full);
+            background: var(--primary-600);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: var(--font-bold);
+            font-size: var(--text-lg);
+        }
+        
+        /* Data Item Lists */
+        .data-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: var(--space-4);
+            border-bottom: 1px solid var(--neutral-200);
+        }
+        .data-list-item:last-child { border-bottom: none; }
+        
+        /* Approval Card */
+        .approval-card.card {
+            border-left: 4px solid var(--warning);
+            margin-bottom: var(--space-4);
+        }
+        .approval-actions {
+            display: flex;
+            gap: var(--space-4);
+            margin-top: var(--space-4);
+            border-top: 1px solid var(--neutral-200);
+            padding-top: var(--space-4);
+        }
+        
+        /* Settings Row */
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-4) 0;
+            border-bottom: 1px solid var(--neutral-200);
+        }
+        .setting-row:last-child { border-bottom: none; }
+        
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--neutral-300);
+            transition: var(--transition-fast);
+            border-radius: var(--radius-full);
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: var(--transition-fast);
+            border-radius: var(--radius-full);
+        }
+        input:checked + .slider {
+            background-color: var(--primary-600);
+        }
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Status Badges */
+        .badge {
+            display: inline-block;
+            padding: var(--space-1) var(--space-3);
+            font-size: var(--text-xs);
+            font-weight: var(--font-semibold);
+            border-radius: var(--radius-full);
+            text-transform: uppercase;
+        }
+        .badge-success { background: var(--success-light); color: var(--success); }
+        .badge-warning { background: var(--warning-light); color: var(--warning); }
+        .badge-error { background: var(--error-light); color: var(--error); }
+        .badge-neutral { background: var(--neutral-200); color: var(--neutral-700); }
+        
+        /* Message Area */
+        .message-area {
+            margin-top: var(--space-4);
+            padding: var(--space-4);
+            border-radius: var(--radius-lg);
+            display: none;
+            border: 1px solid transparent;
+        }
+        .message-area.message-success {
+            display: block;
+            background: var(--success-light);
+            color: var(--success);
+            border-color: var(--success);
+        }
+        .message-area.message-error {
+            display: block;
+            background: var(--error-light);
+            color: var(--error);
+            border-color: var(--error);
+        }
+        
+        .loading, .empty-state {
+            text-align: center;
+            padding: var(--space-8);
+            color: var(--neutral-500);
+        }
+        
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div id="loadingScreen" class="loading-screen">
+    <div class="loading">
+        <h3>Verifying authentication...</h3>
+    </div>
+</div>
+
+<header id="main-header">
+    <div class="header-container">
+        <a href="index.html" class="logo">
+            <img src="../assets/lifeLinklogoD.png" alt="LifeLink Logo" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2240%22 height=%2240%22><circle cx=%2220%22 cy=%2220%22 r=%2218%22 fill=%22%23f43f5e%22/><path d=%22M20 8v12M14 14h12%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22/></svg>'">
+            <span>LifeLink</span>
+        </a>
+        <nav id="main-nav">
+             <button id="logoutBtn" class="btn btn-outline btn-sm">Logout</button>
+        </nav>
+        <button class="mobile-menu-toggle" aria-label="Toggle menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+    </div>
+</header>
+
+<main id="mainContent" style="display: none;">
+    <section class="section" style="background: white;">
+        <div class="section-container">
+            <div class="dashboard-header">
+                <div>
+                    <h2 id="welcome-message" style="margin: 0;">Admin Dashboard</h2>
+                    <p style="color: var(--neutral-600); margin-top: var(--space-2);">
+                        Welcome back, <span id="adminNameDisplay">Admin</span>
+                    </p>
+                </div>
+                <div class="admin-info">
+                    <div class="admin-avatar" id="adminAvatar">A</div>
+                    <div>
+                        <div style="font-weight: var(--font-semibold);" id="adminFullName">Admin</div>
+                        <div style="font-size: var(--text-sm); color: var(--neutral-600);" id="adminPhoneDisplay">+91 XXXXXXXXXX</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-tabs">
+                <button class="dashboard-tab active" onclick="showTab('overview', event)">Overview</button>
+                <button class="dashboard-tab" onclick="showTab('approvals', event)">Approvals</button>
+                <button class="dashboard-tab" onclick="showTab('settings', event)">Settings</button>
+                <button class="dashboard-tab" onclick="showTab('playbooks', event)">Playbooks</button>
+                <button class="dashboard-tab" onclick="showTab('sos-monitor', event)">SOS Monitor</button>
+            </div>
+
+            <!-- TAB 1: OVERVIEW -->
+            <div id="overview" class="tab-content active">
+                <div class="grid grid-cols-1 grid-cols-md-2 grid-cols-lg-3 gap-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h3 class="card-title">Total Users</h3>
+                            <p style="font-size: var(--text-4xl); font-weight: var(--font-bold); color: var(--primary-600); margin: var(--space-4) 0;">
+                                <span id="totalUsers">0</span>
+                            </p>
+                            <p style="color: var(--neutral-600); font-size: var(--text-sm);">Registered in the system</p>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h3 class="card-title">Active Requests</h3>
+                            <p style="font-size: var(--text-4xl); font-weight: var(--font-bold); color: var(--warning); margin: var(--space-4) 0;">
+                                <span id="activeRequests">0</span>
+                            </p>
+                            <p style="color: var(--neutral-600); font-size: var(--text-sm);">Pending blood requests</p>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h3 class="card-title">System Status</h3>
+                            <p style="font-size: var(--text-2xl); font-weight: var(--font-bold); color: var(--success); margin: var(--space-4) 0;">
+                                ✓ Operational
+                            </p>
+                            <p style="color: var(--neutral-600); font-size: var(--text-sm);">All systems running</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: APPROVALS -->
+            <div id="approvals" class="tab-content">
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title">Pending Approvals</h3>
+                        <div id="approvals-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: SETTINGS -->
+            <div id="settings" class="tab-content">
+                <div class="card">
+                    <div class="card-body">
+                        <h3 class="card-title">System Settings</h3>
+                        <div class="setting-row">
+                            <div>
+                                <strong>Auto-approve SOS requests</strong>
+                                <p style="font-size: var(--text-sm); color: var(--neutral-600); margin-top: 5px;">
+                                    Automatically approve eligible blood donation requests
+                                </p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="auto-approve-toggle" onchange="updateAutoApprove()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div class="setting-row">
+                            <div>
+                                <strong>Escalation Time (minutes)</strong>
+                                <p style="font-size: var(--text-sm); color: var(--neutral-600); margin-top: 5px;">
+                                    Time before escalating to all donors
+                                </p>
+                            </div>
+                            <input 
+                                type="number" 
+                                id="escalation-time" 
+                                class="form-input" 
+                                style="width: 100px;"
+                                min="5"
+                                max="60"
+                            >
+                        </div>
+                        
+                        <div class="setting-row">
+                            <div>
+                                <strong>Donor Search Radius (km)</strong>
+                                <p style="font-size: var(--text-sm); color: var(--neutral-600); margin-top: 5px;">
+                                    Maximum distance to search for donors
+                                </p>
+                            </div>
+                            <input 
+                                type="number" 
+                                id="donor-radius" 
+                                class="form-input" 
+                                style="width: 100px;"
+                                min="5"
+                                max="100"
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            
+
+            <!-- TAB 5: PLAYBOOKS -->
+            <div id="playbooks" class="tab-content">
+                <div class="card">
+                    <div class="card-body">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                            <h3 class="card-title" style="margin: 0;">Hospital Playbooks</h3>
+                            <button class="btn btn-primary btn-sm" onclick="showCreatePlaybook()">+ Create New</button>
+                        </div>
+                        
+                        <div id="create-playbook-form" style="display: none; margin-bottom: var(--space-6); padding: var(--space-4); background: var(--neutral-50); border-radius: var(--radius-lg);">
+                            <h4 style="margin-bottom: var(--space-4);">Create New Playbook</h4>
+                            <div class="form-group">
+                                <label class="form-label">Title</label>
+                                <input type="text" id="pb-title" class="form-input" placeholder="Playbook title">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Category</label>
+                                <select id="pb-category" class="form-input">
+                                    <option value="Emergency">Emergency</option>
+                                    <option value="Rare Blood">Rare Blood</option>
+                                    <option value="Apheresis">Apheresis</option>
+                                    <option value="General">General</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Content</label>
+                                <textarea id="pb-content" class="form-input" rows="6" placeholder="Playbook content..."></textarea>
+                            </div>
+                            <div style="display: flex; gap: var(--space-2);">
+                                <button class="btn btn-primary btn-sm" onclick="saveAdminPlaybook()">Save Playbook</button>
+                                <button class="btn btn-outline btn-sm" onclick="hideCreatePlaybook()">Cancel</button>
+                            </div>
+                            <div id="playbook-message" class="message-area"></div>
+                        </div>
+                        
+                        <div id="playbooks-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 6: SOS MONITOR -->
+            <div id="sos-monitor" class="tab-content">
+                <div class="card">
+                    <div class="card-body">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                            <h3 class="card-title" style="margin: 0;">Live SOS Requests</h3>
+                            <button class="btn btn-outline btn-sm" onclick="refreshSOSMonitor()">🔄 Refresh</button>
+                        </div>
+                        <div id="sos-monitor-list"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+</main>
+
+<script>
+// ============================================================================
+// AUTHENTICATION & SESSION MANAGEMENT
+// ============================================================================
+
+let currentAdminData = null;
+
+// Check authentication on page load
+async function checkAuthentication() {
+    const token = sessionStorage.getItem('adminToken');
+    const adminName = sessionStorage.getItem('adminName');
+    const adminPhone = sessionStorage.getItem('adminPhone');
+    
+    if (!token) {
+        console.log('No auth token found, redirecting to login...');
+        window.location.href = 'admin-login.html';
+        return false;
+    }
+    
+    // Store admin data
+    currentAdminData = {
+        name: adminName,
+        phone: adminPhone
+    };
+    
+    // Update UI with admin info
+    updateAdminDisplay();
+    
+    // Hide loading screen and show content
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('mainContent').style.display = 'block';
+    
+    return true;
+}
+
+function updateAdminDisplay() {
+    if (!currentAdminData) return;
+    
+    const adminName = currentAdminData.name || 'Admin';
+    const adminPhone = currentAdminData.phone || '';
+    
+    // Update name displays
+    document.getElementById('adminNameDisplay').textContent = adminName;
+    document.getElementById('adminFullName').textContent = adminName;
+    
+    // Update phone display
+    if (adminPhone) {
+        document.getElementById('adminPhoneDisplay').textContent = `+91 ${adminPhone}`;
+    }
+    
+    // Update avatar with first letter
+    const firstLetter = adminName.charAt(0).toUpperCase();
+    document.getElementById('adminAvatar').textContent = firstLetter;
+}
+
+// Logout functionality
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+    if (confirm('Are you sure you want to logout?')) {
+        try {
+            const token = sessionStorage.getItem('adminToken');
+            
+            // Call logout API
+            await fetch('/api/server/logout/admin', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+        
+        // Clear session data
+        sessionStorage.removeItem('adminToken');
+        sessionStorage.removeItem('adminName');
+        sessionStorage.removeItem('adminPhone');
+        
+        // Redirect to login
+        window.location.href = 'admin-login.html';
+    }
+});
+
+// Run authentication check
+checkAuthentication();
+
+// ============================================================================
+// TAB MANAGEMENT
+// ============================================================================
+
+function showTab(tabName, event) {
+    if (event) {
+        document.querySelectorAll('.dashboard-tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
+    }
+    
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(tabName).classList.add('active');
+    
+    // Load data when tab is shown
+    if (tabName === 'overview') loadOverview();
+    if (tabName === 'approvals') loadApprovals();
+    if (tabName === 'settings') loadSettings();
+    if (tabName === 'playbooks') loadPlaybooks();
+    if (tabName === 'sos-monitor') refreshSOSMonitor();
+}
+
+function showMessage(elementId, text, type) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.textContent = text;
+    el.className = `message-area message-${type}`;
+}
+
+// ============================================================================
+// TAB 1: OVERVIEW
+// ============================================================================
+
+function loadOverview() {
+    // MOCK: In production, fetch real stats from API
+    document.getElementById('totalUsers').textContent = '1,234';
+    document.getElementById('activeRequests').textContent = '12';
+}
+
+// ============================================================================
+// TAB 2: APPROVALS
+// ============================================================================
+
+function loadApprovals() {
+    const container = document.getElementById('approvals-list');
+    
+    // MOCK: In production, fetch from backend
+    const approvals = [
+        { id: 1, type: 'Donor', name: 'John Doe', detail: 'First-time donor' },
+        { id: 2, type: 'Hospital', name: 'City Hospital', detail: 'New registration' }
+    ];
+    
+    if (approvals.length === 0) {
+        container.innerHTML = '<p class="empty-state">No pending approvals</p>';
+        return;
+    }
+    
+    container.innerHTML = '';
+    approvals.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'approval-card card';
+        div.innerHTML = `
+            <div class="card-body">
+                <h4 class="card-title">${item.type}: ${item.name}</h4>
+                <p style="color: var(--neutral-600);">${item.detail}</p>
+                <div class="approval-actions">
+                    <button class="btn btn-success btn-sm" onclick="handleApproval('${item.type}', ${item.id}, true)">
+                        ✓ Approve
+                    </button>
+                    <button class="btn btn-error btn-sm" onclick="handleApproval('${item.type}', ${item.id}, false)">
+                        ✗ Reject
+                    </button>
+                </div>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function handleApproval(type, id, isApproved) {
+    console.log(`Handling approval for ${type} ${id}: ${isApproved}`);
+    alert(`${type} ${isApproved ? 'Approved' : 'Rejected'}! (Demo)`);
+    loadApprovals();
+}
+
+// ============================================================================
+// TAB 3: SETTINGS
+// ============================================================================
+
+function loadSettings() {
+    const autoApprove = localStorage.getItem('autoApproveSOS') === 'true';
+    document.getElementById('auto-approve-toggle').checked = autoApprove;
+    
+    const escalationTime = localStorage.getItem('escalationTime') || '10';
+    document.getElementById('escalation-time').value = escalationTime;
+    
+    const donorRadius = localStorage.getItem('donorRadius') || '15';
+    document.getElementById('donor-radius').value = donorRadius;
+}
+
+function updateAutoApprove() {
+    const isEnabled = document.getElementById('auto-approve-toggle').checked;
+    localStorage.setItem('autoApproveSOS', isEnabled);
+    alert(`Auto-approve ${isEnabled ? 'ENABLED' : 'DISABLED'}.`);
+}
+
+document.getElementById('escalation-time')?.addEventListener('change', (e) => {
+    localStorage.setItem('escalationTime', e.target.value);
+    alert(`Escalation time updated to ${e.target.value} minutes`);
+});
+
+document.getElementById('donor-radius')?.addEventListener('change', (e) => {
+    localStorage.setItem('donorRadius', e.target.value);
+    alert(`Donor search radius updated to ${e.target.value} km`);
+});
+
+
+// ============================================================================
+// TAB 5: PLAYBOOKS
+// ============================================================================
+
+function showCreatePlaybook() {
+    document.getElementById('create-playbook-form').style.display = 'block';
+}
+
+function hideCreatePlaybook() {
+    document.getElementById('create-playbook-form').style.display = 'none';
+    document.getElementById('pb-title').value = '';
+    document.getElementById('pb-content').value = '';
+}
+
+async function saveAdminPlaybook() {
+    const title = document.getElementById('pb-title').value.trim();
+    const category = document.getElementById('pb-category').value;
+    const content = document.getElementById('pb-content').value.trim();
+    
+    if (!title || !content) {
+        showMessage('playbook-message', 'Title and content are required', 'error');
+        return;
+    }
+    
+    console.log('Saving playbook:', { title, category, content });
+    showMessage('playbook-message', 'Playbook saved successfully!', 'success');
+    
+    hideCreatePlaybook();
+    loadPlaybooks();
+}
+
+function loadPlaybooks() {
+    const container = document.getElementById('playbooks-list');
+    const playbooks = [
+        { id: 1, title: 'Emergency Blood Shortage Protocol', category: 'Emergency' },
+        { id: 2, title: 'Rare Blood Type Handling (Bombay)', category: 'Rare Blood' },
+        { id: 3, title: 'Apheresis Donation Procedure', category: 'Apheresis' }
+    ];
+    
+    container.innerHTML = '';
+    playbooks.forEach(pb => {
+        container.innerHTML += `
+            <div class="card">
+                <div class="card-body">
+                    <span class="badge badge-info">${pb.category}</span>
+                    <h4 class="card-title" style="margin-top: var(--space-2);">${pb.title}</h4>
+                    <button class="btn btn-outline btn-sm" onclick="alert('Edit functionality would open a form')">Edit</button>
+                </div>
+            </div>
+        `;
+    });
+}
+
+// ============================================================================
+// TAB 6: SOS MONITOR
+// ============================================================================
+
+async function refreshSOSMonitor() {
+    const container = document.getElementById('sos-monitor-list');
+    container.innerHTML = '<div class="loading">Loading...</div>';
+    
+    try {
+        // MOCK DATA - In production, fetch from API
+        const requests = [
+            { request_id: 'R123', blood_type_needed: 'O+', patient_name: 'A. Kumar', status: 'pending', hospital_name: 'Pending', created_at: new Date() },
+            { request_id: 'R124', blood_type_needed: 'A-', patient_name: 'S. Verma', status: 'accepted', hospital_name: 'City Hospital', created_at: new Date(Date.now() - 300000) }
+        ];
+        
+        if (!requests || requests.length === 0) {
+            container.innerHTML = '<p class="empty-state">No active SOS requests</p>';
+            return;
+        }
+        
+        container.innerHTML = '';
+        requests.forEach(req => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.innerHTML = `
+                <div class="card-body">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <h4 class="card-title">🩸 ${req.blood_type_needed} - ${req.patient_name || 'Patient'}</h4>
+                        ${getStatusBadge(req.status)}
+                    </div>
+                    <p style="color: var(--neutral-600); margin: var(--space-2) 0 0 0;">
+                        <strong>Hospital:</strong> ${req.hospital_name || 'Pending assignment'}<br>
+                        <strong>Request ID:</strong> ${req.request_id}<br>
+                        <strong>Created:</strong> ${new Date(req.created_at).toLocaleString()}
+                    </p>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    } catch (error) {
+        console.error('Error refreshing SOS monitor:', error);
+        container.innerHTML = '<p class="empty-state" style="color: var(--error);">Error loading SOS requests.</p>';
+    }
+}
+
+function getStatusBadge(status) {
+    status = (status || 'pending').toLowerCase();
+    const badges = {
+        'pending': '<span class="badge badge-warning">Pending</span>',
+        'accepted': '<span class="badge badge-success">Accepted</span>',
+        'escalated': '<span class="badge badge-error">Escalated</span>',
+        'completed': '<span class="badge badge-neutral">Completed</span>'
+    };
+    return badges[status] || status;
+}
+
+// Initialize on load
+window.addEventListener('DOMContentLoaded', () => {
+    loadOverview();
+});
+
+</script>
+
+</body>
+</html>
