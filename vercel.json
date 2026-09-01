@@ -1,8 +1,37 @@
 {
+  "version": 2,
   "rewrites": [
     {
-      "source": "/api/server/:path*",
-      "destination": "/backend/server.js"
+      "source": "/api/server/(.*)",
+      "destination": "/api/server.js"
+    },
+    {
+      "source": "/api/server",
+      "destination": "/api/server.js"
+    },
+    {
+      "source": "/css/(.*)",
+      "destination": "/frontend/css/$1"
+    },
+    {
+      "source": "/js/(.*)",
+      "destination": "/frontend/js/$1"
+    },
+    {
+      "source": "/assets/(.*)",
+      "destination": "/frontend/assets/$1"
+    },
+    {
+      "source": "/pages/(.*)",
+      "destination": "/frontend/pages/$1"
+    },
+    {
+      "source": "/",
+      "destination": "/frontend/index.html"
+    },
+    {
+      "source": "/index.html",
+      "destination": "/frontend/index.html"
     }
   ]
 }

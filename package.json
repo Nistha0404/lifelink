@@ -1,16 +1,21 @@
 {
-  "name": "backend-",
+  "name": "lifelink",
   "version": "1.0.0",
+  "description": "LifeLink - Modern Blood Donation & Management Platform connecting donors, patients, and hospitals.",
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
     "dev": "node backend/server.js",
-    "test": "echo \"No test specified\" && exit 0"
+    "check:backend": "node --check backend/server.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "blood-donation",
+    "healthcare",
+    "emergency-response",
+    "lifelink"
+  ],
+  "author": "hharshitarajoria",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "axios": "^1.13.1",
     "bcrypt": "^6.0.0",
